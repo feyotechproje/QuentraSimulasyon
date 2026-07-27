@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quentra Key Breaker · SQL Injection Defense Simulation</title>
+  <link rel="stylesheet" href="/shared/quentra-i18n.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ================= TOP TOOLBAR ================= -->
+    <header class="toolbar">
+      <div class="brand">
+        <span class="brand-mark" id="brandMark" aria-hidden="true"></span>
+        <div class="brand-txt">
+          <span class="brand-name"><b>KEY BREAKER</b></span>
+          <span class="brand-sub" data-i18n="brand.sub">Stops SQL injection attacks before they reach your database</span>
+        </div>
+      </div>
+
+      <div class="toolbar-center">
+        <div class="tc-block">
+          <span class="tc-label" data-i18n="tc.status">Status</span>
+          <span class="status-pill" id="statusPill" data-state="running">
+            <span class="status-dot"></span><span id="statusLabel" data-i18n="status.running">SIMULATION RUNNING</span>
+          </span>
+        </div>
+        <div class="tc-sep"></div>
+        <div class="tc-block">
+          <span class="tc-label" data-i18n="tc.mode">Current Mode</span>
+          <span class="mode-pill" id="modePill" data-mode="active" data-i18n="mode.pill.active">KEY BREAKER ACTIVE</span>
+        </div>
+        <div class="tc-sep"></div>
+        <div class="tc-block">
+          <span class="tc-label" data-i18n="tc.time">Simulation Time</span>
+          <span class="clock" id="simClock">00:00</span>
+        </div>
+      </div>
+
+      <div class="toolbar-controls">
+        <div class="mode-group" role="group" aria-label="Mode">
+          <button class="mode-btn" id="btnOff" type="button" data-i18n="mode.off">Protection Off</button>
+          <button class="mode-btn is-on" id="btnActive" type="button" data-i18n="mode.active">Key Breaker Active</button>
+          <button class="mode-btn is-auto" id="btnAuto" type="button" data-i18n="mode.auto">Auto Demo</button>
+        </div>
+        <div class="btn-group">
+          <button class="btn" id="btnPause" type="button" data-i18n="btn.pause">Pause</button>
+          <button class="btn" id="btnResume" type="button" data-i18n="btn.resume">Resume</button>
+          <button class="btn btn-ghost" id="btnReset" type="button" data-i18n="btn.reset">Reset</button>
+        </div>
+        <div class="speed-group" role="group" aria-label="Speed">
+          <button class="speed-btn" data-speed="0.5" type="button">0.5×</button>
+          <button class="speed-btn is-active" data-speed="1" type="button">1×</button>
+          <button class="speed-btn" data-speed="2" type="button">2×</button>
+          <button class="speed-btn" data-speed="4" type="button">4×</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================= KPI STRIP ================= -->
+    <section class="kpi-strip" id="kpiStrip"></section>
+
+    <!-- ================= MAIN GRID ================= -->
+    <main class="grid">
+      <!-- LEFT: attackers -->
+      <aside class="col col-left">
+        <section class="panel" id="attackersPanel">
+          <div class="panel-head"><span class="ph-icon danger">◈</span><h3 data-i18n="panel.attackers">External Attackers</h3></div>
+          <div class="attacker-list" id="attackerList"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span class="ph-icon">◇</span><h3 data-i18n="panel.dist">Attack Type Distribution</h3></div>
+          <div class="dist-list" id="distList"></div>
+        </section>
+      </aside>
+
+      <!-- CENTER: canvas stage -->
+      <section class="stage">
+        <canvas id="scene"></canvas>
+        <div class="stage-hint" id="stageHint" data-i18n="hint.stage">Click a packet, the Key Breaker or the database for details</div>
+        <div class="toggle-bar">
+          <label class="tgl"><input type="checkbox" id="tglPaths" checked /> <span data-i18n="tgl.paths">Attack Paths</span></label>
+          <label class="tgl"><input type="checkbox" id="tglSafe" checked /> <span data-i18n="tgl.safe">Safe Queries</span></label>
+          <label class="tgl"><input type="checkbox" id="tglThreat" checked /> <span data-i18n="tgl.threat">Threat Analysis</span></label>
+          <label class="tgl"><input type="checkbox" id="tglParticles" checked /> <span data-i18n="tgl.particles">Particles</span></label>
+        </div>
+      </section>
+
+      <!-- RIGHT: telemetry -->
+      <aside class="col col-right">
+        <section class="panel" id="inspectorPanel">
+          <div class="panel-head"><span class="ph-icon">⌖</span><h3 id="inspectorTitle" data-i18n="insp.currentAttack">Current Attack</h3></div>
+          <div class="detail-list" id="inspector"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span class="ph-icon secure">▤</span><h3 data-i18n="panel.serverStatus">Server Status</h3></div>
+          <div class="server-box" id="serverBox"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span class="ph-icon">⚡</span><h3 data-i18n="panel.feed">Live Attack Feed</h3></div>
+          <div class="feed" id="feed"></div>
+        </section>
+      </aside>
+    </main>
+
+    <!-- ================= BOTTOM STRIP ================= -->
+    <footer class="bottom">
+      <section class="panel panel-flat">
+        <div class="panel-head"><span class="ph-icon">◆</span><h3 data-i18n="panel.kbStatus">Key Breaker Status</h3></div>
+        <div class="kb-status" id="kbStatus"></div>
+      </section>
+      <section class="panel panel-flat">
+        <div class="panel-head"><span class="ph-icon">↯</span><h3 data-i18n="panel.pipeline">Threat Analysis Pipeline</h3></div>
+        <div class="pipeline" id="pipeline"></div>
+      </section>
+      <section class="panel panel-flat">
+        <div class="panel-head"><span class="ph-icon">◷</span><h3 data-i18n="panel.trend">Protection Overview · Blocked vs Allowed</h3></div>
+        <canvas id="trend"></canvas>
+      </section>
+    </footer>
+  </div>
+
+  <div class="cinematic" id="cinematic"><span id="cinematicText"></span></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quentra · Distributed Report Cache Simulation</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="/shared/quentra-i18n.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ================= TOP TOOLBAR ================= -->
+    <header class="toolbar">
+      <div class="brand">
+        <img src="/assets/quentra-logo.png" alt="Quentra" style="height:26px;width:auto;display:block" />
+        <div class="brand-txt">
+          <span class="brand-name"><b data-i18n="brand.name">Report Cache</b></span>
+          <span class="brand-sub" data-i18n="brand.sub">Distributed Report Cache Simulation</span>
+        </div>
+      </div>
+
+      <div class="toolbar-center">
+        <div class="tc-block">
+          <span class="tc-label" data-i18n="tc.status">Status</span>
+          <span class="status-pill" id="statusPill" data-state="running">
+            <span class="status-dot"></span><span id="statusLabel" data-i18n="st.running">SIMULATION RUNNING</span>
+          </span>
+        </div>
+        <div class="tc-sep"></div>
+        <div class="tc-block">
+          <span class="tc-label" data-i18n="tc.mode">Current Mode</span>
+          <span class="mode-pill" id="modePill" data-mode="baseline" data-i18n="mode.baseline">BASELINE</span>
+        </div>
+        <div class="tc-sep"></div>
+        <div class="tc-block">
+          <span class="tc-label" data-i18n="tc.time">Simulation Time</span>
+          <span class="clock" id="simClock">00:00</span>
+        </div>
+      </div>
+
+      <div class="toolbar-controls">
+        <div class="src-group" role="group" aria-label="Data source">
+          <button class="src-btn is-active" id="btnDemo" type="button" data-i18n="btn.demo">Demo</button>
+          <button class="src-btn" id="btnLive" type="button" data-i18n="btn.live">Live</button>
+        </div>
+        <div class="mode-group" role="group" aria-label="Mode">
+          <button class="mode-btn" id="btnBaseline" type="button" data-i18n="btn.baseline">Baseline</button>
+          <button class="mode-btn" id="btnCache" type="button" data-i18n="btn.cache">Quentra Cache</button>
+          <button class="mode-btn is-auto" id="btnAuto" type="button" data-i18n="btn.auto">Auto Demo</button>
+        </div>
+        <div class="btn-group">
+          <button class="btn" id="btnPause" type="button" data-i18n="btn.pause">Pause</button>
+          <button class="btn" id="btnResume" type="button" data-i18n="btn.resume">Resume</button>
+          <button class="btn btn-danger" id="btnStop" type="button" data-i18n="btn.stop">Stop</button>
+          <button class="btn btn-ghost" id="btnReset" type="button" data-i18n="btn.reset">Reset</button>
+        </div>
+        <div class="speed-group" role="group" aria-label="Speed">
+          <span class="speed-label" data-i18n="speed.label">Speed</span>
+          <button class="speed-btn" data-speed="0.5" type="button">0.5x</button>
+          <button class="speed-btn is-active" data-speed="1" type="button">1x</button>
+          <button class="speed-btn" data-speed="2" type="button">2x</button>
+          <button class="speed-btn" data-speed="4" type="button">4x</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============ LIVE STRIP (only shown in Live mode) ============ -->
+    <section class="live-strip" id="liveStrip" hidden>
+      <span class="live-badge" id="liveBadge" data-i18n="live.badge">LIVE — REAL SQL</span>
+      <span class="live-item">
+        <span class="live-k" data-i18n="live.path">Path</span>
+        <span class="live-v mono" id="livePath">—</span>
+      </span>
+      <span class="live-item">
+        <span class="live-k" data-i18n="live.proc">Procedure</span>
+        <span class="live-v mono" id="liveProc">—</span>
+      </span>
+      <span class="live-item">
+        <span class="live-k" data-i18n="live.last">Last</span>
+        <span class="live-v mono" id="liveLast">—</span>
+      </span>
+      <span class="live-item">
+        <span class="live-k" data-i18n="live.avg">Avg (1s)</span>
+        <span class="live-v mono" id="liveAvg">—</span>
+      </span>
+      <span class="live-item">
+        <span class="live-k" data-i18n="live.baselineAvg">Direct avg</span>
+        <span class="live-v mono" id="liveBaseAvg">—</span>
+      </span>
+      <span class="live-item">
+        <span class="live-k" data-i18n="live.quentraAvg">Quentra avg</span>
+        <span class="live-v mono" id="liveQuenAvg">—</span>
+      </span>
+      <span class="live-item">
+        <span class="live-k" data-i18n="live.runs">Executions</span>
+        <span class="live-v mono" id="liveRuns">—</span>
+      </span>
+      <span class="live-err" id="liveErr" hidden></span>
+    </section>
+
+    <!-- ================= KPI ROW ================= -->
+    <section class="kpi-row" id="kpiRow"></section>
+
+    <!-- ================= BODY ================= -->
+    <div class="body">
+      <!-- Canvas stage -->
+      <section class="stage">
+        <div class="stage-callout" id="callout" hidden><span id="calloutText"></span></div>
+        <canvas id="stage"></canvas>
+        <div class="stage-legend">
+          <span class="lg lg-sql"><i></i><span data-i18n="legend.sql">Heavy SQL request</span></span>
+          <span class="lg lg-hit"><i></i><span data-i18n="legend.hit">Cache hit response</span></span>
+          <span class="lg lg-miss"><i></i><span data-i18n="legend.miss">Cache miss</span></span>
+        </div>
+      </section>
+
+      <!-- Side panels -->
+      <aside class="side">
+        <div class="panel" id="pInspect" hidden>
+          <div class="panel-head"><h3 id="inspectTitle" data-i18n="panel.inspect">Selection</h3>
+            <button class="x" id="inspectClose" type="button">×</button></div>
+          <div class="panel-body" id="inspectBody"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3 data-i18n="panel.report">Current Report</h3><span class="tag tag-purple" id="reportSourceTag" data-i18n="src.sql">SQL SERVER</span></div>
+          <div class="panel-body" id="currentReport"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3 data-i18n="panel.cache">Cache Status</h3><span class="tag" id="cacheStateTag" data-i18n="cacheState.EMPTY">EMPTY</span></div>
+          <div class="panel-body" id="cacheStatus"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3 data-i18n="panel.sqlLoad">SQL Server Load</h3></div>
+          <div class="panel-body" id="sqlLoad"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3 data-i18n="panel.feed">Live Request Feed</h3></div>
+          <div class="panel-body feed" id="feed"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3 data-i18n="panel.locations">Location Status</h3></div>
+          <div class="panel-body loc-list" id="locList"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

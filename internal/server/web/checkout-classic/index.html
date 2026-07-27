@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Supermarket Checkout Simulation</title>
+<link rel="stylesheet" href="/shared/quentra-i18n.css" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div id="app">
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <img src="/assets/quentra-logo.png" alt="Quentra" style="height:34px;width:auto;display:block" />
+      <div>
+        <h1 data-i18n="brand.title">Supermarket Checkout Simulation</h1>
+        <div class="subtitle" data-i18n="brand.subtitle">QUENTRA_RETAIL · real-time register floor</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="simState" class="sim-state state-idle" data-i18n="state.idle">IDLE</span>
+      <span id="connDot" class="conn-dot" title="stream disconnected" data-i18n-attr="title:conn.tooltip"></span>
+    </div>
+  </header>
+
+  <!-- Controls + settings -->
+  <section class="panel settings-panel">
+    <div class="panel-head">
+      <h2 data-i18n="settings.title">Simulation Settings</h2>
+      <button id="toggleSettings" class="ghost-btn" data-i18n="settings.toggle.hide">Hide</button>
+    </div>
+    <div id="settingsBody" class="settings-grid">
+      <label><span data-i18n="field.totalCustomers">Total customers</span><input type="number" id="s_totalCustomers" min="1" /></label>
+      <label><span data-i18n="field.registerCount">Registers</span><input type="number" id="s_registerCount" min="1" /></label>
+      <label><span data-i18n="field.itemsPerCustomer">Items / customer</span><input type="number" id="s_itemsPerCustomer" min="1" /></label>
+      <label><span data-i18n="field.minQty">Min qty</span><input type="number" id="s_minQty" min="1" /></label>
+      <label><span data-i18n="field.maxQty">Max qty</span><input type="number" id="s_maxQty" min="1" /></label>
+      <label><span data-i18n="field.scanMs">Scan time (ms)</span><input type="number" id="s_scanMs" min="0" /></label>
+      <label><span data-i18n="field.receiptMs">Receipt time (ms)</span><input type="number" id="s_receiptMs" min="0" /></label>
+      <label><span data-i18n="field.arrivalMs">Arrival interval (ms)</span><input type="number" id="s_arrivalMs" min="0" /></label>
+      <label><span data-i18n="field.speed">Speed (x)</span><input type="number" id="s_speed" min="0.1" step="0.1" /></label>
+      <label><span data-i18n="field.maxConcurrent">Max concurrent (0=∞)</span><input type="number" id="s_maxConcurrent" min="0" /></label>
+      <label><span data-i18n="field.seed">Random seed</span><input type="number" id="s_seed" /></label>
+      <label><span data-i18n="field.dispatchMode">Dispatch mode</span>
+        <select id="s_dispatchMode">
+          <option value="estimatedWait" data-i18n="dispatch.estimatedWait">Lowest estimated wait</option>
+          <option value="shortestQueue" data-i18n="dispatch.shortestQueue">Shortest queue</option>
+          <option value="roundRobin" data-i18n="dispatch.roundRobin">Round-robin</option>
+          <option value="random" data-i18n="dispatch.random">Random</option>
+          <option value="fewestItems" data-i18n="dispatch.fewestItems">Fewest items</option>
+        </select>
+      </label>
+      <label class="chk"><input type="checkbox" id="s_autoDistribute" /> <span data-i18n="field.autoDistribute">Auto register distribution</span></label>
+      <label class="chk"><input type="checkbox" id="s_allowRepeatCustomer" /> <span data-i18n="field.allowRepeatCustomer">Allow repeat customers</span></label>
+      <label class="chk"><input type="checkbox" id="s_perUnitScan" /> <span data-i18n="field.perUnitScan">Per-unit scan timing</span></label>
+    </div>
+
+    <div class="controls">
+      <button id="btnEnvCheck" class="btn btn-neutral" data-i18n="btn.envCheck">Environment Check</button>
+      <span class="spacer"></span>
+      <button id="btnStart" class="btn btn-primary" data-i18n="btn.start">Start</button>
+      <button id="btnPause" class="btn" data-i18n="btn.pause">Pause</button>
+      <button id="btnResume" class="btn" data-i18n="btn.resume">Resume</button>
+      <button id="btnStop" class="btn btn-danger" data-i18n="btn.stop">Stop</button>
+      <button id="btnReset" class="btn" data-i18n="btn.reset">Reset</button>
+      <span class="divider"></span>
+      <button id="btnAddCustomer" class="btn btn-small" data-i18n="btn.addCustomer">Add Customer</button>
+      <button id="btnOpenReg" class="btn btn-small" data-i18n="btn.openRegister">Open Register</button>
+      <button id="btnCloseReg" class="btn btn-small" data-i18n="btn.closeRegister">Close Register</button>
+    </div>
+
+    <div id="envResults" class="env-results hidden"></div>
+  </section>
+
+  <!-- KPI cards -->
+  <section class="kpi-row" id="kpiRow"></section>
+
+  <div class="progress-wrap">
+    <div class="progress-label"><span data-i18n="progress.label">Completed Customers</span><span id="progressText">0 / 0</span></div>
+    <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+  </div>
+
+  <!-- Register floor -->
+  <section class="panel floor-panel">
+    <div class="panel-head"><h2 data-i18n="floor.title">Register Floor</h2><span id="floorMeta" class="meta"></span></div>
+    <div id="registerFloor" class="register-floor"></div>
+  </section>
+
+  <!-- Bottom tabs -->
+  <section class="panel bottom-panel">
+    <div class="tabs">
+      <button class="tab active" data-tab="activity" data-i18n="tab.activity">Activity</button>
+      <button class="tab" data-tab="completed" data-i18n="tab.completed">Completed Sales</button>
+      <button class="tab" data-tab="waiting" data-i18n="tab.waiting">Waiting Customers</button>
+      <button class="tab" data-tab="errors" data-i18n="tab.errors">Errors</button>
+      <button class="tab" data-tab="stats" data-i18n="tab.stats">Statistics</button>
+    </div>
+    <div class="tab-body">
+      <div class="tab-pane active" id="tab-activity"><div class="scroll-list" id="activityList"></div></div>
+      <div class="tab-pane" id="tab-completed"><div class="scroll-list" id="completedList"></div></div>
+      <div class="tab-pane" id="tab-waiting"><div class="scroll-list" id="waitingList"></div></div>
+      <div class="tab-pane" id="tab-errors"><div class="scroll-list" id="errorsList"></div></div>
+      <div class="tab-pane" id="tab-stats"><div class="stats-grid" id="statsGrid"></div></div>
+    </div>
+  </section>
+</div>
+
+<!-- Register detail drawer -->
+<div id="drawer" class="drawer hidden">
+  <div class="drawer-head">
+    <h2 id="drawerTitle" data-i18n="drawer.title">Register</h2>
+    <button id="drawerClose" class="ghost-btn" data-i18n-attr="aria-label:drawer.close">✕</button>
+  </div>
+  <div id="drawerBody" class="drawer-body"></div>
+</div>
+<div id="drawerScrim" class="scrim hidden"></div>
+
+<script src="/app.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

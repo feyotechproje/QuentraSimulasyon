@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quentra Access · Turnstile Simulation</title>
+  <link rel="stylesheet" href="/shared/quentra-i18n.css" />
+  <!-- reuse the retail dark-neon theme so the look stays identical -->
+  <link rel="stylesheet" href="../retail-simulation/css/style.css" />
+  <style>
+    /* this page has fewer KPI cards than the retail floor */
+    .kpi-row{grid-template-columns:repeat(6,1fr)}
+    @media (max-width:1500px){.kpi-value{font-size:19px}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Left rail -->
+    <nav class="rail" aria-label="Primary">
+      <div class="rail-logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="26" height="26"><circle cx="16" cy="16" r="12" fill="none" stroke="url(#lg)" stroke-width="3"/><path d="M22 22l5 5" stroke="url(#lg)" stroke-width="3" stroke-linecap="round"/><defs><linearGradient id="lg" x1="0" y1="0" x2="32" y2="32"><stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs></svg>
+      </div>
+      <div class="rail-nav">
+        <button class="rail-item is-active" title="Live View"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span data-i18n="nav.live">Live View</span></button>
+        <button class="rail-item" title="Analytics"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span data-i18n="nav.analytics">Analytics</span></button>
+        <button class="rail-item" title="Gates"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="4" height="18" rx="1"/><rect x="16" y="3" width="4" height="18" rx="1"/><path d="M8 12h8"/></svg><span data-i18n="nav.gates">Gates</span></button>
+        <button class="rail-item" title="Workers"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M15 8a3 3 0 010 6M3 20a6 6 0 0112 0M14 20a6 6 0 016-4"/></svg><span data-i18n="nav.workers">Workers</span></button>
+        <button class="rail-item" title="Events"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.5 21a2 2 0 01-3 0"/></svg><span data-i18n="nav.events">Events</span></button>
+        <button class="rail-item" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 00-1.7-1l-.4-2.6H9.6L9.2 4a7 7 0 00-1.7 1l-2.4-1-2 3.4L5.1 11a7 7 0 000 2l-2 1.6 2 3.4 2.4-1a7 7 0 001.7 1l.4 2.6h4.8l.4-2.6a7 7 0 001.7-1l2.4 1 2-3.4-2-1.6a7 7 0 00.1-1z"/></svg><span data-i18n="nav.settings">Settings</span></button>
+      </div>
+      <div class="rail-bottom">
+        <button class="rail-ic" title="Toggle theme"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg></button>
+        <span class="rail-live" title="Live"></span>
+        <span class="rail-avatar" aria-hidden="true"></span>
+      </div>
+    </nav>
+
+    <!-- Main column -->
+    <div class="main">
+      <!-- Top toolbar -->
+      <header class="toolbar">
+        <div class="brand">
+          <img src="/assets/quentra-logo.png" alt="Quentra" style="height:26px;width:auto;display:block" />
+          <span class="brand-sub" data-i18n="brand.sub">Access</span>
+          <span class="brand-orb" aria-hidden="true"></span>
+        </div>
+
+        <div class="toolbar-center">
+          <div class="tc-block status-block">
+            <span class="tc-label" data-i18n="status.title">Simulation Status</span>
+            <span class="status-line" id="statusPill" data-state="running">
+              <svg class="wave" viewBox="0 0 40 16" aria-hidden="true"><polyline points="0,8 6,8 9,2 13,14 17,5 21,11 25,8 40,8"/></svg>
+              <span id="statusLabel">RUNNING</span>
+              <span class="status-dot"></span>
+            </span>
+          </div>
+          <div class="tc-sep"></div>
+          <div class="tc-block">
+            <span class="tc-label" data-i18n="status.time">Simulation Time</span>
+            <span class="clock" id="simClock">00:00</span>
+          </div>
+        </div>
+
+        <div class="toolbar-controls">
+          <div class="btn-group">
+            <button class="btn" id="btnPause" type="button"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg><span data-i18n="btn.pause">Pause</span></button>
+            <button class="btn" id="btnResume" type="button"><svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg><span data-i18n="btn.resume">Resume</span></button>
+            <button class="btn btn-danger" id="btnStop" type="button"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span data-i18n="btn.stop">Stop</span></button>
+            <button class="btn btn-ghost" id="btnReset" type="button"><svg viewBox="0 0 24 24"><path d="M4 4v6h6"/><path d="M20 20v-6h-6"/><path d="M20 9a8 8 0 00-14-3M4 15a8 8 0 0014 3"/></svg><span data-i18n="btn.reset">Reset</span></button>
+          </div>
+          <div class="speed-group" role="group" aria-label="Simulation speed">
+            <span class="speed-label" data-i18n="speed.label">Speed</span>
+            <button class="speed-btn" data-speed="0.5" type="button">0.5x</button>
+            <button class="speed-btn is-active" data-speed="1" type="button">1x</button>
+            <button class="speed-btn" data-speed="2" type="button">2x</button>
+            <button class="speed-btn" data-speed="4" type="button">4x</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- KPI cards -->
+      <section class="kpi-row" id="kpiRow">
+        <article class="kpi-card">
+          <span class="kpi-ic ic-a"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M15 8a3 3 0 010 6M3 20a6 6 0 0112 0M14 20a6 6 0 016-4"/></svg></span>
+          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.totalWorkers">Total Workers</span><span class="kpi-value" id="kWorkers">0</span></div>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-ic ic-b"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.waiting">Waiting in Lane</span><span class="kpi-valrow"><span class="kpi-value" id="kWaiting">0</span><span class="kpi-sub" id="kWaitSub">0.0s</span></span></div>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-ic ic-c"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="4" height="18" rx="1"/><rect x="16" y="3" width="4" height="18" rx="1"/><path d="M8 12h8"/></svg></span>
+          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.passing">Passing Now</span><span class="kpi-value" id="kPassing">0</span></div>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-ic ic-a"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></span>
+          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.passed">Passed Through</span><span class="kpi-value" id="kPassed">0</span></div>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-ic ic-b"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7"/><path d="M12 13V9M9 2h6"/></svg></span>
+          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.avgWait">Avg Wait</span><span class="kpi-value" id="kAvgWait">0.0s</span></div>
+        </article>
+        <article class="kpi-card">
+          <span class="kpi-ic ic-e"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span>
+          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.tpm">Passes / Min</span><span class="kpi-value" id="kTpm">0.0</span></div>
+        </article>
+      </section>
+
+      <!-- Stage + side panel -->
+      <main class="stage">
+        <section class="canvas-wrap">
+          <canvas id="scene"></canvas>
+          <div class="canvas-hint"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 3l14 7-6 2-2 6z"/></svg><span><b data-i18n="hint.title">Click on any turnstile</b><small data-i18n="hint.sub">to inspect its lane</small></span></div>
+        </section>
+
+        <aside class="side-panel">
+          <div class="panel-card">
+            <div class="panel-head"><span class="ph-title"><span class="ph-ic">✦</span> <span data-i18n="panel.selected">Selected Gate</span></span></div>
+            <div class="panel-body" id="selectedGate">
+              <p class="muted" data-i18n="cc.selectPrompt">Select a turnstile on the floor to see its live lane details.</p>
+            </div>
+          </div>
+
+          <div class="panel-card grow">
+            <div class="panel-head"><span class="ph-title"><span class="ph-ic">▦</span> <span data-i18n="panel.gateStatus">Gate Status</span></span><a class="view-all" data-i18n="panel.viewAll">View all</a></div>
+            <div class="panel-body register-grid" id="gateGrid"></div>
+          </div>
+
+          <div class="panel-card grow">
+            <div class="panel-head"><span class="ph-title"><span class="ph-ic">⚡</span> <span data-i18n="panel.accessLog">Access Log</span></span><a class="view-all" data-i18n="panel.viewAll">View all</a></div>
+            <div class="panel-body feed" id="accessFeed"></div>
+          </div>
+        </aside>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"supermarketsim/internal/config"
+	"supermarketsim/internal/db"
+	"supermarketsim/internal/production"
+	"supermarketsim/internal/reportcache"
+	"supermarketsim/internal/server"
+	"supermarketsim/internal/sim"
+	"supermarketsim/internal/vehicle"
+)
+
+func main() {
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(log)
+
+	cfg := config.Load()
+	log.Info("starting SuperMarketSim", "db", cfg.SafeSummary(), "http", cfg.HTTPAddr)
+
+	store, err := db.Open(cfg)
+	if err != nil {
+		log.Error("database connection failed", "error", err.Error())
+		os.Exit(1)
+	}
+	defer store.Close()
+
+	// Resolve schema once at startup so the engine can sample reference data.
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	if _, err := store.DetectSchema(ctx); err != nil {
+		cancel()
+		log.Error("schema detection failed", "error", err.Error())
+		os.Exit(1)
+	}
+	cancel()
+	log.Info("schema detected",
+		"detailTable", store.Schema.DetailTable,
+		"priceSource", store.Schema.PriceSource,
+		"linkColumn", store.Schema.LinkColumn)
+
+	hub := sim.NewHub()
+	engine := sim.NewEngine(store, hub, log)
+
+	// Real SQL Server workload for the vehicle-tracking simulation. Provisioning
+	// (create DB, seed 100k rows, stored proc) runs in the background so the rest
+	// of the app stays available even if VEHICLEGPS is unreachable. The workload
+	// itself is NOT started here — the portal's run/stop control does that, so an
+	// idle server sends no SQL.
+	vehMgr := vehicle.NewManager(cfg, log)
+	go func() {
+		pctx, pcancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer pcancel()
+		if err := vehMgr.Provision(pctx); err != nil {
+			log.Error("vehicle workload provisioning failed", "error", err.Error())
+			return
+		}
+		log.Info("vehicle workload ready", "db", vehicle.DBName, "vehicles", vehicle.VehicleCount, "state", "idle")
+	}()
+
+	// Real SQL Server workload for the production-line simulation. Provisioning
+	// (create DB, seed rows, both stored procs) runs in the background so the
+	// rest of the app stays available even if PRODUCTIONLINE is unreachable.
+	// Started on demand from the portal, same as the vehicle workload.
+	prodMgr := production.NewManager(cfg, log)
+	go func() {
+		pctx, pcancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer pcancel()
+		if err := prodMgr.Provision(pctx); err != nil {
+			log.Error("production workload provisioning failed", "error", err.Error())
+			return
+		}
+		log.Info("production workload ready", "db", production.DBName, "seedRows", production.SeedRowCount, "state", "idle")
+	}()
+
+	// Real SQL Server workload for the report-cache simulation. The report is a
+	// heavy aggregate, so it only runs while a browser is actually in live mode
+	// (see the /api/reportcache/mode endpoint) or while it is started from the
+	// portal. Provisioning just opens the two pools — direct SQL Server and the
+	// Quentra gateway — and verifies the procedure.
+	rcMgr := reportcache.NewManager(cfg, log)
+	go func() {
+		pctx, pcancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer pcancel()
+		if err := rcMgr.Provision(pctx); err != nil {
+			log.Error("report cache workload provisioning failed", "error", err.Error())
+			return
+		}
+		log.Info("report cache workload ready", "db", reportcache.DBName, "proc", reportcache.ProcName)
+	}()
+
+	srv := server.New(engine, hub, store, vehMgr, prodMgr, rcMgr, log)
+
+	httpServer := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           srv.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	go func() {
+		log.Info("listening", "addr", cfg.HTTPAddr, "url", "http://localhost"+cfg.HTTPAddr)
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Error("http server error", "error", err.Error())
+			os.Exit(1)
+		}
+	}()
+
+	// Graceful shutdown.
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop
+	log.Info("shutting down")
+
+	_ = engine.Stop()
+	vehMgr.Stop()
+	prodMgr.Stop()
+	rcMgr.Stop()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	_ = httpServer.Shutdown(shutdownCtx)
+}

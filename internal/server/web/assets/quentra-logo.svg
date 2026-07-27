@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 150" role="img" aria-label="Quentra">
+  <title>Quentra</title>
+  <!-- Vector rendition of the Quentra wordmark: a broken concentric ring "Q"
+       whose tail is a wave, followed by the QUENTRA lettering. Replace this
+       file with the official artwork when it is available; every page loads
+       /assets/quentra-logo.png first and falls back to this. -->
+  <g fill="none" stroke="#5B3E9E" stroke-linecap="round">
+    <circle cx="75" cy="75" r="68" stroke-width="6"  stroke-dasharray="215 95" transform="rotate(-32 75 75)" opacity=".45"/>
+    <circle cx="75" cy="75" r="57" stroke-width="6"  stroke-dasharray="175 70" transform="rotate(128 75 75)" opacity=".7"/>
+    <circle cx="75" cy="75" r="46" stroke-width="7"  stroke-dasharray="145 55" transform="rotate(18 75 75)"  opacity=".85"/>
+  </g>
+  <!-- solid Q ring, open at the lower right where the wave passes through -->
+  <path d="M75 34a41 41 0 1 1-29 70" fill="none" stroke="#5B3E9E" stroke-width="20" stroke-linecap="round"/>
+  <!-- the wave that forms the Q's tail -->
+  <path d="M52 86c11 0 19 9 28 21 10 13 23 17 37 10-6 9-14 15-24 17-22 4-42-14-56-40 5-6 10-8 15-8z" fill="#5B3E9E"/>
+
+  <!-- QUENTRA -->
+  <g fill="none" stroke="#5B3E9E" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M186 45v33a29 29 0 0 0 29 29h4a29 29 0 0 0 29-29V45"/>
+    <path d="M356 45h-45a22 22 0 0 0-22 22v18a22 22 0 0 0 22 22h45M293 76h56"/>
+    <path d="M392 107V45l60 62V45"/>
+    <path d="M486 45h64M518 45v62"/>
+    <path d="M584 107V45h40a20 20 0 0 1 0 40h-40l38 22"/>
+  </g>
+</svg>

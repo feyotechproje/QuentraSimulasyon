@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quentra Fleet · Real-Time Vehicle Tracking Simulation</title>
+  <link rel="stylesheet" href="/shared/quentra-i18n.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Toolbar -->
+    <header class="toolbar">
+      <div class="brand">
+        <img src="/assets/quentra-logo.png" alt="Quentra" style="height:28px;width:auto;display:block" />
+        <div class="brand-text">
+          <em data-i18n="brand.fleet">Fleet Tracking</em>
+        </div>
+      </div>
+
+      <div class="toolbar-status">
+        <div class="status-pill" id="statusPill" data-state="running">
+          <span class="dot"></span>
+          <span id="statusLabel" data-i18n="st.running">RUNNING</span>
+        </div>
+        <div class="tb-meta">
+          <span class="tb-label" data-i18n="tb.simTime">Simulation Time</span>
+          <span class="tb-value" id="simClock">09:15:00</span>
+        </div>
+        <div class="tb-sep"></div>
+        <div class="tb-meta">
+          <span class="tb-label" data-i18n="tb.mode">Mode</span>
+          <span class="tb-value" id="modeLabel" data-i18n="mode.baseline">Baseline</span>
+        </div>
+        <div class="tb-sep"></div>
+        <div class="live-db" id="liveDb" data-live="false" title="Live SQL Server workload" data-i18n-attr="title:hint.liveDb">
+          <span class="live-dot"></span>
+          <span id="liveDbLabel" data-i18n="db.connecting">VEHICLEGPS · connecting…</span>
+        </div>
+      </div>
+
+      <div class="toolbar-controls">
+        <!-- Run mode: demo (nothing touches SQL Server) vs live (the real
+             VEHICLEGPS workload). Kept separate from the baseline/Quentra
+             choice, which selects what the workload does. -->
+        <div class="run-group" role="group" aria-label="Run mode">
+          <button class="run-btn" id="btnDemoRun" type="button" data-i18n="run.demo">Demo</button>
+          <button class="run-btn is-active" id="btnLiveRun" type="button" data-i18n="run.live">Live</button>
+        </div>
+        <div class="mode-group" role="group" aria-label="Mode">
+          <button class="mode-btn is-active" id="btnBaseline" data-i18n="mode.baseline">Baseline</button>
+          <button class="mode-btn" id="btnQuentra" data-i18n="mode.quentra">Quentra</button>
+          <button class="mode-btn mode-auto" id="btnAuto" data-i18n="mode.auto">Auto Demo</button>
+        </div>
+        <div class="ctrl-group">
+          <button class="btn" id="btnPause" data-i18n="btn.pause">Pause</button>
+          <button class="btn" id="btnResume" disabled data-i18n="btn.resume">Resume</button>
+          <button class="btn btn-danger" id="btnStop" data-i18n="btn.stop">Stop</button>
+          <button class="btn btn-ghost" id="btnReset" data-i18n="btn.reset">Reset</button>
+        </div>
+        <div class="speed" role="group" aria-label="Speed">
+          <span class="speed-label" data-i18n="speed.label">Speed</span>
+          <button class="speed-btn" data-speed="0.5">0.5x</button>
+          <button class="speed-btn is-active" data-speed="1">1x</button>
+          <button class="speed-btn" data-speed="2">2x</button>
+          <button class="speed-btn" data-speed="4">4x</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- KPI strip -->
+    <section class="kpi-strip">
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.connected">Connected Vehicles</span><span class="kpi-value" id="kConnected">100,000</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.visible">Visible Vehicles</span><span class="kpi-value" id="kVisible">0</span></div>
+      <div class="kpi kpi-purple"><span class="kpi-label" data-i18n="kpi.updates">GPS Updates/sec</span><span class="kpi-value" id="kUpdates">0</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.batch">Batch Req/sec</span><span class="kpi-value" id="kBatch">0</span></div>
+      <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.comp">Compilations/sec</span><span class="kpi-value" id="kComp">0</span></div>
+      <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.recomp">Recompilations/sec</span><span class="kpi-value" id="kRecomp">0</span></div>
+      <div class="kpi kpi-bad"><span class="kpi-label" data-i18n="kpi.cpu">SQL CPU</span><span class="kpi-value" id="kCpu">0%</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.cache">Plan Cache</span><span class="kpi-value" id="kCache">0%</span></div>
+      <div class="kpi kpi-bad"><span class="kpi-label" data-i18n="kpi.single">Single-use Plans</span><span class="kpi-value" id="kSingle">0</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.avgTime">Avg Update Time</span><span class="kpi-value" id="kAvgTime">0 ms</span></div>
+      <div class="kpi kpi-bad"><span class="kpi-label" data-i18n="kpi.delay">GPS Position Delay</span><span class="kpi-value" id="kDelay">0.0s</span></div>
+      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.processed">Updates Processed</span><span class="kpi-value" id="kProcessed">0</span></div>
+      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.reused">Plans Reused</span><span class="kpi-value" id="kReused">Low</span></div>
+      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.avoided">Compilations Avoided</span><span class="kpi-value" id="kAvoided">0%</span></div>
+    </section>
+
+    <!-- Content -->
+    <main class="content">
+      <section class="stage">
+        <div class="canvas-wrap">
+          <canvas id="scene"></canvas>
+          <div class="layer-toggles" id="layerToggles">
+            <button class="tgl is-on" data-layer="packets" data-i18n="tgl.packets">GPS Packets</button>
+            <button class="tgl is-on" data-layer="delay" data-i18n="tgl.delay">Position Delay</button>
+            <button class="tgl is-on" data-layer="traffic" data-i18n="tgl.traffic">Traffic</button>
+            <button class="tgl is-on" data-layer="sql" data-i18n="tgl.sql">SQL Flow</button>
+          </div>
+          <div class="canvas-hint" data-i18n="hint.canvas">Click a vehicle, region, the Gateway or SQL Server to inspect · 100,000 fleet · live SQL updates</div>
+        </div>
+
+        <!-- Query rewrite / problem SQL -->
+        <div class="panel query-panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.rewrite">Query Rewrite</span><span class="ph-tag" id="rewriteTag" data-i18n="tag.adhoc">AD-HOC</span></div>
+          <div class="rewrite" id="rewritePanel"></div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.sqlStatus">SQL Server Status</span><span class="ph-sub" id="sqlState" data-i18n="sqlState.STRESSED">STRESSED</span></div>
+          <div class="sql-status" id="sqlStatus"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.compQueue">Compilation Queue</span><span class="ph-sub" id="queueSub">0</span></div>
+          <div class="bar-wrap"><div class="bar" id="queueBar"></div></div>
+          <div class="mini-note" id="queueNote" data-i18n="note.queue">Queued ad-hoc compilations</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.planCache">Plan Cache</span></div>
+          <div class="plan-cache" id="planCache"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.gpsCurrent">Current GPS Update</span></div>
+          <div class="gps-current" id="gpsCurrent"><p class="empty" data-i18n="gps.waiting">Waiting for a GPS update…</p></div>
+        </div>
+
+        <div class="panel" id="selectedPanel">
+          <div class="panel-head"><span class="ph-title" id="selTitle" data-i18n="sel.title">Selected</span><button class="mini-btn" id="clearSel" data-i18n="btn.clear">Clear</button></div>
+          <div class="detail" id="selDetail"><p class="empty" data-i18n="sel.emptyVehicle">Click a vehicle on the map.</p></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.regionLoad">Region Load</span></div>
+          <div class="region-list" id="regionList"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.fleet">Fleet Distribution</span></div>
+          <div class="fleet-list" id="fleetList"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.savings">Performance Savings</span></div>
+          <div class="savings" id="savings"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.feed">Live Event Feed</span><span class="ph-tag" data-i18n="tag.live">LIVE</span></div>
+          <div class="feed" id="feed"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

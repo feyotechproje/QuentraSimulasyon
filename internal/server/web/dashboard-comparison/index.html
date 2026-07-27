@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quentra Dashboard Performance Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/shared/quentra-i18n.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- ============ HEADER ============ -->
+    <header class="app-header">
+      <div class="brand">
+        <img src="/assets/quentra-logo.png" alt="Quentra" style="height:40px;width:auto;display:block" />
+        <div class="brand-text">
+          <h1 data-i18n="head.title">Dashboard Performance Lab</h1>
+          <p data-i18n="head.subtitle">Master Filter Query Optimization Simulation</p>
+        </div>
+      </div>
+      <div class="header-meta">
+        <span class="meta-chip" id="engineState">STATE&nbsp;·&nbsp;<b data-i18n="state.idle">Idle</b></span>
+        <span class="meta-chip mono" id="globalClock">00:00.00</span>
+      </div>
+    </header>
+
+    <!-- ============ TASK STRIP ============ -->
+    <section class="task-strip" aria-label="Current task">
+      <div class="task-info">
+        <span class="task-label" data-i18n="task.current">CURRENT TASK</span>
+        <span class="task-title" id="taskTitle" data-i18n-html="task.titleDefault">Filter Dashboard by Region: <b>Marmara</b></span>
+        <span class="task-desc" id="taskDesc" data-i18n="task.desc">Click any region row on both dashboards and compare refresh performance.</span>
+      </div>
+
+      <ol class="stage-track" id="stageTrack" aria-label="Task stages">
+        <li class="stage" data-stage="1"><span class="stage-dot">1</span><span class="stage-name" data-i18n="stage.regionSelected">Region Selected</span></li>
+        <li class="stage" data-stage="2"><span class="stage-dot">2</span><span class="stage-name" data-i18n="stage.queryExecuting">Query Executing</span></li>
+        <li class="stage" data-stage="3"><span class="stage-dot">3</span><span class="stage-name" data-i18n="stage.dashboardRefreshing">Dashboard Refreshing</span></li>
+        <li class="stage" data-stage="4"><span class="stage-dot">4</span><span class="stage-name" data-i18n="stage.resultsCompared">Results Compared</span></li>
+      </ol>
+
+      <div class="task-controls">
+        <button class="btn btn-primary" id="btnStart" type="button">▶ <span data-i18n="btn.start">Start Simulation</span></button>
+        <button class="btn" id="btnPause" type="button" disabled>❚❚ <span data-i18n="btn.pause">Pause</span></button>
+        <button class="btn" id="btnReset" type="button">↺ <span data-i18n="btn.reset">Reset</span></button>
+        <label class="toggle">
+          <input type="checkbox" id="autoRun" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          <span class="toggle-label" data-i18n="toggle.autoRun">Auto Run</span>
+        </label>
+        <div class="speed" role="group" aria-label="Simulation speed">
+          <span class="speed-label" data-i18n="speed.label">Speed</span>
+          <div class="speed-buttons" id="speedButtons">
+            <button class="speed-btn" data-speed="0.5" type="button">0.5×</button>
+            <button class="speed-btn is-active" data-speed="1" type="button">1×</button>
+            <button class="speed-btn" data-speed="2" type="button">2×</button>
+            <button class="speed-btn" data-speed="4" type="button">4×</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DUAL DASHBOARDS ============ -->
+    <main class="stage-area">
+      <section class="dash-column dash-direct" id="directMount" aria-label="Direct Connection dashboard" data-i18n-attr="aria-label:dash.direct.title"></section>
+      <div class="vs-divider" aria-hidden="true"><span>VS</span></div>
+      <section class="dash-column dash-quentra" id="quentraMount" aria-label="Quentra AI SQL Gateway dashboard" data-i18n-attr="aria-label:dash.quentra.title"></section>
+    </main>
+
+    <!-- ============ COMPARISON STRIP ============ -->
+    <section class="comparison" id="comparison" hidden aria-label="Comparison result">
+      <div class="cmp-head">
+        <h2 data-i18n="cmp.result">Comparison Result</h2>
+        <p class="cmp-tagline" data-i18n="cmp.tagline">Same filter. Same result. Far less database work.</p>
+      </div>
+      <div class="cmp-body">
+        <div class="cmp-side cmp-side-direct">
+          <span class="cmp-side-label" data-i18n="cmp.direct">Direct Connection</span>
+          <span class="cmp-side-time mono" id="cmpDirectTime">0.00 s</span>
+        </div>
+        <div class="cmp-center">
+          <span class="cmp-arrow" aria-hidden="true">➜</span>
+          <span class="cmp-gain mono" id="cmpGain">0×</span>
+          <span class="cmp-gain-label" data-i18n="cmp.faster">Faster</span>
+        </div>
+        <div class="cmp-side cmp-side-quentra">
+          <span class="cmp-side-label" data-i18n="cmp.quentra">Quentra</span>
+          <span class="cmp-side-time mono" id="cmpQuentraTime">0.00 s</span>
+        </div>
+      </div>
+      <div class="cmp-metrics" id="cmpMetrics"></div>
+    </section>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

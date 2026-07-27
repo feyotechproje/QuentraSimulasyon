@@ -1,0 +1,220 @@
+/* quentra-i18n.css
+   Shared language-picker + animated intro overlay and a floating language
+   switch. Theme-neutral: the overlay carries its own colours so it works on
+   both the dark and light simulation pages. The page passes an accent colour
+   via the --qi-accent custom property (set inline by quentra-i18n.js). */
+
+:root {
+  --qi-accent: #7c3aed;
+  --qi-accent-2: #22d3ee;
+}
+
+/* ------------------------------------------------------------- overlay --- */
+.qi-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(1200px 700px at 15% -10%, color-mix(in srgb, var(--qi-accent) 42%, transparent), transparent 60%),
+    radial-gradient(1000px 700px at 110% 120%, color-mix(in srgb, var(--qi-accent-2) 30%, transparent), transparent 55%),
+    linear-gradient(160deg, #070b18 0%, #0b1024 48%, #070a16 100%);
+  color: #eef2ff;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  opacity: 1;
+  transition: opacity .5s ease;
+}
+.qi-overlay.qi-hiding { opacity: 0; pointer-events: none; }
+
+.qi-overlay::before {
+  /* subtle grid */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--qi-accent) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--qi-accent) 12%, transparent) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(closest-side at 50% 40%, #000 40%, transparent 85%);
+  opacity: .25;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------- card --- */
+.qi-card {
+  position: relative;
+  width: min(720px, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+  padding: 40px clamp(24px, 5vw, 56px) 34px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(19, 25, 48, .82), rgba(11, 15, 33, .9));
+  border: 1px solid color-mix(in srgb, var(--qi-accent) 30%, #26304f);
+  box-shadow: 0 40px 120px -30px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .04);
+  backdrop-filter: blur(10px);
+  animation: qi-card-in .7s cubic-bezier(.2, .9, .25, 1) both;
+}
+@keyframes qi-card-in {
+  from { opacity: 0; transform: translateY(26px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.qi-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.qi-brand img { height: 30px; width: auto; display: block; }
+.qi-brand-mark {
+  width: 40px; height: 40px; border-radius: 11px; flex: 0 0 auto;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--qi-accent), color-mix(in srgb, var(--qi-accent) 40%, #111));
+  color: #fff; font-weight: 800; font-size: 20px;
+  box-shadow: 0 8px 24px -8px var(--qi-accent);
+}
+.qi-brand-name { font-size: 15px; font-weight: 700; letter-spacing: .3px; color: #cdd6f4; }
+.qi-brand-name small { display: block; font-size: 11px; font-weight: 600; color: #8b95b8; letter-spacing: .12em; text-transform: uppercase; }
+
+/* ------------------------------------------------------------- langs --- */
+.qi-langs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 12px;
+  background: rgba(9, 13, 28, .7);
+  border: 1px solid #232c49;
+  margin-bottom: 26px;
+}
+.qi-lang {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  color: #aab3d5;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all .18s ease;
+}
+.qi-lang .qi-flag { font-size: 15px; line-height: 1; }
+.qi-lang:hover { color: #fff; }
+.qi-lang.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--qi-accent), color-mix(in srgb, var(--qi-accent) 55%, var(--qi-accent-2)));
+  box-shadow: 0 6px 18px -8px var(--qi-accent);
+}
+
+/* ------------------------------------------------------------ content --- */
+.qi-content { min-height: 180px; }
+.qi-eyebrow {
+  font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--qi-accent-2);
+  margin: 0 0 10px;
+}
+.qi-title {
+  margin: 0 0 12px;
+  font-size: clamp(26px, 4.4vw, 40px);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  background: linear-gradient(120deg, #ffffff, #c7d2fe 60%, var(--qi-accent-2));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.qi-tagline {
+  margin: 0 0 22px;
+  font-size: clamp(14px, 1.9vw, 17px);
+  line-height: 1.55;
+  color: #b9c2e6;
+}
+.qi-purpose { list-style: none; margin: 0 0 30px; padding: 0; display: grid; gap: 12px; }
+.qi-purpose li {
+  position: relative;
+  padding-left: 30px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: #d5dcf5;
+}
+.qi-purpose li::before {
+  content: "";
+  position: absolute; left: 4px; top: 6px;
+  width: 12px; height: 12px; border-radius: 4px;
+  background: linear-gradient(135deg, var(--qi-accent), var(--qi-accent-2));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--qi-accent-2) 60%, transparent);
+}
+
+/* staggered reveal — re-triggered by toggling .qi-animate on .qi-content */
+.qi-animate .qi-eyebrow,
+.qi-animate .qi-title,
+.qi-animate .qi-tagline,
+.qi-animate .qi-purpose li {
+  animation: qi-rise .6s cubic-bezier(.2, .85, .25, 1) both;
+}
+.qi-animate .qi-eyebrow  { animation-delay: .04s; }
+.qi-animate .qi-title    { animation-delay: .12s; }
+.qi-animate .qi-tagline  { animation-delay: .22s; }
+.qi-animate .qi-purpose li:nth-child(1) { animation-delay: .32s; }
+.qi-animate .qi-purpose li:nth-child(2) { animation-delay: .40s; }
+.qi-animate .qi-purpose li:nth-child(3) { animation-delay: .48s; }
+.qi-animate .qi-purpose li:nth-child(4) { animation-delay: .56s; }
+.qi-animate .qi-purpose li:nth-child(5) { animation-delay: .64s; }
+@keyframes qi-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* --------------------------------------------------------------- cta --- */
+.qi-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.qi-enter {
+  appearance: none; border: 0; cursor: pointer;
+  padding: 13px 30px; border-radius: 12px;
+  font: inherit; font-weight: 700; font-size: 15px; color: #fff;
+  background: linear-gradient(135deg, var(--qi-accent), color-mix(in srgb, var(--qi-accent) 45%, var(--qi-accent-2)));
+  box-shadow: 0 14px 30px -12px var(--qi-accent);
+  transition: transform .15s ease, box-shadow .15s ease;
+  display: inline-flex; align-items: center; gap: 10px;
+}
+.qi-enter:hover { transform: translateY(-2px); box-shadow: 0 20px 40px -14px var(--qi-accent); }
+.qi-enter:active { transform: translateY(0); }
+.qi-enter svg { width: 18px; height: 18px; }
+.qi-hint { font-size: 12.5px; color: #8b95b8; }
+
+/* -------------------------------------------------- floating switch --- */
+.qi-switch {
+  position: fixed;
+  top: 14px; right: 16px;
+  z-index: 9000;
+  display: inline-flex;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(10, 14, 30, .72);
+  border: 1px solid rgba(255, 255, 255, .12);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 22px -12px rgba(0, 0, 0, .7);
+}
+.qi-switch button {
+  appearance: none; border: 0; cursor: pointer;
+  padding: 5px 11px; border-radius: 7px;
+  font: inherit; font-size: 12px; font-weight: 700;
+  color: #aab3d5; background: transparent;
+  transition: all .15s ease;
+}
+.qi-switch button:hover { color: #fff; }
+.qi-switch button.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--qi-accent), color-mix(in srgb, var(--qi-accent) 55%, var(--qi-accent-2)));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qi-card, .qi-animate * { animation: none !important; }
+  .qi-overlay { transition: none; }
+}

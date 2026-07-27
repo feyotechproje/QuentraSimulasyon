@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quentra · Office FullText / NGram Search</title>
+<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="/shared/quentra-i18n.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Toolbar -->
+    <header class="toolbar">
+      <div class="brand">
+        <div class="q">Q</div>
+        <b data-i18n="brand.name">Quentra</b><span data-i18n="brand.sub">FullText / NGram · Office Search Lab</span>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="status-pill baseline" id="statusPill"><span id="statusText" data-i18n="status.baseline">Baseline</span></div>
+
+      <div class="tb-spacer"></div>
+
+      <div class="tb-group">
+        <span class="tb-label" data-i18n="mode.label">Mode</span>
+        <button class="tb active" data-mode="auto" data-group="mode" data-i18n="mode.auto">Auto Demo</button>
+        <button class="tb" data-mode="baseline" data-group="mode" data-i18n="mode.baseline">Baseline</button>
+        <button class="tb" data-mode="quentra" data-group="mode" data-i18n="mode.quentra">Quentra</button>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-group">
+        <button class="tb ghost" id="btnPause" data-i18n="btn.pause">Pause</button>
+        <button class="tb ghost" id="btnResume" data-i18n="btn.resume">Resume</button>
+        <button class="tb ghost" id="btnReset" data-i18n="btn.reset">Reset</button>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-group">
+        <span class="tb-label" data-i18n="speed.label">Speed</span>
+        <select class="tb" id="speed">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </div>
+    </header>
+
+    <!-- Stage -->
+    <div class="stage">
+      <div class="canvas-wrap">
+        <canvas id="scene"></canvas>
+      </div>
+
+      <aside class="panel">
+        <div class="panel-sec">
+          <h4 data-i18n="panel.liveMetrics">Live Metrics</h4>
+          <div class="metrics">
+            <div class="metric cpu-row" id="cpuCard">
+              <div class="cpu-top">
+                <span class="m-label" data-i18n="metric.cpu">CPU</span>
+                <span class="m-val" id="mCpu">88%</span>
+              </div>
+              <div class="meter"><div class="meter-fill hot" id="mCpuBar" style="width:88%"></div></div>
+            </div>
+            <div class="metric bad" id="timeCard">
+              <span class="m-label" data-i18n="metric.searchTime">Search Time</span>
+              <span class="m-val" id="mTime">8.42 s</span>
+            </div>
+            <div class="metric bad" id="scannedCard">
+              <span class="m-label" data-i18n="metric.docsScanned">Documents Scanned</span>
+              <span class="m-val" id="mScanned">12,842,118</span>
+            </div>
+            <div class="metric" id="matchCard">
+              <span class="m-label" data-i18n="metric.matches">Matches Found</span>
+              <span class="m-val" id="mMatches">0 / 5</span>
+            </div>
+            <div class="metric" id="queueCard">
+              <span class="m-label" data-i18n="metric.queue">Search Queue</span>
+              <span class="m-val" id="mQueue">5</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-sec feed-sec">
+          <h4 data-i18n="panel.liveEvents">Live Events</h4>
+          <ul class="feed" id="feed"></ul>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

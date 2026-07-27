@@ -1,0 +1,12 @@
+# Binaries
+*.exe
+*.exe~
+supermarketsim
+supermarketsim.bin
+
+# Local environment (contains secrets)
+.env
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
