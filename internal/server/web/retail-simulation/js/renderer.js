@@ -3,7 +3,7 @@
 // (vertical squash) and painter's-algorithm depth sorting. Everything is drawn
 // procedurally — no images, no emoji.
 
-import { WORLD } from "./world.js";
+import { WORLD, queueSlot } from "./world.js";
 import { drawPerson, CUSTOMER_STATE } from "./customer.js";
 import { REGISTER_STATE } from "./checkout.js";
 
@@ -37,10 +37,17 @@ export class Renderer {
       const worldH = world.height * WORLD.squash;
       const availW = Math.max(40, this.cssW - 2 * pad);
       const fitW = Math.max(0.05, availW / worldW);
-      this.scale = fitW * 1.12;
+      // Fit the complete floor to the available width. The previous 1.12
+      // overscan cropped the outer registers and became especially noticeable
+      // when live mode used a different register count from the demo.
+      this.scale = fitW;
       this.offsetX = (this.cssW - worldW * this.scale) / 2 - world.origin.x * this.scale;
       this.offsetY = padTop - world.origin.y * WORLD.squash * this.scale;
-      this.cssH = Math.max(1, Math.round(worldH * this.scale + padTop + pad));
+      // The canvas bitmap itself must be at least as tall as its viewport.
+      // Letting CSS stretch a shorter bitmap changes the Y scale independently
+      // and makes the live floor look vertically distorted.
+      const sceneH = Math.round(worldH * this.scale + padTop + pad);
+      this.cssH = Math.max(1, Math.round(rect.height), sceneH);
     } else {
       this.cssH = Math.max(1, Math.round(rect.height));
     }
@@ -80,6 +87,7 @@ export class Renderer {
     }
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.cssW, this.cssH);
+    this._cashierHits = [];
 
     this._drawFloor(sim.world);
     this._drawLanes(sim.world);
@@ -90,7 +98,7 @@ export class Renderer {
     const draws = [];
     for (const reg of sim.registers) {
       draws.push({ y: reg.reg.frontY, fn: () => this._drawCounter(reg, sim) });
-      draws.push({ y: reg.cashier.pos.y, fn: () => reg.cashier.draw(this) });
+      draws.push({ y: reg.cashier.pos.y, fn: () => { reg.cashier.draw(this); this._drawCashierLabel(reg); } });
     }
     for (const c of sim.customers) {
       // Shoppers walking in from the off-screen door stay hidden until they take
@@ -114,16 +122,32 @@ export class Renderer {
     const b = world.bounds;
     const tl = this.toScreen(b.minX, b.minY);
     const br = this.toScreen(b.maxX, b.maxY);
-    ctx.fillStyle = "#0a1120";
+    const floor = ctx.createLinearGradient(0, tl.y, 0, br.y);
+    floor.addColorStop(0, "#eaf0f7");
+    floor.addColorStop(.24, "#f8fafc");
+    floor.addColorStop(1, "#eef3f8");
+    ctx.fillStyle = floor;
     ctx.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
-    ctx.strokeStyle = "rgba(70,110,150,0.10)";
+    // A quiet merchandising wall anchors the checkout area visually.
+    const wallBottom = this.toScreen(b.maxX, b.minY + 92);
+    ctx.fillStyle = "#e2e8f0";
+    ctx.fillRect(tl.x, tl.y, br.x - tl.x, wallBottom.y - tl.y);
+    ctx.fillStyle = "#172554";
+    ctx.fillRect(tl.x, tl.y, br.x - tl.x, 6);
+    ctx.fillStyle = "rgba(23,37,84,.12)";
+    ctx.font = `700 ${Math.max(10, 12 * this.scale)}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("SATIŞ ALANI  ·  QUENTRA_RETAIL ÜRÜN AKIŞI", tl.x + 18, tl.y + 15);
+
+    ctx.strokeStyle = "rgba(100,116,139,0.11)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let x = b.minX; x <= b.maxX; x += 64) {
+    for (let x = b.minX; x <= b.maxX; x += 48) {
       const a = this.toScreen(x, b.minY), c = this.toScreen(x, b.maxY);
       ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y);
     }
-    for (let y = b.minY; y <= b.maxY; y += 64) {
+    for (let y = b.minY; y <= b.maxY; y += 48) {
       const a = this.toScreen(b.minX, y), c = this.toScreen(b.maxX, y);
       ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y);
     }
@@ -135,25 +159,25 @@ export class Renderer {
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.shadowColor = "rgba(34,211,238,0.55)";
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 0;
     // main corridor line
     const cA = this.toScreen(world.bounds.minX + 60, world.corridorY);
     const cB = this.toScreen(world.bounds.maxX - 60, world.corridorY);
-    ctx.strokeStyle = "rgba(45,212,191,0.5)";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(79,70,229,.30)";
+    ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cA.x, cA.y); ctx.lineTo(cB.x, cB.y); ctx.stroke();
     // per-register queue lanes
     for (const reg of world.registers) {
       const top = this.toScreen(reg.cx, world.corridorY);
       const bend = this.toScreen(reg.cx, reg.frontY + 10);
-      const tail = this.toScreen(reg.cx, reg.queueStartY + 7 * reg.queueGap);
-      ctx.strokeStyle = "rgba(34,211,238,0.4)";
-      ctx.lineWidth = 2.5;
+      const lastSlot = queueSlot(reg, WORLD.visibleQueueSlots - 1);
+      const tail = this.toScreen(reg.cx, lastSlot.y);
+      ctx.strokeStyle = "rgba(37,99,235,.20)";
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(top.x, top.y); ctx.lineTo(bend.x, bend.y); ctx.lineTo(tail.x, tail.y);
       ctx.stroke();
-      ctx.fillStyle = "rgba(94,234,212,0.9)";
+      ctx.fillStyle = "rgba(79,70,229,.72)";
       ctx.beginPath(); ctx.arc(bend.x, bend.y, 3, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
@@ -173,21 +197,21 @@ export class Renderer {
       const p1 = this.toScreen(x1, shelfY, 44);
       const b0 = this.toScreen(x0, shelfY, 0);
       // shelf body
-      ctx.fillStyle = "#0f1a2e";
+      ctx.fillStyle = "#ffffff";
       ctx.fillRect(p0.x, p0.y, p1.x - p0.x, b0.y - p0.y);
-      ctx.fillStyle = "rgba(94,234,212,0.35)";
+      ctx.fillStyle = "rgba(79,70,229,.55)";
       ctx.fillRect(p0.x, p0.y, p1.x - p0.x, 3);
       // stocked rows
-      ctx.fillStyle = "rgba(90,120,170,0.35)";
+      ctx.fillStyle = "rgba(148,163,184,.38)";
       for (let ry = 1; ry <= 3; ry++) {
         ctx.fillRect(p0.x, p0.y + ry * ((b0.y - p0.y) / 4), p1.x - p0.x, 3);
       }
       // section sign
       const sign = this.toScreen((x0 + x1) / 2, shelfY, 58);
-      ctx.fillStyle = "rgba(10,18,34,0.92)";
+      ctx.fillStyle = "rgba(255,255,255,0.96)";
       this.roundRect(sign.x - 34, sign.y - 12, 68, 18, 4); ctx.fill();
-      ctx.strokeStyle = "rgba(94,234,212,0.35)"; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = "#7fe9d6";
+      ctx.strokeStyle = "rgba(79,70,229,.25)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = "#3730a3";
       ctx.font = "600 9px Inter, system-ui, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(SECTIONS[i], sign.x, sign.y - 3);
@@ -199,7 +223,7 @@ export class Renderer {
     const drawSign = (pt, text, color) => {
       ctx.save();
       ctx.shadowColor = color; ctx.shadowBlur = 16;
-      ctx.fillStyle = "rgba(10,18,34,0.92)";
+      ctx.fillStyle = "rgba(255,255,255,0.96)";
       this.roundRect(pt.x - 32, pt.y - 34, 64, 20, 6); ctx.fill();
       ctx.shadowBlur = 0;
       ctx.strokeStyle = color; ctx.lineWidth = 1.4;
@@ -221,6 +245,30 @@ export class Renderer {
   }
 
   // ---------- register / counter ----------
+  _drawCashierLabel(register) {
+    const ctx = this.ctx;
+    const name = register.cashier && register.cashier.name ? register.cashier.name : "Kasiyer";
+    const p = this.toScreen(register.cashier.pos.x, register.cashier.pos.y, 52);
+    const fontSize = Math.max(8.5, Math.min(11, 9.5 * this.scale));
+    ctx.save();
+    ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
+    const width = Math.max(54, ctx.measureText(name).width + 18);
+    const height = 19;
+    const x = p.x - width / 2;
+    const y = p.y - height / 2;
+    ctx.fillStyle = register.highlighted ? "#4f46e5" : "rgba(255,255,255,.97)";
+    this.roundRect(x, y, width, height, 7); ctx.fill();
+    ctx.strokeStyle = register.highlighted ? "#4338ca" : "rgba(99,102,241,.35)";
+    ctx.lineWidth = 1;
+    this.roundRect(x, y, width, height, 7); ctx.stroke();
+    ctx.fillStyle = register.highlighted ? "#ffffff" : "#334155";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(name, p.x, p.y + .5);
+    ctx.restore();
+    this._cashierHits.push({ id: register.id, x, y, width, height });
+  }
+
   _drawCounter(register, sim) {
     const ctx = this.ctx;
     const reg = register.reg;
@@ -236,22 +284,22 @@ export class Renderer {
     const br0 = this.toScreen(cx + halfW, reg.frontY, 0);
 
     // front face
-    ctx.fillStyle = "#0e1830";
+    ctx.fillStyle = "#d8e1ec";
     ctx.beginPath();
     ctx.moveTo(blp.x, blp.y); ctx.lineTo(brp.x, brp.y);
     ctx.lineTo(br0.x, br0.y); ctx.lineTo(bl0.x, bl0.y); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = "#22d3ee";
+    ctx.fillStyle = "#4f46e5";
     ctx.fillRect(bl0.x, br0.y - 4, br0.x - bl0.x, 4);
 
     // top surface
     const grad = ctx.createLinearGradient(tl.x, tl.y, blp.x, blp.y);
-    grad.addColorStop(0, "#16233c");
-    grad.addColorStop(1, "#0f1a2e");
+    grad.addColorStop(0, "#ffffff");
+    grad.addColorStop(1, "#e7edf5");
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
     ctx.lineTo(brp.x, brp.y); ctx.lineTo(blp.x, blp.y); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = "rgba(94,234,212,0.25)"; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = "rgba(71,85,105,.20)"; ctx.lineWidth = 1; ctx.stroke();
 
     // conveyor belt (customer side of the top surface)
     const beltBackY = reg.frontY - 8;
@@ -259,13 +307,13 @@ export class Renderer {
     const beltL = this.toScreen(cx - halfW + 10, beltFrontY, h + 1);
     const beltR = this.toScreen(cx + halfW - 34, beltFrontY, h + 1);
     const beltBL = this.toScreen(cx - halfW + 10, beltBackY, h + 1);
-    ctx.fillStyle = "#3a4152";
+    ctx.fillStyle = "#64748b";
     ctx.beginPath();
     ctx.moveTo(beltL.x, beltL.y); ctx.lineTo(beltR.x, beltR.y);
     const beltBR = this.toScreen(cx + halfW - 34, beltBackY, h + 1);
     ctx.lineTo(beltBR.x, beltBR.y); ctx.lineTo(beltBL.x, beltBL.y); ctx.closePath(); ctx.fill();
     // belt rollers
-    ctx.strokeStyle = "rgba(255,255,255,0.10)"; ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.42)"; ctx.lineWidth = 1;
     for (let i = 1; i < 6; i++) {
       const t = i / 6;
       const a = this._lerp(beltL, beltR, t), bpt = this._lerp(beltBL, beltBR, t);
@@ -278,10 +326,10 @@ export class Renderer {
     // barcode scanner glow near the register end
     const scan = this.toScreen(cx + halfW - 24, reg.frontY - 16, h + 1);
     const scanning = register.state === REGISTER_STATE.SCANNING;
-    ctx.fillStyle = scanning ? "rgba(94,234,212,0.95)" : "#5a6a86";
+    ctx.fillStyle = scanning ? "#059669" : "#64748b";
     this.roundRect(scan.x - 6, scan.y - 4, 12, 8, 2); ctx.fill();
     if (scanning) {
-      ctx.strokeStyle = "rgba(34,211,238,0.95)"; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "#d1fae5"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(scan.x - 5, scan.y); ctx.lineTo(scan.x + 5, scan.y); ctx.stroke();
     }
 
@@ -539,6 +587,9 @@ export class Renderer {
 
   /** Returns the register id under a CSS pixel, or null. */
   pickRegister(cssX, cssY, sim) {
+    for (const hit of this._cashierHits || []) {
+      if (cssX >= hit.x && cssX <= hit.x + hit.width && cssY >= hit.y && cssY <= hit.y + hit.height) return hit.id;
+    }
     let best = null, bestD = 46;
     for (const reg of sim.world.registers) {
       const p = this.toScreen(reg.cx, (reg.backY + reg.frontY) / 2, reg.h * 0.5);

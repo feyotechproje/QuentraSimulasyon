@@ -139,14 +139,14 @@ export class Renderer {
 
   _drawBackground(ctx) {
     const g = ctx.createLinearGradient(0, 0, VIEW.W, VIEW.H);
-    g.addColorStop(0, "#04070d");
-    g.addColorStop(0.5, "#050b14");
-    g.addColorStop(1, "#03060b");
+    g.addColorStop(0, "#f8fafc");
+    g.addColorStop(0.5, "#eef7f3");
+    g.addColorStop(1, "#edf2f7");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, VIEW.W, VIEW.H);
     // central green glow behind hero
     const r = ctx.createRadialGradient(VIEW.W * 0.46, VIEW.H * 0.5, 40, VIEW.W * 0.46, VIEW.H * 0.5, 520);
-    r.addColorStop(0, "rgba(20,70,52,0.25)");
+    r.addColorStop(0, "rgba(34,197,94,0.13)");
     r.addColorStop(1, "rgba(20,70,52,0)");
     ctx.fillStyle = r;
     ctx.fillRect(0, 0, VIEW.W, VIEW.H);
@@ -166,18 +166,18 @@ export class Renderer {
         const ch = c.chars[row] || "0";
         if (k === 0) {
           // leading glyph — bright, almost white with green glow
-          ctx.fillStyle = `rgba(200,255,225,${0.85 * c.bright})`;
-          ctx.shadowColor = "rgba(60,255,170,0.9)";
+          ctx.fillStyle = `rgba(21,128,61,${0.68 * c.bright})`;
+          ctx.shadowColor = "rgba(34,197,94,0.35)";
           ctx.shadowBlur = 8;
           ctx.fillText(ch, c.x, y);
           ctx.shadowBlur = 0;
         } else if (k === 1) {
           // second glyph slightly brighter for a crisp "tip"
-          ctx.fillStyle = `rgba(90,255,180,${0.5 * c.bright})`;
+          ctx.fillStyle = `rgba(22,163,74,${0.38 * c.bright})`;
           ctx.fillText(ch, c.x, y);
         } else {
           const a = (1 - k / c.trail) * 0.38 * c.bright;
-          ctx.fillStyle = `rgba(38,225,140,${a})`;
+          ctx.fillStyle = `rgba(34,197,94,${a * 0.62})`;
           ctx.fillText(ch, c.x, y);
         }
       }

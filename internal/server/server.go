@@ -10,8 +10,11 @@ import (
 	"net/http"
 	"time"
 
+	"supermarketsim/internal/access"
 	"supermarketsim/internal/dashboard"
 	"supermarketsim/internal/db"
+	"supermarketsim/internal/fulltext"
+	"supermarketsim/internal/keybreaker"
 	"supermarketsim/internal/production"
 	"supermarketsim/internal/reportcache"
 	"supermarketsim/internal/sim"
@@ -29,12 +32,15 @@ type Server struct {
 	vehicle     *vehicle.Manager
 	production  *production.Manager
 	reportCache *reportcache.Manager
+	fulltext    *fulltext.Manager
+	keyBreaker  *keybreaker.Manager
+	access      *access.Manager
 	log         *slog.Logger
 }
 
 // New creates the HTTP server.
-func New(engine *sim.Engine, hub *sim.Hub, store *db.Store, veh *vehicle.Manager, prod *production.Manager, rc *reportcache.Manager, log *slog.Logger) *Server {
-	return &Server{engine: engine, hub: hub, store: store, vehicle: veh, production: prod, reportCache: rc, log: log}
+func New(engine *sim.Engine, hub *sim.Hub, store *db.Store, veh *vehicle.Manager, prod *production.Manager, rc *reportcache.Manager, ft *fulltext.Manager, kb *keybreaker.Manager, acc *access.Manager, log *slog.Logger) *Server {
+	return &Server{engine: engine, hub: hub, store: store, vehicle: veh, production: prod, reportCache: rc, fulltext: ft, keyBreaker: kb, access: acc, log: log}
 }
 
 // Handler builds the router.
@@ -94,6 +100,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/reportcache/mode", s.handleReportCacheMode)
 	mux.HandleFunc("POST /api/reportcache/reset", s.handleReportCacheReset)
 
+	// FullText / NGram search real-DB workload endpoints (CRM2 customer search).
+	mux.HandleFunc("GET /api/fulltext/state", s.handleLiveState(func() any { return s.fulltextState() }))
+	mux.HandleFunc("POST /api/fulltext/mode", s.handleFulltextMode)
+
+	// Key Breaker SQL-injection defense real workload endpoints.
+	mux.HandleFunc("GET /api/keybreaker/state", s.handleLiveState(func() any { return s.keyBreakerState() }))
+	mux.HandleFunc("POST /api/keybreaker/mode", s.handleKeyBreakerMode)
+
+	// Turnstile / factory access "last movement" real-DB workload endpoints.
+	mux.HandleFunc("GET /api/access/state", s.handleLiveState(func() any { return s.accessState() }))
+	mux.HandleFunc("POST /api/access/mode", s.handleAccessMode)
+
 	return withCORS(mux)
 }
 
@@ -123,8 +141,7 @@ func (s *Server) handleSetSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 // stockModePayload describes the current scenario plus the exact SQL executed on
-// each side of the Quentra rewrite, so the UI can show a grounded before/after
-// instead of hardcoding query text in JavaScript.
+// each side of the Quentra rewrite, so the UI can show a grounded before/after.
 func (s *Server) stockModePayload() map[string]any {
 	st := s.engine.Settings()
 	out := map[string]any{
@@ -133,7 +150,8 @@ func (s *Server) stockModePayload() map[string]any {
 		"quentraRewrite": st.QuentraRewrite,
 	}
 	if s.store != nil {
-		// One query per scanned barcode; the rewrite swaps only the UDF call.
+		// The application sends the baseline query on both routes; the second text
+		// shows the form produced by the Quentra gateway rewrite.
 		out["baselineSQL"] = s.store.ItemScanSQL(false)
 		out["quentraSQL"] = s.store.ItemScanSQL(true)
 		// Without the gateway both modes travel the same route, so the UI must
@@ -148,7 +166,7 @@ func (s *Server) handleGetStockMode(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSetStockMode switches the per-scan stock lookup between the direct
-// connection (slow scalar UDF) and the Quentra rewrite, live, without
+// connection and the Quentra rewrite, live, without
 // restarting the simulation.
 func (s *Server) handleSetStockMode(w http.ResponseWriter, r *http.Request) {
 	var body struct {

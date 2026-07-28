@@ -138,8 +138,10 @@ export class UI {
     el("simClock").textContent = fmtClock(sim.time);
     // status + mode
     const sp = el("statusPill");
-    sp.dataset.state = sim.running ? "running" : "paused";
-    el("statusLabel").textContent = sim.running ? t("st.running","SIMULATION RUNNING") : t("st.paused","PAUSED");
+    sp.dataset.state = sim.stopped ? "stopped" : sim.running ? "running" : "paused";
+    el("statusLabel").textContent = sim.stopped
+      ? t("st.stopped","STOPPED")
+      : sim.running ? t("st.running","SIMULATION RUNNING") : t("st.paused","PAUSED");
     const mp = el("modePill");
     mp.dataset.mode = sim.mode; mp.textContent = sim.mode === "cache" ? t("mode.cache","QUENTRA CACHE") : t("mode.baseline","BASELINE");
 

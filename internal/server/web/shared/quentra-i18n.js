@@ -15,7 +15,7 @@
 //   initQuentraApp({
 //     appId: "retail",
 //     accent: "#7c3aed",
-//     brand: { name: "Quentra Retail", sub: "Checkout Simulation", logo: "/assets/quentra-logo.png" },
+//     brand: { name: "Quentra Retail", sub: "Checkout Simulation", logo: "/assets/quentra-logo.jpeg" },
 //     intro: {
 //       tr: { eyebrow, title, tagline, purpose: [..], cta },
 //       en: { eyebrow, title, tagline, purpose: [..], cta },
@@ -140,6 +140,16 @@ function ctaLabel(state) {
 function buildOverlay(state, onEnter) {
   const overlay = el("div", "qi-overlay");
   const card = el("div", "qi-card");
+  let entered = false;
+  let enterBtn = null;
+
+  const dismissAndEnter = () => {
+    if (entered) return;
+    entered = true;
+    overlay.classList.add("qi-hiding");
+    setTimeout(() => overlay.remove(), 520);
+    onEnter();
+  };
 
   card.appendChild(buildBrand(state.config.brand));
 
@@ -152,13 +162,15 @@ function buildOverlay(state, onEnter) {
     b.type = "button";
     b.dataset.lang = lang;
     b.addEventListener("click", () => {
-      if (state.lang === lang) return;
-      state.lang = lang;
-      document.documentElement.setAttribute("lang", lang);
-      langs.querySelectorAll(".qi-lang").forEach((x) =>
-        x.classList.toggle("is-active", x.dataset.lang === lang));
-      renderIntro(state, content);
-      enterBtn.innerHTML = enterHTML(state);
+      if (state.lang !== lang) {
+        state.lang = lang;
+        document.documentElement.setAttribute("lang", lang);
+        langs.querySelectorAll(".qi-lang").forEach((x) =>
+          x.classList.toggle("is-active", x.dataset.lang === lang));
+        renderIntro(state, content);
+        if (enterBtn) enterBtn.innerHTML = enterHTML(state);
+      }
+      if (state.config.enterOnLanguageSelect) dismissAndEnter();
     });
     langs.appendChild(b);
   });
@@ -167,16 +179,14 @@ function buildOverlay(state, onEnter) {
   const content = el("div", "qi-content");
   card.appendChild(content);
 
-  const actions = el("div", "qi-actions");
-  const enterBtn = el("button", "qi-enter", enterHTML(state));
-  enterBtn.type = "button";
-  enterBtn.addEventListener("click", () => {
-    overlay.classList.add("qi-hiding");
-    setTimeout(() => overlay.remove(), 520);
-    onEnter();
-  });
-  actions.appendChild(enterBtn);
-  card.appendChild(actions);
+  if (!state.config.enterOnLanguageSelect) {
+    const actions = el("div", "qi-actions");
+    enterBtn = el("button", "qi-enter", enterHTML(state));
+    enterBtn.type = "button";
+    enterBtn.addEventListener("click", dismissAndEnter);
+    actions.appendChild(enterBtn);
+    card.appendChild(actions);
+  }
 
   overlay.appendChild(card);
   document.body.appendChild(overlay);
@@ -223,12 +233,20 @@ export function initQuentraApp(config) {
   if (config.accent) document.documentElement.style.setProperty("--qi-accent", config.accent);
   if (config.accent2) document.documentElement.style.setProperty("--qi-accent-2", config.accent2);
 
-  const start = () => buildOverlay(state, () => {
+  const enter = () => {
     localStorage.setItem(LANG_KEY, state.lang);
     applyTranslations(state);
     mountSwitch(state);
     if (typeof config.onReady === "function") config.onReady(state.lang, state.t.bind(state));
-  });
+  };
+
+  const start = () => {
+    if (config.skipIntro) {
+      enter();
+      return;
+    }
+    buildOverlay(state, enter);
+  };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", start);

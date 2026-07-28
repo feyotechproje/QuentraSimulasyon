@@ -103,6 +103,6 @@ export const TIMINGS = {
 export const ASSETS = {
   hero: "assets/key-breaker.png",
   icon: "assets/quentra-icon.png",
-  logo: "/assets/quentra-logo.png",
+  logo: "/assets/quentra-logo.jpeg",
   reference: "assets/key-breaker-reference.png",
 };

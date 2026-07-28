@@ -36,7 +36,7 @@ body {
 
 /* ---- Toolbar ---- */
 .toolbar {
-  display: flex; align-items: center; gap: 18px;
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
   padding: 10px 18px;
   background: linear-gradient(180deg, rgba(20,28,48,0.9), rgba(11,17,32,0.9));
   border-bottom: 1px solid var(--line);
@@ -227,6 +227,28 @@ body {
   .kpi-strip { grid-template-columns: repeat(7, 1fr); }
   .content { grid-template-columns: 1fr 320px; }
 }
+@media (max-width: 1280px) {
+  .kpi-strip { grid-template-columns: repeat(5, 1fr); }
+}
+/* Tablet: the two-column content stacks, so release the viewport lock
+   (height:100vh + body overflow:hidden clips it) and let the page scroll. */
+@media (max-width: 1024px) {
+  .app { height: auto; min-height: 100vh; }
+  body { overflow: auto; }
+  .toolbar { flex-wrap: wrap; justify-content: center; }
+  .toolbar-status { margin-left: 0; flex-wrap: wrap; justify-content: center; }
+  .toolbar-controls { margin-left: 0; width: 100%; justify-content: center; }
+  .content { grid-template-columns: 1fr; }
+  .canvas-wrap { min-height: 56vh; }
+  .side { overflow: visible; }
+}
+@media (max-width: 720px) {
+  .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+  .rewrite { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+}
 
 /* ---- Intro overlay ---- */
 .intro {
@@ -257,3 +279,6 @@ body {
   box-shadow: 0 0 18px rgba(139,92,246,0.4); transition: transform 0.12s, box-shadow 0.12s;
 }
 .intro-btn:hover { transform: translateY(-1px); box-shadow: 0 0 26px rgba(139,92,246,0.55); }
+
+/* Reserve top-right space on desktop for the shared fixed TR/EN language switch. */
+@media (min-width:1025px){ .toolbar{ padding-right:100px } }

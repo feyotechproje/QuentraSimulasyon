@@ -30,8 +30,8 @@ type Settings struct {
 // DefaultSettings returns the specification defaults.
 func DefaultSettings() Settings {
 	return Settings{
-		TotalCustomers:   1000,
-		RegisterCount:    20,
+		TotalCustomers: 1000,
+		RegisterCount:  20,
 		// Distinct products per basket. Each line costs one per-scan query, so
 		// this directly multiplies the database work a single customer causes.
 		ItemsPerCustomer: 2,
@@ -135,6 +135,10 @@ type QueuedCustomer struct {
 	TotalQty    float64         `json:"totalQty"`
 	Total       float64         `json:"total"`
 	QueuedAtMs  int64           `json:"-"`
+	// Route is captured once, at the first queue entry. A later mode switch or
+	// register redistribution must not move an already-accrued wait to another
+	// side of the comparison.
+	QueuedViaQuentra bool `json:"-"`
 }
 
 // RegisterState is the compact live snapshot for one register.
@@ -157,8 +161,25 @@ type RegisterState struct {
 	AvgProcessMs    int64            `json:"avgProcessMs"`
 	ActiveStock     int64            `json:"activeStock"`   // stock returned for the active item
 	ActiveStockMs   int64            `json:"activeStockMs"` // real ms the last stock lookup took
+	ScannedItems    []ScannedItem    `json:"scannedItems"`
 	LastEventUnixMs int64            `json:"lastEventMs"`
 	QueuePreview    []QueuedCustomer `json:"queuePreview"`
+}
+
+// ScannedItem is one grounded QUENTRA_RETAIL product already passed over the barcode
+// reader at a register. It is kept on the live register snapshot so the UI can
+// show the full current basket, not just the item under the scanner.
+type ScannedItem struct {
+	Code      string  `json:"code"`
+	Name      string  `json:"name"`
+	Brand     string  `json:"brand"`
+	Category  string  `json:"category"`
+	Quantity  float64 `json:"quantity"`
+	UnitPrice float64 `json:"unitPrice"`
+	LineTotal float64 `json:"lineTotal"`
+	QueryMs   int64   `json:"queryMs"`
+	Route     string  `json:"route"`
+	ScannedAt int64   `json:"scannedAt"`
 }
 
 // Metrics are aggregate KPIs.
@@ -170,7 +191,7 @@ type Metrics struct {
 	OpenRegisters  int     `json:"openRegisters"`
 	TotalSales     float64 `json:"totalSales"`
 	TxnPerMinute   float64 `json:"txnPerMinute"`
-	AvgWaitMs      int64   `json:"avgWaitMs"`
+	AvgWaitMs      int64   `json:"avgWaitMs"` // active route, rolling 60-second window
 	AvgProcessMs   int64   `json:"avgProcessMs"`
 	ItemsScanned   int64   `json:"itemsScanned"`
 	Errors         int     `json:"errors"`
@@ -194,9 +215,9 @@ type Metrics struct {
 	// stand next to each other for comparison.
 	AvgProcessDirectMs  int64 `json:"avgProcessDirectMs"`
 	AvgProcessQuentraMs int64 `json:"avgProcessQuentraMs"`
-	AvgWaitDirectMs     int64 `json:"avgWaitDirectMs"`
-	AvgWaitQuentraMs    int64 `json:"avgWaitQuentraMs"`
-	StockValue   int64 `json:"stockValue"`   // most recent stock value returned
+	AvgWaitDirectMs     int64 `json:"avgWaitDirectMs"`  // rolling 60-second window
+	AvgWaitQuentraMs    int64 `json:"avgWaitQuentraMs"` // rolling 60-second window
+	StockValue          int64 `json:"stockValue"`       // most recent stock value returned
 }
 
 // CompletedSale is a finished checkout record for the UI list.

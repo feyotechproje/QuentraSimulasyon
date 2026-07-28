@@ -45,6 +45,7 @@ export const FLEET_DICT = {
     // status pill
     "st.running": "ÇALIŞIYOR",
     "st.paused": "DURAKLATILDI",
+    "st.stopped": "DURDURULDU",
     // live db
     "db.connecting": "VEHICLEGPS · bağlanıyor…",
     "db.demo": "Demo · simüle, sorgu çalıştırılmıyor",
@@ -277,6 +278,7 @@ export const FLEET_DICT = {
     // status pill
     "st.running": "RUNNING",
     "st.paused": "PAUSED",
+    "st.stopped": "STOPPED",
     // live db
     "db.connecting": "VEHICLEGPS · connecting…",
     "db.demo": "Demo · simulated, no SQL executed",

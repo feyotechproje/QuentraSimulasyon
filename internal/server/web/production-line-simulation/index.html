@@ -41,7 +41,7 @@
 
     /* ---------- Top bar ---------- */
     .topbar{
-      display:flex;align-items:center;justify-content:space-between;gap:16px;
+      display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
       padding:12px 18px;border:1px solid rgba(255,255,255,.07);
       border-radius:16px;background:rgba(16,22,30,.9);backdrop-filter:blur(12px);
     }
@@ -169,14 +169,17 @@
       .stage-wrap{height:60vh}
       .sqlbar{grid-template-columns:1fr}
     }
+    /* Reserve top-right space on desktop for the shared fixed TR/EN language switch. */
+    @media(min-width:1001px){ .topbar{ padding-right:100px } }
   </style>
+  <link rel="stylesheet" href="/shared/light-theme.css" />
 </head>
 <body>
 <div class="app">
   <!-- TOP BAR -->
   <header class="topbar">
     <div class="brand">
-      <img src="/assets/quentra-logo.png" alt="Quentra" style="height:28px;width:auto;display:block" />
+      <img src="/assets/quentra-logo.jpeg" alt="Quentra" style="height:28px;width:auto;display:block" />
       <div>
         <div data-i18n="brand.title">PRODUCTION VISION</div>
         <div class="sub" data-i18n="brand.sub">Smart-factory digital twin · real-time line monitoring</div>
@@ -290,7 +293,7 @@
   initQuentraApp({
     appId: "production-line",
     accent: "#6f8dff",
-    brand: { name: "Quentra Production", sub: "Manufacturing Digital Twin", logo: "/assets/quentra-logo.png" },
+    brand: { name: "Quentra Production", sub: "Manufacturing Digital Twin", logo: "/assets/quentra-logo.jpeg" },
     intro: PRODUCTION_INTRO,
     dict: PRODUCTION_DICT,
     onReady: () => {},
@@ -1173,7 +1176,14 @@
     pauseBtn.textContent=state.paused?T('btn.resume','Resume'):T('btn.pause','Pause');
     ui.runState.textContent=state.paused?T('run.paused','PAUSED'):T('run.running','RUNNING');
   });
-  resetBtn.addEventListener('click', ()=>{ resetScene(); });
+  resetBtn.addEventListener('click', ()=>{
+    resetScene();
+    // Reset also lifts a pause, so the scene actually runs again instead of
+    // staying frozen on the old "DURAKLATILDI" state.
+    state.paused = false;
+    pauseBtn.textContent = T('btn.pause','Pause');
+    ui.runState.textContent = T('run.running','RUNNING');
+  });
   speedSelect.addEventListener('change', ()=> state.speed=Number(speedSelect.value));
   window.addEventListener('resize', resize);
 

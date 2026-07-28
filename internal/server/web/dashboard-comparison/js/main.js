@@ -86,7 +86,7 @@ initQuentraApp({
   appId: "dashboard-comparison",
   accent: "#6d3bd1",
   accent2: "#12b5b0",
-  brand: { name: "Quentra Dashboard", sub: "Performance Lab", logo: "/assets/quentra-logo.png" },
+  brand: { name: "Quentra Dashboard", sub: "Performance Lab", logo: "/assets/quentra-logo.jpeg" },
   intro: DASHBOARD_INTRO,
   dict: DASHBOARD_DICT,
   onReady: () => bootWithErrorHandling(),

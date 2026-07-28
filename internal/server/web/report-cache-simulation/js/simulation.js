@@ -30,6 +30,7 @@ export class Simulation {
     this.mode = MODE.BASELINE;
     this.auto = true;                 // start in auto-demo
     this.running = true;
+    this.stopped = false;             // distinct from paused, for the Stop button
     this.selected = null;
 
     this.packets = [];
@@ -89,8 +90,8 @@ export class Simulation {
 
   setAuto() { this.auto = true; this._autoPhase = -1; this.time = 0; this.setMode(MODE.BASELINE, true); this.callout = null; }
   pause()  { this.running = false; }
-  resume() { this.running = true; }
-  stop()   { this.running = false; }
+  resume() { this.running = true; this.stopped = false; }
+  stop()   { this.running = false; this.stopped = true; }
   select(id) { this.selected = (this.selected === id) ? null : id; }
 
   // ---- main loop ----

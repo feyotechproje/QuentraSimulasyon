@@ -6,13 +6,14 @@
   <title>Quentra Factory Access · Turnstile Entrance Simulation</title>
   <link rel="stylesheet" href="/shared/quentra-i18n.css" />
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="/shared/light-theme.css" />
 </head>
 <body>
   <div class="app">
     <!-- Toolbar -->
     <header class="toolbar">
       <div class="brand">
-        <img src="/assets/quentra-logo.png" alt="Quentra" style="height:30px;width:auto;display:block" />
+        <img src="/assets/quentra-logo.jpeg" alt="Quentra" style="height:30px;width:auto;display:block" />
         <div class="brand-text">
           <em data-i18n="brand.name">Factory Access</em>
         </div>
@@ -63,20 +64,16 @@
       </div>
     </header>
 
-    <!-- KPI strip -->
+    <!-- Impact-first KPI strip -->
     <section class="kpi-strip" id="kpiStrip">
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.totalWorkers">Total Workers</span><span class="kpi-value" id="kTotal">0</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.workersWaiting">Workers Waiting</span><span class="kpi-value" id="kWaiting">0</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.workersProcessing">Workers Processing</span><span class="kpi-value" id="kProcessing">0</span></div>
-      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.successfulEntries">Successful Entries</span><span class="kpi-value" id="kEntries">0</span></div>
-      <div class="kpi kpi-bad"><span class="kpi-label" data-i18n="kpi.accessDenied">Access Denied</span><span class="kpi-value" id="kDenied">0</span></div>
-      <div class="kpi kpi-purple"><span class="kpi-label" data-i18n="kpi.manualReview">Manual Review</span><span class="kpi-value" id="kManual">0</span></div>
-      <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.avgCheckTime">Avg Check Time</span><span class="kpi-value" id="kAvgCheck">0.0s</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.avgQueueTime">Avg Queue Time</span><span class="kpi-value" id="kAvgQueue">0.0s</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.longestQueue">Longest Queue</span><span class="kpi-value" id="kLongest">0</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.entriesPerMin">Entries / Min</span><span class="kpi-value" id="kPerMin">0</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.turnstileUtil">Turnstile Utilization</span><span class="kpi-value" id="kUtil">0%</span></div>
+      <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.baselineAvg">Baseline Query</span><span class="kpi-value" id="kBaseAvg">—</span></div>
+      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.quentraAvg">Quentra Query</span><span class="kpi-value" id="kQnAvg">—</span></div>
+      <div class="kpi kpi-purple"><span class="kpi-label" data-i18n="kpi.speedup">Query Speedup</span><span class="kpi-value" id="kSpeedup">—</span></div>
+      <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.avgQueueTime">Avg Queue Time</span><span class="kpi-value" id="kAvgQueue">0.0s</span></div>
       <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.pendingChecks">Pending Movement Checks</span><span class="kpi-value" id="kPending">0</span></div>
+      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.entriesPerMin">Entries / Min</span><span class="kpi-value" id="kPerMin">0</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.turnstileUtil">Turnstile Utilization</span><span class="kpi-value" id="kUtil">0%</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.workersWaiting">Workers Waiting</span><span class="kpi-value" id="kWaiting">0</span></div>
     </section>
 
     <!-- Content -->

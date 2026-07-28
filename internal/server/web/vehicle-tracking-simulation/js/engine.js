@@ -8,6 +8,7 @@ export class Engine {
     this.sim = sim;
     this.renderer = renderer;
     this.running = true;
+    this.stopped = false;
     this.speed = 1;
     this.last = 0;
     this._uiAcc = 0;
@@ -18,11 +19,12 @@ export class Engine {
   start() { this.last = performance.now(); requestAnimationFrame(this._loop); }
 
   pause() { this.running = false; }
-  resume() { if (!this.running) { this.running = true; this.last = performance.now(); } }
+  resume() { if (!this.running) { this.running = true; this.stopped = false; this.last = performance.now(); } }
   setSpeed(s) { this.speed = s; }
 
   stop() {
     this.running = false;
+    this.stopped = true;
     // Freeze on the current frame.
     this.renderer.render(this.sim);
   }
@@ -30,6 +32,7 @@ export class Engine {
   reset() {
     this.sim.reset();
     this.running = true;
+    this.stopped = false;
     this.speed = 1;
     this.last = performance.now();
   }

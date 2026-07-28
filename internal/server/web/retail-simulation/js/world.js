@@ -19,6 +19,9 @@ export const WORLD = {
   // Derived lanes
   queueGap: 130,           // spacing between queued customers (tight, crowded)
   queueFrontOffset: 150,   // front-of-counter -> first queue slot
+  visibleQueueSlots: 24,   // live floor shows the same people counted in normal queues
+  queueColumns: 3,         // compact crowd: 24 people occupy only 8 depth rows
+  queueColumnGap: 38,
   laneOffset: 74,          // side aisle offset (into the gap on the right)
   corridorOffset: 84,      // exit corridor depth behind the counters
 
@@ -62,7 +65,7 @@ export function buildWorld(registerCount = WORLD.registerCount) {
     maxX: lastX + w.counterW / 2 + 150,
     minY: corridorY - 54,
     // Room for a long queue: the demo starts crowded and grows on the slow path.
-    maxY: registers[0].queueStartY + 18 * w.queueGap + 60,
+    maxY: registers[0].queueStartY + Math.ceil(w.visibleQueueSlots / w.queueColumns) * w.queueGap + 60,
   };
 
   // Shoppers arrive from the sales floor at the BOTTOM (behind the queues) and
@@ -90,7 +93,13 @@ export function buildWorld(registerCount = WORLD.registerCount) {
 
 /** Queue slot world-position for a given register + index (0 = front). */
 export function queueSlot(reg, index) {
-  return { x: reg.cx, y: reg.queueStartY + index * reg.queueGap };
+  const row = Math.floor(index / WORLD.queueColumns);
+  const col = index % WORLD.queueColumns;
+  const columnOrder = [0, -1, 1];
+  return {
+    x: reg.cx + columnOrder[col] * WORLD.queueColumnGap,
+    y: reg.queueStartY + row * reg.queueGap,
+  };
 }
 
 /**

@@ -9,6 +9,7 @@ import { Engine } from "./engine.js";
 import { UI } from "./ui.js";
 import { initQuentraApp } from "/shared/quentra-i18n.js";
 import { FACTORY_TURNSTILE_INTRO, FACTORY_TURNSTILE_DICT } from "./i18n.js";
+import { initAccessLive } from "/shared/access-live.js";
 
 function boot() {
   const canvas = document.getElementById("scene");
@@ -31,8 +32,8 @@ initQuentraApp({
   appId: "factory-turnstile",
   accent: "#f5b301",
   accent2: "#3a4252",
-  brand: { name: "Quentra Factory Access", sub: "Turnstile Control", logo: "/assets/quentra-logo.png" },
+  brand: { name: "Quentra Factory Access", sub: "Turnstile Control", logo: "/assets/quentra-logo.jpeg" },
   intro: FACTORY_TURNSTILE_INTRO,
   dict: FACTORY_TURNSTILE_DICT,
-  onReady: () => boot(),
+  onReady: () => { boot(); initAccessLive("factory-turnstile-simulation", "#6d5efc"); },
 });

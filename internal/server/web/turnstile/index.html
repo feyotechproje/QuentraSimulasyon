@@ -11,7 +11,16 @@
     /* this page has fewer KPI cards than the retail floor */
     .kpi-row{grid-template-columns:repeat(6,1fr)}
     @media (max-width:1500px){.kpi-value{font-size:19px}}
+    /* Own KPI breakpoints — the shared retail sheet collapses its 9-up row on a
+       different cadence, so restate the steps for this 6-up row. */
+    @media (max-width:1120px){.kpi-row{grid-template-columns:repeat(3,1fr)}}
+    @media (max-width:560px){
+      .kpi-row{grid-template-columns:repeat(2,1fr)}
+      /* reclaim the icon rail's width for the stage on phones */
+      .rail{display:none}
+    }
   </style>
+  <link rel="stylesheet" href="/shared/light-theme.css" />
 </head>
 <body>
   <div class="app">
@@ -40,7 +49,7 @@
       <!-- Top toolbar -->
       <header class="toolbar">
         <div class="brand">
-          <img src="/assets/quentra-logo.png" alt="Quentra" style="height:26px;width:auto;display:block" />
+          <img src="/assets/quentra-logo.jpeg" alt="Quentra" style="height:26px;width:auto;display:block" />
           <span class="brand-sub" data-i18n="brand.sub">Access</span>
           <span class="brand-orb" aria-hidden="true"></span>
         </div>

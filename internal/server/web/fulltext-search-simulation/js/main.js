@@ -3,6 +3,7 @@ import { VIEW } from './config.js';
 import { Simulation } from './simulation.js';
 import { Engine } from './engine.js';
 import { UI } from './ui.js';
+import { initFulltextLive } from './live.js';
 import { initQuentraApp } from '/shared/quentra-i18n.js';
 import { FULLTEXT_INTRO, FULLTEXT_DICT } from './i18n.js';
 
@@ -38,13 +39,17 @@ function boot() {
   window.addEventListener('quentra:langchange', () => ui.update());
 
   window.__office = { sim, engine, ui };
+
+  // Live data wiring: adds a Demo / Canlı toggle and, when live, drives the
+  // metrics/feed from real /api/fulltext/* measurements.
+  initFulltextLive({ engine });
 }
 
 initQuentraApp({
   appId: 'fulltext-search',
   accent: '#7c3aed',
   accent2: '#2563eb',
-  brand: { name: 'Quentra FullText', sub: 'NGram Search', logo: '/assets/quentra-logo.png' },
+  brand: { name: 'Quentra FullText', sub: 'NGram Search', logo: '/assets/quentra-logo.jpeg' },
   intro: FULLTEXT_INTRO,
   dict: FULLTEXT_DICT,
   onReady: () => boot(),

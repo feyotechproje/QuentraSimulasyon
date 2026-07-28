@@ -231,3 +231,24 @@ func TestHubNonBlockingOnSlowConsumer(t *testing.T) {
 		t.Fatal("Broadcast blocked on slow consumer")
 	}
 }
+
+func TestSummarizeWaitSamplesUsesRollingWindowAndRoute(t *testing.T) {
+	samples := []waitSample{
+		{atMs: 39_999, waitMs: 90_000, mode: 0}, // expired
+		{atMs: 40_000, waitMs: 30_000, mode: 0}, // cutoff is inclusive
+		{atMs: 70_000, waitMs: 10_000, mode: 0},
+		{atMs: 80_000, waitMs: 4_000, mode: 1},
+		{atMs: 90_000, waitMs: 2_000, mode: 1},
+	}
+
+	kept, averages := summarizeWaitSamples(samples, 40_000)
+	if len(kept) != 4 {
+		t.Fatalf("expected 4 samples in rolling window, got %d", len(kept))
+	}
+	if averages[0] != 20_000 {
+		t.Fatalf("expected direct average 20000ms, got %d", averages[0])
+	}
+	if averages[1] != 3_000 {
+		t.Fatalf("expected Quentra average 3000ms, got %d", averages[1])
+	}
+}

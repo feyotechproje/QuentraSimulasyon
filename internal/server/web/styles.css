@@ -43,7 +43,9 @@ body {
 }
 .topbar h1 { font-size: 19px; margin: 0; }
 .subtitle { color: var(--muted); font-size: 12px; }
-.topbar-right { display: flex; align-items: center; gap: 12px; }
+/* Leave room on the right for the shared, fixed-position TR/EN language switch
+   (top:14 right:16) so it never overlaps the simulation-state pill. */
+.topbar-right { display: flex; align-items: center; gap: 12px; margin-right: 76px; }
 .sim-state {
   font-weight: 700; letter-spacing: 0.5px; font-size: 12px;
   padding: 6px 14px; border-radius: 20px; background: var(--panel-2);
@@ -230,4 +232,12 @@ body {
 
 @media (max-width: 900px) {
   .drawer { width: 100vw; }
+}
+@media (max-width: 640px) {
+  #app { padding: 12px 12px 40px; }
+  .topbar { flex-wrap: wrap; gap: 10px; }
+  /* Wide activity/completed tables scroll sideways in their own box instead of
+     pushing the page width out. */
+  .scroll-list { overflow-x: auto; }
+  .row.activity, .row.completed, .row.waiting, .row.errors { min-width: 560px; }
 }

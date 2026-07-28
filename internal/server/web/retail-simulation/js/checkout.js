@@ -33,13 +33,19 @@ export class Register {
     this.timer = 0;
     this.scanTimer = 0;
     // Seconds per scanned item. The demo scenario overrides this to model the
-    // per-scan stock lookup: slow on a direct connection, fast once Quentra
-    // rewrites the call away.
+    // per-scan scalar-UDF query: slower direct, faster through Quentra.
     this.scanInterval = SCAN_INTERVAL;
     this.receipt = 0;      // 0..1 printer extrusion
     this.beltFill = 0;     // 0..1 belt loading
     this.lastSale = null;
     this.highlighted = false;
+    this.activeItem = "";
+    this.activeItemCode = "";
+    this.activeUnitPrice = 0;
+    this.activeQty = 0;
+    this.activeLineTotal = 0;
+    this.activeQueryMs = 0;
+    this.scannedItems = [];
   }
 
   get queueLength() { return this.queue.length; }
@@ -91,6 +97,7 @@ export class Register {
           c.state = CUSTOMER_STATE.UNLOADING;
           c.runningTotal = 0;
           c.scannedItems = 0;
+          this.scannedItems = [];
           this.state = REGISTER_STATE.UNLOADING;
           this.timer = 0.6 + c.basketItems * 0.045;
           this.beltFill = 0;
@@ -112,9 +119,24 @@ export class Register {
       case REGISTER_STATE.SCANNING:
         this.scanTimer -= dt;
         if (this.scanTimer <= 0 && c.scannedItems < c.basketItems) {
-          const price = c.itemPrices[c.scannedItems] || 0;
+          const item = (c.items && c.items[c.scannedItems]) || { name: "Ürün", code: "", brand: "", category: "", price: c.itemPrices[c.scannedItems] || 0 };
+          const price = item.price || 0;
+          this.activeItem = item.name;
+          this.activeItemCode = item.code;
+          this.activeUnitPrice = price;
+          this.activeQty = 1;
+          this.activeLineTotal = price;
+          this.activeQueryMs = Math.round(this.scanInterval * 1000);
           c.scannedItems++;
           c.runningTotal += price;
+          this.scannedItems.push({
+            code: item.code, name: item.name, brand: item.brand, category: item.category,
+            quantity: 1, unitPrice: price, lineTotal: price,
+            queryMs: this.activeQueryMs,
+            route: sim.scenario && sim.scenario.isQuentra ? "quentra" : "direct",
+            scannedAt: Math.round(sim.time * 1000),
+          });
+          this._rcptLines = this.scannedItems.map((x) => ({ name: x.name, price: x.lineTotal }));
           sim.onItemScanned();
           this.scanTimer += this.scanInterval;
         }
@@ -152,6 +174,12 @@ export class Register {
           c.setPath(departWaypoints(sim.world, this.reg));
           this.currentCustomer = null;
           this.state = REGISTER_STATE.IDLE;
+          this.activeItem = "";
+          this.activeItemCode = "";
+          this.activeUnitPrice = 0;
+          this.activeQty = 0;
+          this.activeLineTotal = 0;
+          this.activeQueryMs = 0;
           this.receipt = 0;
           this.beltFill = 0;
         }

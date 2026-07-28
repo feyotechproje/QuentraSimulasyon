@@ -4,10 +4,17 @@
 import { drawPerson } from "./customer.js";
 
 const UNIFORM = "#4338ca"; // Quentra navy uniform
+const CASHIER_NAMES = [
+  "Ayşe Kaya", "Mehmet Demir", "Elif Yılmaz", "Can Arslan",
+  "Zeynep Çetin", "Emre Koç", "Selin Aydın", "Burak Şahin",
+  "Derya Öz", "Mert Aksoy", "İrem Kaplan", "Okan Yıldız",
+  "Ece Polat", "Kerem Güneş", "Seda Kılıç", "Tolga Aslan",
+];
 
 export class Cashier {
   constructor(register) {
     this.register = register;
+    this.name = CASHIER_NAMES[(Math.max(1, register.id) - 1) % CASHIER_NAMES.length];
     this.pos = { x: register.cashier.x, y: register.cashier.y };
     this.appearance = {
       skin: pick(["#f2c9a4", "#e8b48c", "#c88f66", "#a56a44"]),

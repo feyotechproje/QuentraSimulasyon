@@ -116,9 +116,9 @@ export class UI {
   }
 
   _status() {
-    const run = this.engine.running;
     const pill = this.el.statusPill;
-    if (run) { pill.dataset.state = "running"; this.el.statusLabel.textContent = t("st.running", "RUNNING"); }
+    if (this.engine.stopped) { pill.dataset.state = "stopped"; this.el.statusLabel.textContent = t("st.stopped", "DURDURULDU"); }
+    else if (this.engine.running) { pill.dataset.state = "running"; this.el.statusLabel.textContent = t("st.running", "RUNNING"); }
     else { pill.dataset.state = "paused"; this.el.statusLabel.textContent = t("st.paused", "PAUSED"); }
   }
 

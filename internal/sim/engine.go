@@ -56,15 +56,12 @@ type Engine struct {
 	totalSales float64
 	procSumMs  int64
 	procCount  int64
-	waitSumMs  int64
-	waitCount  int64
 	// Same aggregates split by the route the checkout actually used, so the UI
 	// can show direct-vs-Quentra side by side instead of one blended number.
 	// Index 0 = direct connection, 1 = via the Quentra gateway.
 	procSumByMode   [2]int64
 	procCountByMode [2]int64
-	waitSumByMode   [2]int64
-	waitCountByMode [2]int64
+	waitSamples     []waitSample
 	// Per-scan DB timing. These accumulate the CURRENT stock mode only: they are
 	// cleared by SetStockMode so the average always describes the mode on screen
 	// rather than blending slow baseline samples into the Quentra figure.
@@ -84,6 +81,12 @@ type Engine struct {
 type poolData struct {
 	customers []db.Customer
 	items     []db.Item
+}
+
+type waitSample struct {
+	atMs   int64
+	waitMs int64
+	mode   int // 0 = direct, 1 = Quentra
 }
 
 // NewEngine constructs an idle engine.
@@ -279,9 +282,9 @@ func (e *Engine) resetRuntime() {
 	e.genDone.Store(false)
 	e.rrCursor.Store(0)
 	e.aggMu.Lock()
-	e.totalSales, e.procSumMs, e.procCount, e.waitSumMs, e.waitCount = 0, 0, 0, 0, 0
+	e.totalSales, e.procSumMs, e.procCount = 0, 0, 0
 	e.procSumByMode, e.procCountByMode = [2]int64{}, [2]int64{}
-	e.waitSumByMode, e.waitCountByMode = [2]int64{}, [2]int64{}
+	e.waitSamples = nil
 	e.stockSumMs = 0
 	e.itemSumMs = 0
 	e.scanDbCount = 0

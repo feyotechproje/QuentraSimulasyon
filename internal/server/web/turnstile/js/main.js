@@ -6,6 +6,7 @@
 import { drawPerson } from "../../retail-simulation/js/customer.js";
 import { initQuentraApp } from "/shared/quentra-i18n.js";
 import { TURNSTILE_INTRO, TURNSTILE_DICT } from "./i18n.js";
+import { initAccessLive } from "/shared/access-live.js";
 
 const t = (key, fallback) => (window.QuentraI18n ? window.QuentraI18n.t(key, fallback) : fallback);
 
@@ -250,9 +251,9 @@ class View {
     const ctx = this.ctx;
     const tl = this.toScreen(bounds.minX, bounds.minY);
     const br = this.toScreen(bounds.maxX, bounds.maxY);
-    ctx.fillStyle = "#0a1120";
+    ctx.fillStyle = "#eef3f8";
     ctx.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
-    ctx.strokeStyle = "rgba(70,110,150,0.10)";
+    ctx.strokeStyle = "rgba(100,116,139,0.14)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = bounds.minX; x <= bounds.maxX; x += 64) {
@@ -302,12 +303,12 @@ class View {
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     const w = ctx.measureText(text).width + 22;
     ctx.shadowColor = color; ctx.shadowBlur = 12;
-    ctx.fillStyle = "#0c1730";
+    ctx.fillStyle = "#ffffff";
     this.roundRect(p.x - w / 2, p.y - 11, w, 22, 7); ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = color; ctx.lineWidth = 1.3;
     this.roundRect(p.x - w / 2, p.y - 11, w, 22, 7); ctx.stroke();
-    ctx.fillStyle = "#eaf6ff";
+    ctx.fillStyle = "#1e293b";
     ctx.fillText(text, p.x, p.y);
     ctx.restore();
   }
@@ -329,7 +330,7 @@ class View {
       const b = this.toScreen(wx, g.y, 0);
       const t = this.toScreen(wx, g.y, topZ);
       const pw = 9;
-      ctx.fillStyle = "#0e1830";
+      ctx.fillStyle = "#cbd5e1";
       this.roundRect(b.x - pw / 2, t.y, pw, b.y - t.y, 3); ctx.fill();
       ctx.strokeStyle = edge; ctx.lineWidth = 1.2;
       this.roundRect(b.x - pw / 2, t.y, pw, b.y - t.y, 3); ctx.stroke();
@@ -359,7 +360,7 @@ class View {
       const ey = hub.y + Math.sin(ang) * len * SQUASH;
       ctx.beginPath(); ctx.moveTo(hub.x, hub.y); ctx.lineTo(ex, ey); ctx.stroke();
     }
-    ctx.fillStyle = "#0c1730";
+    ctx.fillStyle = "#475569";
     ctx.beginPath(); ctx.arc(hub.x, hub.y, 4, 0, Math.PI * 2); ctx.fill();
     ctx.lineWidth = 1.4; ctx.stroke();
     ctx.restore();
@@ -369,13 +370,13 @@ class View {
     ctx.save();
     ctx.shadowColor = g.highlighted ? "rgba(94,234,212,0.9)" : "rgba(34,211,238,0.5)";
     ctx.shadowBlur = g.highlighted ? 18 : 10;
-    ctx.fillStyle = "#0c1730";
+    ctx.fillStyle = "#ffffff";
     this.roundRect(sign.x - 15, sign.y - 12, 30, 22, 6); ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = g.highlighted ? "#5eead4" : "rgba(94,234,212,0.55)";
     ctx.lineWidth = 1.4;
     this.roundRect(sign.x - 15, sign.y - 12, 30, 22, 6); ctx.stroke();
-    ctx.fillStyle = "#eaf6ff";
+    ctx.fillStyle = "#1e293b";
     ctx.font = "700 12px Inter, system-ui, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("G" + g.id, sign.x, sign.y);
@@ -553,8 +554,8 @@ initQuentraApp({
   appId: "turnstile",
   accent: "#22d3ee",
   accent2: "#5eead4",
-  brand: { name: "Quentra Turnstile", sub: "Access Simulation", logo: "/assets/quentra-logo.png" },
+  brand: { name: "Quentra Turnstile", sub: "Access Simulation", logo: "/assets/quentra-logo.jpeg" },
   intro: TURNSTILE_INTRO,
   dict: TURNSTILE_DICT,
-  onReady: () => boot(),
+  onReady: () => { boot(); initAccessLive("turnstile", "#5eead4"); },
 });

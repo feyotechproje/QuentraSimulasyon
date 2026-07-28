@@ -151,18 +151,18 @@ export class World {
     }
 
     // Named landmarks (drawn distinctly).
-    pushB(1230, 70, 380, 120, { kind: "airport", label: "INTL AIRPORT", h3d: 34, color: "#2b3350" });
-    pushB(90, 820, 200, 120, { kind: "factory", label: "FACTORY", h3d: 46, color: "#3a2f4a" });
-    pushB(330, 900, 180, 110, { kind: "warehouse", label: "WAREHOUSE", h3d: 30, color: "#332b44" });
-    pushB(640, 870, 200, 120, { kind: "logistics", label: "LOGISTICS CTR", h3d: 34, color: "#26364a" });
-    pushB(880, 890, 160, 100, { kind: "warehouse", label: "DEPOT", h3d: 28, color: "#2a3346" });
-    pushB(1200, 780, 210, 130, { kind: "port", label: "PORT TERMINAL", h3d: 26, color: "#183048" });
-    pushB(1460, 800, 180, 120, { kind: "port", label: "CONTAINER YARD", h3d: 22, color: "#183048" });
-    pushB(620, 420, 150, 150, { kind: "mall", label: "GRAND MALL", h3d: 44, color: "#33304e" });
-    pushB(900, 400, 140, 120, { kind: "hospital", label: "HOSPITAL", h3d: 52, color: "#3c2e3e" });
-    pushB(1180, 380, 150, 170, { kind: "tower", label: "OFFICE A", h3d: 96, color: "#2a3350" });
-    pushB(1380, 400, 130, 150, { kind: "tower", label: "OFFICE B", h3d: 120, color: "#2a3350" });
-    pushB(150, 120, 150, 90, { kind: "block", label: "CITY HALL", h3d: 40, color: "#2f3350" });
+    pushB(1230, 70, 380, 120, { kind: "airport", label: "INTL AIRPORT", h3d: 34, color: "#dbeafe" });
+    pushB(90, 820, 200, 120, { kind: "factory", label: "FACTORY", h3d: 46, color: "#ede9fe" });
+    pushB(330, 900, 180, 110, { kind: "warehouse", label: "WAREHOUSE", h3d: 30, color: "#e2e8f0" });
+    pushB(640, 870, 200, 120, { kind: "logistics", label: "LOGISTICS CTR", h3d: 34, color: "#dbeafe" });
+    pushB(880, 890, 160, 100, { kind: "warehouse", label: "DEPOT", h3d: 28, color: "#e2e8f0" });
+    pushB(1200, 780, 210, 130, { kind: "port", label: "PORT TERMINAL", h3d: 26, color: "#cffafe" });
+    pushB(1460, 800, 180, 120, { kind: "port", label: "CONTAINER YARD", h3d: 22, color: "#cffafe" });
+    pushB(620, 420, 150, 150, { kind: "mall", label: "GRAND MALL", h3d: 44, color: "#ede9fe" });
+    pushB(900, 400, 140, 120, { kind: "hospital", label: "HOSPITAL", h3d: 52, color: "#fee2e2" });
+    pushB(1180, 380, 150, 170, { kind: "tower", label: "OFFICE A", h3d: 96, color: "#dbeafe" });
+    pushB(1380, 400, 130, 150, { kind: "tower", label: "OFFICE B", h3d: 120, color: "#dbeafe" });
+    pushB(150, 120, 150, 90, { kind: "block", label: "CITY HALL", h3d: 40, color: "#e2e8f0" });
 
     // Harbor water body (a prop, not a building) added in props.
   }

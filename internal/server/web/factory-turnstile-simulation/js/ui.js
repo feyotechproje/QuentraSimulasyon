@@ -18,6 +18,17 @@ function fmt(str, vars) {
   return str.replace(/\{(\w+)\}/g, (_, k) => (vars && k in vars ? vars[k] : `{${k}}`));
 }
 
+function formatQueryDuration(seconds) {
+  if (!(seconds > 0)) return "—";
+  if (seconds < 1) return Math.round(seconds * 1000) + " ms";
+  return seconds.toFixed(seconds < 10 ? 1 : 0) + " s";
+}
+
+function formatSpeedup(value) {
+  if (!(value > 0) || !Number.isFinite(value)) return "—";
+  return value.toFixed(value < 10 ? 1 : 0) + "×";
+}
+
 export class UI {
   constructor(sim, renderer, engine) {
     this.sim = sim;
@@ -29,10 +40,9 @@ export class UI {
     this.el = {
       statusPill: $("statusPill"), statusLabel: $("statusLabel"),
       clock: $("simClock"), shift: $("simShift"),
-      kTotal: $("kTotal"), kWaiting: $("kWaiting"), kProcessing: $("kProcessing"),
-      kEntries: $("kEntries"), kDenied: $("kDenied"), kManual: $("kManual"),
-      kAvgCheck: $("kAvgCheck"), kAvgQueue: $("kAvgQueue"), kLongest: $("kLongest"),
-      kPerMin: $("kPerMin"), kUtil: $("kUtil"), kPending: $("kPending"),
+      kBaseAvg: $("kBaseAvg"), kQnAvg: $("kQnAvg"), kSpeedup: $("kSpeedup"),
+      kAvgQueue: $("kAvgQueue"), kPending: $("kPending"), kPerMin: $("kPerMin"),
+      kUtil: $("kUtil"), kWaiting: $("kWaiting"),
       gateGrid: $("gateGrid"), gateSummary: $("gateSummary"),
       heatmap: $("heatmap"), bottleneck: $("bottleneck"),
       cwc: $("cwc"), feed: $("accessFeed"),
@@ -212,17 +222,16 @@ export class UI {
 
   refresh() {
     const k = this.sim.kpi;
+    const comparison = this.sim.compareStats();
     const e = this.el;
     e.clock.textContent = this.sim.clockString();
-    e.kTotal.textContent = k.totalWorkers;
+    e.kBaseAvg.textContent = formatQueryDuration(comparison.bAvg);
+    e.kQnAvg.textContent = formatQueryDuration(comparison.qAvg);
+    e.kSpeedup.textContent = comparison.bAvg > 0 && comparison.qAvg > 0
+      ? formatSpeedup(comparison.bAvg / comparison.qAvg)
+      : "—";
     e.kWaiting.textContent = k.waiting;
-    e.kProcessing.textContent = k.processing;
-    e.kEntries.textContent = k.successfulEntries;
-    e.kDenied.textContent = k.accessDenied;
-    e.kManual.textContent = k.manualReview;
-    e.kAvgCheck.textContent = k.avgCheck.toFixed(1) + "s";
     e.kAvgQueue.textContent = k.avgQueue.toFixed(1) + "s";
-    e.kLongest.textContent = k.longestQueue;
     e.kPerMin.textContent = Math.round(k.entriesPerMin);
     e.kUtil.textContent = Math.round(k.utilization * 100) + "%";
     e.kPending.textContent = k.pendingChecks;

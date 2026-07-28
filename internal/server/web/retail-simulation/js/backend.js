@@ -1,13 +1,13 @@
 // backend.js
 // Bridges the visual layer to the REAL Go simulation engine (which reads
-// QUENTRA_RETAIL, distributes customers to registers and writes invoices).
+// QUENTRA_RETAIL for checkout transactions, products and stock reads).
 //
 // BackendClient  -> talks to the existing HTTP/SSE API (/api/*).
 // ApiSimulation  -> exposes the same surface the Renderer/UI/Engine expect, but
 //                   its state is reconciled from live SSE snapshots instead of a
 //                   local in-memory model.
 
-import { buildWorld, queueSlot, arrivalWaypoints, approachWaypoints, departWaypoints } from "./world.js";
+import { WORLD, buildWorld, queueSlot, arrivalWaypoints, approachWaypoints, departWaypoints } from "./world.js";
 import { Customer, CUSTOMER_STATE } from "./customer.js";
 import { Cashier } from "./cashier.js";
 import { REGISTER_STATE } from "./checkout.js";
@@ -70,23 +70,10 @@ export class BackendClient {
 // ------------------------------------------------------------- reconciler ---
 const SCAN_SEC_FALLBACK = 0.4;
 
-// Most queued shoppers drawn per register. The world reserves 18 queue slots
-// (see buildWorld), so this keeps every figure inside the visible floor. The
-// KPI cards still report the backend's true totals.
-const MAX_VISIBLE_QUEUE = 8;
-
-// Product names for the customer-facing counter display. These are cosmetic
-// labels only — the *prices* shown are derived from the register's REAL running
-// subtotal (basketSubtotal) so the on-screen line items always add up to the
-// grounded total coming from the backend. No product data is persisted.
-const DISPLAY_PRODUCTS = [
-  "Süt 1L", "Ekmek", "Yumurta 10'lu", "Beyaz Peynir", "Domates 1kg",
-  "Salatalık 1kg", "Tavuk But", "Makarna 500g", "Pirinç 1kg", "Zeytinyağı 1L",
-  "Çay 500g", "Kahve 200g", "Toz Şeker 1kg", "Un 1kg", "Deterjan",
-  "Yoğurt 1kg", "Tereyağı 250g", "Elma 1kg", "Muz 1kg", "Portakal Suyu",
-  "Bisküvi", "Çikolata", "Su 5L", "Kola 2.5L", "Cips",
-  "Salça 700g", "Bal 460g", "Vişne Reçel", "Sabun", "Şampuan",
-];
+// Keep the floor and the overview cards visually consistent for normal queue
+// sizes. Extremely long stress-test queues remain capped to keep rendering
+// bounded, while the card continues to report the exact backend total.
+const MAX_VISIBLE_QUEUE = WORLD.visibleQueueSlots;
 
 function mapStatus(s) {
   switch (s) {
@@ -216,6 +203,8 @@ export class ApiSimulation {
       vr.activeUnitPrice = rs.activeUnitPrice || 0;
       vr.activeQty = rs.activeQty || 0;
       vr.activeLineTotal = rs.activeLineTotal || 0;
+      vr.activeQueryMs = rs.activeStockMs || 0;
+      vr.scannedItems = Array.isArray(rs.scannedItems) ? rs.scannedItems : [];
       vr.itemTotal = rs.itemTotal || 0;
       vr.itemProgress = rs.itemProgress || 0;
       vr.subtotal = rs.basketSubtotal || 0;
@@ -355,56 +344,14 @@ export class ApiSimulation {
     if (this.events.length > 40) this.events.pop();
   }
 
-  // Build the customer-facing receipt lines for a register. Each newly scanned
-  // item gets a cosmetic product name; its price is a share of the REAL
-  // subtotal delta, so the visible line items always sum to the grounded
-  // basketSubtotal reported by the backend (never invented totals).
+  // Build the customer-facing receipt from the grounded QUENTRA_RETAIL products
+  // carried on the live register snapshot.
   _updateReceipt(vr, rs, c) {
-    if (vr._rcptCustId !== c.id) { vr._rcptCustId = c.id; vr._rcptLines = []; vr._rcptSum = 0; }
-    if (!vr._rcptLines) vr._rcptLines = [];
-    const lines = vr._rcptLines;
-    const scanned = rs.itemProgress || 0;
-    const subtotal = rs.basketSubtotal || 0;
-
-    if (scanned < lines.length) { lines.length = 0; vr._rcptSum = 0; } // customer reset
-    const need = scanned - lines.length;
-    if (need > 0 && subtotal > vr._rcptSum + 0.001) {
-      const delta = subtotal - vr._rcptSum;
-      const weights = [];
-      let wsum = 0;
-      for (let i = 0; i < need; i++) {
-        const w = 0.45 + this._hashRand(c.id * 101 + (lines.length + i) * 7);
-        weights.push(w); wsum += w;
-      }
-      for (let i = 0; i < need; i++) {
-        lines.push({
-          name: this._productName(c.id, lines.length),
-          price: delta * (weights[i] / wsum),
-        });
-      }
-      vr._rcptSum = subtotal;
-    }
-
-    // keep the visible line items summing to the grounded subtotal even when
-    // the backend subtotal shifts without a new scan (float drift correction)
-    if (lines.length && subtotal > 0.001) {
-      let sum = 0;
-      for (const ln of lines) sum += ln.price;
-      if (sum > 0.001 && Math.abs(sum - subtotal) > 0.01) {
-        const k = subtotal / sum;
-        for (const ln of lines) ln.price *= k;
-        vr._rcptSum = subtotal;
-      }
-    }
-  }
-
-  _productName(seed, idx) {
-    return DISPLAY_PRODUCTS[(Math.abs(seed * 7 + idx * 13)) % DISPLAY_PRODUCTS.length];
-  }
-
-  _hashRand(n) {
-    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
-    return x - Math.floor(x);
+    if (vr._rcptCustId !== c.id) vr._rcptCustId = c.id;
+    vr._rcptLines = (vr.scannedItems || []).map((item) => ({
+      name: item.name || item.code || "Ürün",
+      price: item.lineTotal || item.unitPrice || 0,
+    }));
   }
 
   // =============================================================== per-frame ===

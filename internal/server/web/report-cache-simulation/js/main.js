@@ -124,7 +124,7 @@ initQuentraApp({
   appId: "report-cache",
   accent: "#7c3aed",
   accent2: "#14b8a6",
-  brand: { name: "Quentra Report Cache", sub: "Distributed Report Cache Simulation", logo: "/assets/quentra-logo.png" },
+  brand: { name: "Quentra Report Cache", sub: "Distributed Report Cache Simulation", logo: "/assets/quentra-logo.jpeg" },
   intro: REPORTCACHE_INTRO,
   dict: REPORTCACHE_DICT,
   onReady: () => boot(),

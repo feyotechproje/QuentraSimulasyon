@@ -56,7 +56,8 @@ export class Simulation {
     const c = new Customer(app);
     const n = this.data.nextBasketSize();
     c.basketItems = n;
-    c.itemPrices = Array.from({ length: n }, () => this.data.nextItemPrice());
+    c.items = Array.from({ length: n }, () => this.data.nextProduct());
+    c.itemPrices = c.items.map((item) => item.price);
     c.basketTotal = c.itemPrices.reduce((a, b) => a + b, 0);
     c.runningTotal = 0;
     this.metrics.total++;
@@ -108,8 +109,8 @@ export class Simulation {
     this.time += dt;
 
     // The scenario decides how long a single scan takes: on a direct connection
-    // every scanned item pays for the slow stock lookup, while Quentra rewrites
-    // that call away. Applied per frame so a mid-run switch takes effect at once.
+    // every scanned item pays for the slow direct query, while the same SQL can
+    // travel through Quentra. Applied per frame so a switch takes effect at once.
     if (this.scenario) {
       this.scenario.tick(dt);
       const iv = this.scenario.demoScanSec;

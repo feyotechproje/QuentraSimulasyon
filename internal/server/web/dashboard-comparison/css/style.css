@@ -598,6 +598,17 @@ pre.sql {
 .cmp-metric .cm-value .bad { color: var(--red); }
 
 /* ============ RESPONSIVE ============ */
+/* Each dashboard is only half the width, so the six-across KPI row overflows
+   its column well before the whole layout needs to stack. Step it down early. */
+@media (max-width: 1600px) {
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  .app-header { flex-wrap: wrap; gap: 10px; }
+}
+/* Reserve top-right space on desktop for the shared fixed TR/EN language switch
+   so it never overlaps the STATE / timer chips. */
+@media (min-width: 1081px) {
+  .header-meta { margin-right: 84px; }
+}
 @media (max-width: 1400px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .task-strip { grid-template-columns: 1fr; gap: 14px; }
@@ -610,6 +621,13 @@ pre.sql {
   .widget-grid { grid-template-columns: 1fr; }
   .exec-metrics, .cmp-metrics { grid-template-columns: repeat(2, 1fr); }
   .cmp-body { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .widget-columns, .chart-grid { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  /* the 4-step progress track can't fit one row on a phone */
+  .stage-track { flex-wrap: wrap; row-gap: 8px; }
+  .stage { flex: 1 0 45%; }
 }
 
 /* ============ REDUCED MOTION ============ */

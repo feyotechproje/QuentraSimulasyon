@@ -10,8 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"supermarketsim/internal/access"
 	"supermarketsim/internal/config"
 	"supermarketsim/internal/db"
+	"supermarketsim/internal/fulltext"
+	"supermarketsim/internal/keybreaker"
 	"supermarketsim/internal/production"
 	"supermarketsim/internal/reportcache"
 	"supermarketsim/internal/server"
@@ -96,7 +99,46 @@ func main() {
 		log.Info("report cache workload ready", "db", reportcache.DBName, "proc", reportcache.ProcName)
 	}()
 
-	srv := server.New(engine, hub, store, vehMgr, prodMgr, rcMgr, log)
+	// FullText / NGram search workload against the existing CRM2 customer table.
+	// Provisioning creates the full-text catalog/index (idempotent); the ~5M-row
+	// table is never rebuilt and full-text population then runs in the background.
+	ftMgr := fulltext.NewManager(cfg, log)
+	go func() {
+		pctx, pcancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer pcancel()
+		if err := ftMgr.Provision(pctx); err != nil {
+			log.Error("fulltext workload provisioning failed", "error", err.Error())
+			return
+		}
+		log.Info("fulltext workload ready", "db", fulltext.DBName, "state", "idle")
+	}()
+
+	// Key Breaker SQL-injection defense workload against a disposable database.
+	kbMgr := keybreaker.NewManager(cfg, log)
+	go func() {
+		pctx, pcancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer pcancel()
+		if err := kbMgr.Provision(pctx); err != nil {
+			log.Error("keybreaker workload provisioning failed", "error", err.Error())
+			return
+		}
+		log.Info("keybreaker workload ready", "db", keybreaker.DBName, "state", "idle")
+	}()
+
+	// Turnstile / factory "last movement" workload against the existing
+	// TIGERMARKET ERP database. Nothing is provisioned — the data already exists.
+	accMgr := access.NewManager(cfg, log)
+	go func() {
+		pctx, pcancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer pcancel()
+		if err := accMgr.Provision(pctx); err != nil {
+			log.Error("access workload provisioning failed", "error", err.Error())
+			return
+		}
+		log.Info("access workload ready", "db", access.DBName, "state", "idle")
+	}()
+
+	srv := server.New(engine, hub, store, vehMgr, prodMgr, rcMgr, ftMgr, kbMgr, accMgr, log)
 
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -122,6 +164,9 @@ func main() {
 	vehMgr.Stop()
 	prodMgr.Stop()
 	rcMgr.Stop()
+	ftMgr.Stop()
+	kbMgr.Stop()
+	accMgr.Stop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)

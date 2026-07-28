@@ -1,0 +1,376 @@
+/* Shared light theme for the portal and every simulation surface. Loaded last. */
+:root {
+  color-scheme: light;
+  --bg: #f3f6fb;
+  --bg0: #f8fafc;
+  --bg-0: #f8fafc;
+  --bg-1: #f3f6fb;
+  --bg-2: #eaf0f7;
+  --bg2: #eef3fa;
+  --panel: #ffffff;
+  --panel2: #f8fafc;
+  --panel-2: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f6f8fc;
+  --surface-3: #eef2f7;
+  --card: rgba(255, 255, 255, .94);
+  --card-bd: rgba(79, 70, 229, .16);
+  --border: #dce3ee;
+  --border-2: #cbd5e1;
+  --border-strong: #c5cfdd;
+  --line: #dce3ee;
+  --line-2: #cbd5e1;
+  --brd: rgba(71, 85, 105, .18);
+  --panel-brd: rgba(16, 185, 129, .22);
+  --text: #1e293b;
+  --text-soft: #475569;
+  --text-dim: #64748b;
+  --text-mute: #94a3b8;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --ink: #172033;
+  --ink-2: #526078;
+  --ink-3: #8793a8;
+  --ink-dim: #64748b;
+  --ink-mute: #94a3b8;
+  --navy: #334155;
+  --shadow: 0 8px 28px rgba(51, 65, 85, .10);
+  --shadow-sm: 0 2px 8px rgba(51, 65, 85, .08);
+  --glow-green: 0 8px 26px rgba(16, 185, 129, .10);
+  --glow-cyan: 0 0 0 1px rgba(14, 165, 233, .16), 0 8px 24px rgba(14, 165, 233, .10);
+}
+
+html,
+body {
+  background: radial-gradient(1200px 700px at 72% -10%, #eef2ff 0%, #f7f9fc 48%, #eef3f8 100%) !important;
+  color: var(--text) !important;
+}
+
+/* Shared application chrome and reusable surfaces. */
+.toolbar,
+.topbar,
+.rail,
+.kpi-strip,
+.kpi,
+.kpi-card,
+.panel,
+.panel-card,
+.card,
+.metric-card,
+.intro-card,
+.server-box,
+.srv-state,
+.rw-band,
+.rw-col,
+.loc-cell,
+.result-card,
+.query-card,
+.stat-card {
+  background: #ffffff !important;
+  border-color: var(--line) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.toolbar,
+.topbar,
+.rail,
+.kpi-strip {
+  background: rgba(255, 255, 255, .92) !important;
+  backdrop-filter: blur(12px);
+}
+
+.mode-group,
+.ctrl-group,
+.btn-group,
+.speed,
+.speed-group,
+.run-group,
+.scn-seg,
+.source-group,
+.status-group {
+  background: #f1f5f9 !important;
+  border-color: var(--line) !important;
+}
+
+button,
+input,
+select,
+textarea {
+  color: var(--text);
+}
+
+input,
+select,
+textarea {
+  background: #ffffff !important;
+  border-color: var(--line-2) !important;
+}
+
+.btn,
+.mode-btn,
+.speed-btn,
+.run-btn,
+.mini-btn,
+.tgl,
+.rail-ic,
+.ghost-btn {
+  color: var(--text-dim);
+}
+
+.btn:hover:not(:disabled),
+.mode-btn:hover,
+.speed-btn:hover,
+.run-btn:hover,
+.mini-btn:hover,
+.tgl:hover,
+.rail-ic:hover {
+  color: var(--text) !important;
+  background: #e8eef7 !important;
+}
+
+.brand-name,
+.brand-text strong,
+.toolbar h1,
+.panel-head h3,
+.ph-title,
+.kpi-value,
+.kpi-val,
+.tb-value,
+.clock,
+.detail-row .dv,
+.srv-metric b,
+.kb-row .kv,
+.dist-cnt,
+.rw-mode,
+.story-text,
+.reg-name,
+.cc-scan-name,
+.detail-title strong,
+.feed-text b {
+  color: var(--text) !important;
+}
+
+.sql-box,
+.code-box,
+.query-code,
+.rw-sql,
+.atk-payload {
+  background: #f8fafc !important;
+  border-color: var(--line) !important;
+  color: #334155 !important;
+}
+
+.ss-row,
+.bar-wrap,
+.region-item,
+.fleet-item,
+.reg-cell,
+.env-item {
+  background: #f8fafc !important;
+  border-color: var(--line) !important;
+}
+
+/* Portal. */
+.aurora::before,
+.aurora::after { opacity: .14 !important; }
+.grid-lines { opacity: .18 !important; }
+.hero h1 {
+  background: linear-gradient(120deg, #172033 10%, #6757df 55%, #0891b2 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+.card:hover {
+  box-shadow: 0 20px 42px -22px rgba(79, 70, 229, .34), 0 0 0 1px rgba(124, 107, 255, .14) !important;
+}
+.ico { background: linear-gradient(150deg, #f0edff, #ecfeff) !important; }
+.ico svg { stroke: #6757df !important; }
+.card-go { color: #6757df !important; }
+footer { color: #7c879b !important; }
+
+/* Shared language intro, switch and live panels. */
+.qi-overlay {
+  background: radial-gradient(900px 620px at 50% 28%, #e0e7ff 0%, #f1f5f9 68%, #eef2f7 100%) !important;
+}
+.qi-card,
+.qi-langs,
+.qi-switch,
+.live-panel,
+.live-sqlcard {
+  background: rgba(255, 255, 255, .97) !important;
+  border-color: #d9e1ed !important;
+  color: #1e293b !important;
+  box-shadow: 0 18px 55px rgba(51, 65, 85, .16) !important;
+}
+.qi-title {
+  background: linear-gradient(120deg, #172033, #6757df 62%, #0891b2) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+.qi-brand-name,
+.qi-tagline,
+.qi-purpose,
+.qi-lang,
+.qi-switch button,
+.live-panel,
+.live-sqlcard { color: #526078 !important; }
+.qi-lang.is-active,
+.qi-switch button.is-active { color: #ffffff !important; }
+.qi-purpose li::marker { color: #6757df !important; }
+.live-panel .lp-fi,
+.live-panel .lp-stat,
+.live-sqlcard .lsc-body { background: #f8fafc !important; border-color: #e2e8f0 !important; }
+
+/* Retail / turnstile dark-dashboard surfaces. */
+.rail { border-right-color: var(--line) !important; }
+.brand img { filter: none !important; }
+.canvas-wrap,
+.stage {
+  background: #eef3f8 !important;
+  border-color: var(--line-2) !important;
+  box-shadow: none !important;
+}
+.side-panel,
+.panel-body { color: var(--text-soft); }
+.story,
+.rw-band,
+.rw-col[data-active="true"] { background: #ffffff !important; }
+.reg-bar,
+.rw-bar,
+.story-progress { background: #e2e8f0 !important; }
+
+/* Vehicle tracking dashboard. */
+.canvas-hint,
+.layer-toggles .tgl,
+.stage-hint,
+.toggle-bar {
+  background: rgba(255, 255, 255, .88) !important;
+  border-color: var(--line-2) !important;
+  color: var(--text-dim) !important;
+  box-shadow: 0 4px 14px rgba(51, 65, 85, .10);
+}
+.layer-toggles .tgl.is-on { color: #4338ca !important; background: #eef2ff !important; }
+.sql-line { color: #475569 !important; }
+.sql-kw { color: #4f46e5 !important; }
+
+/* Key Breaker keeps its security accents while using light enterprise chrome. */
+.atk-card {
+  background: #fff7f7 !important;
+  border-color: #fecdd3 !important;
+}
+.atk-payload { color: #be123c !important; }
+.dist-bar { background: #e2e8f0 !important; }
+.detail-row { border-bottom-color: #e2e8f0 !important; }
+.toggle-bar { color: #526078 !important; }
+
+/* Production line uses inline dark CSS, so these rules intentionally win. */
+.app > .top,
+.app > header,
+.controlbar,
+.controls,
+.metrics,
+.metric,
+.right-panel,
+.info-panel,
+.bottom-panel {
+  background: #ffffff !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+.status,
+.sqlbar,
+.m-ico,
+.toast,
+pre {
+  background: #f8fafc !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+.stage-wrap { background: #eef3f8 !important; border-color: var(--line-2) !important; }
+.card h3,
+.sqlbar .desc p { color: var(--text-dim) !important; }
+.event { border-bottom-color: var(--line) !important; }
+.event.good { color: #15803d !important; }
+.event.bad { color: #dc2626 !important; }
+.brand-mark { box-shadow: 0 6px 18px rgba(79, 70, 229, .16) !important; }
+
+::-webkit-scrollbar-track { background: #eef2f7; }
+::-webkit-scrollbar-thumb { background: #c7d1df !important; }
+
+/* Simulation introductions: branded, but deliberately restrained. */
+.qi-overlay {
+  --qi-control: color-mix(in srgb, var(--qi-accent) 62%, #263248);
+  background: #eef2f7 !important;
+}
+.qi-overlay::before { display: none !important; }
+.qi-card {
+  width: min(760px, 94vw);
+  padding: 36px clamp(28px, 5vw, 48px) 34px;
+  border: 1px solid #cbd5e1 !important;
+  border-top: 4px solid var(--qi-control) !important;
+  border-radius: 14px;
+  background: #ffffff !important;
+  box-shadow: 0 16px 42px rgba(30, 41, 59, .14) !important;
+  backdrop-filter: none;
+}
+.qi-brand { margin-bottom: 22px; }
+.qi-brand img { height: 30px; mix-blend-mode: multiply; }
+.qi-brand-name { color: #475569 !important; }
+.qi-brand-name small { color: #76839a !important; }
+.qi-langs {
+  padding: 3px;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px;
+  background: #ffffff !important;
+  box-shadow: none !important;
+}
+.qi-lang {
+  border-radius: 5px;
+  color: #526078 !important;
+}
+.qi-lang:hover { color: #263248 !important; background: #f1f5f9; }
+.qi-lang.is-active {
+  color: #ffffff !important;
+  background: #475569 !important;
+  background: var(--qi-control) !important;
+  box-shadow: none !important;
+}
+.qi-eyebrow {
+  color: #475569 !important;
+  letter-spacing: .16em;
+}
+.qi-title {
+  color: #263248 !important;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: #263248;
+  font-weight: 700;
+  letter-spacing: -.025em;
+}
+.qi-tagline,
+.qi-purpose,
+.qi-purpose li { color: #526078 !important; }
+.qi-purpose { gap: 11px; }
+.qi-purpose li::before {
+  width: 10px;
+  height: 10px;
+  top: 7px;
+  border-radius: 2px;
+  background: #64748b !important;
+  background: var(--qi-control) !important;
+  box-shadow: none !important;
+}
+.qi-enter {
+  border-radius: 7px;
+  background: #475569 !important;
+  background: var(--qi-control) !important;
+  box-shadow: 0 5px 14px rgba(30, 41, 59, .16) !important;
+}
+.qi-enter:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(30, 41, 59, .2) !important;
+}
+
+@media (max-width: 640px) {
+  .qi-card { padding: 28px 22px 26px; border-radius: 10px; }
+}

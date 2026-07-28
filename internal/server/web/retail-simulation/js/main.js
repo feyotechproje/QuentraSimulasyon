@@ -3,9 +3,9 @@
 //
 //   DEMO — a self-contained in-browser simulation (no DB, no queries). Scan
 //          cadence is driven by the scenario so the direct-connection queue
-//          visibly piles up and drains once Quentra rewrites the stock lookup.
-//   LIVE — the real Go engine backed by QUENTRA_RETAIL. Snapshots stream over
-//          SSE and the per-scan stock lookup genuinely runs against SQL Server.
+//          visibly piles up and drains once the same query uses Quentra.
+//   LIVE — the Go engine uses QUENTRA_RETAIL for transactions, products and
+//          stock reads. Snapshots stream over SSE and every scan runs real SQL.
 //
 // Switching modes swaps the simulation object under the renderer/UI; both
 // implement the same surface (update/kpis/money/registers/customers/world).
@@ -21,6 +21,7 @@ import { initQuentraApp } from "/shared/quentra-i18n.js";
 import { RETAIL_INTRO, RETAIL_DICT } from "./i18n.js";
 
 const RUNNING_STATES = ["RUNNING", "PAUSED", "PREPARING", "STOPPING"];
+const LIVE_REGISTER_COUNT = 10;
 
 // Enough shoppers queued that the floor reads as busy on the first frame.
 const SEED_TARGET_WAITING = 60;
@@ -61,7 +62,7 @@ async function boot() {
   const demoSim = new Simulation(new InMemoryDemoDataSource(7), scenario);
 
   let liveSim = null;                 // built lazily on first switch to live
-  let registerCount = 12;
+  let registerCount = LIVE_REGISTER_COUNT;
   let backendOK = false;
 
   const engine = new Engine(demoSim, renderer, ui);
@@ -74,12 +75,14 @@ async function boot() {
       let st = await client.getState();
       const settings = st.settings || {};
       const snapRegs = st.snapshot && st.snapshot.registers ? st.snapshot.registers.length : 0;
-      registerCount = snapRegs || settings.registerCount || 12;
+      registerCount = snapRegs || settings.registerCount || LIVE_REGISTER_COUNT;
 
       if (!RUNNING_STATES.includes(st.state)) {
-        const cfg = Object.assign({}, settings, { registerCount: 12, totalCustomers: 500, speed: 1 });
+        // Keep live and demo geometry identical. A larger live-only register
+        // count made the same floor shrink abruptly when the mode changed.
+        const cfg = Object.assign({}, settings, { registerCount: LIVE_REGISTER_COUNT, totalCustomers: 500, speed: 1 });
         await client.configure(cfg);
-        registerCount = 12;
+        registerCount = LIVE_REGISTER_COUNT;
         await client.start();
         // Wait until the engine has actually built up queues before painting.
         // A fixed delay is unreliable: the generator ramps up, so poll for a
@@ -161,6 +164,11 @@ async function boot() {
     const id = renderer.pickRegister(ev.clientX - rect.left, ev.clientY - rect.top, sim);
     if (id) ui.selectRegister(sim, id);
   });
+  canvas.addEventListener("mousemove", (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const id = renderer.pickRegister(ev.clientX - rect.left, ev.clientY - rect.top, engine.sim);
+    canvas.style.cursor = id ? "pointer" : "default";
+  });
 
   let resizeRaf = null;
   window.addEventListener("resize", () => {
@@ -175,7 +183,7 @@ initQuentraApp({
   appId: "retail",
   accent: "#7c3aed",
   accent2: "#22d3ee",
-  brand: { name: "Quentra Retail", sub: "Checkout Simulation", logo: "/assets/quentra-logo.png" },
+  brand: { name: "Quentra Retail", sub: "Checkout Simulation", logo: "/assets/quentra-logo.jpeg" },
   intro: RETAIL_INTRO,
   dict: RETAIL_DICT,
   onReady: () => boot(),

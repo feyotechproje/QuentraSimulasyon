@@ -46,7 +46,7 @@ initQuentraApp({
   appId: "vehicle-tracking",
   accent: "#2dd4bf",
   accent2: "#7c3aed",
-  brand: { name: "Quentra Fleet", sub: "Vehicle Tracking Simulation", logo: "/assets/quentra-logo.png" },
+  brand: { name: "Quentra Fleet", sub: "Vehicle Tracking Simulation", logo: "/assets/quentra-logo.jpeg" },
   intro: FLEET_INTRO,
   dict: FLEET_DICT,
   onReady: () => boot(),

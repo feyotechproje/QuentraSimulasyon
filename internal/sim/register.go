@@ -31,6 +31,8 @@ type registerRT struct {
 	itemTotal       int
 	activeStock     int64
 	activeStockMs   int64
+	scannedItems    []ScannedItem
+	pendingScan     *ScannedItem
 	completed       int
 	totalSales      float64
 	procSumMs       int64
@@ -123,10 +125,11 @@ func (r *registerRT) snapshot() RegisterState {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var qq float64
-	preview := make([]QueuedCustomer, 0, 6)
+	const queuePreviewLimit = 24
+	preview := make([]QueuedCustomer, 0, min(len(r.queue), queuePreviewLimit))
 	for i, c := range r.queue {
 		qq += c.TotalQty
-		if i < 6 {
+		if i < queuePreviewLimit {
 			pc := c
 			pc.Lines = nil
 			preview = append(preview, pc)
@@ -155,6 +158,7 @@ func (r *registerRT) snapshot() RegisterState {
 		AvgProcessMs:    avg,
 		ActiveStock:     r.activeStock,
 		ActiveStockMs:   r.activeStockMs,
+		ScannedItems:    append([]ScannedItem(nil), r.scannedItems...),
 		LastEventUnixMs: r.lastEventMs,
 		QueuePreview:    preview,
 	}
@@ -213,16 +217,15 @@ func (e *Engine) processCheckout(ctx context.Context, r *registerRT, qc QueuedCu
 	start := time.Now()
 	s := e.Settings()
 
-	// Record queue wait, attributed to the route in force as this customer
-	// reaches the register — that is the route whose latency built the queue.
+	// Record queue wait against the route captured when this customer first
+	// entered the queue. This prevents an old direct backlog from being charged
+	// to Quentra after the operator switches modes.
 	if qc.QueuedAtMs > 0 {
-		wait := nowMs() - qc.QueuedAtMs
-		mi := modeIndex(s.QuentraRewrite)
+		measuredAt := nowMs()
+		wait := measuredAt - qc.QueuedAtMs
+		mi := modeIndex(qc.QueuedViaQuentra)
 		e.aggMu.Lock()
-		e.waitSumMs += wait
-		e.waitCount++
-		e.waitSumByMode[mi] += wait
-		e.waitCountByMode[mi]++
+		e.waitSamples = append(e.waitSamples, waitSample{atMs: measuredAt, waitMs: wait, mode: mi})
 		e.aggMu.Unlock()
 	}
 
@@ -242,8 +245,8 @@ func (e *Engine) processCheckout(ctx context.Context, r *registerRT, qc QueuedCu
 			scanMs = int(float64(s.ScanMs) * ln.Quantity)
 		}
 
-		// Per-scan stock lookup (the "software update"). This is a REAL query
-		// against QUENTRA_RETAIL. Both the on/off switch and the route are read
+		// Per-scan stock lookup. This is a REAL query against QUENTRA_RETAIL. Both
+		// the on/off switch and the route are read
 		// live, so toggling modes takes effect on the very next scanned item
 		// instead of waiting for every in-flight basket to finish.
 		live := e.Settings()
@@ -293,6 +296,7 @@ func (e *Engine) processCheckout(ctx context.Context, r *registerRT, qc QueuedCu
 				"elapsedMs": ms, "itemMs": itemMs, "scanDbMs": totalMs,
 				"mode": live.StockMode(), "failed": lerr != nil,
 			})
+			r.setScanMetadata("", "", ms, live.QuentraRewrite)
 		}
 
 		if !e.wait(ctx, scanMs) {
@@ -398,6 +402,10 @@ func (r *registerRT) beginCheckout(qc QueuedCustomer) {
 	r.activeUnitPrice = 0
 	r.activeQty = 0
 	r.activeLineTotal = 0
+	r.activeStock = 0
+	r.activeStockMs = 0
+	r.scannedItems = nil
+	r.pendingScan = nil
 	r.lastEventMs = nowMs()
 	r.mu.Unlock()
 }
@@ -419,7 +427,30 @@ func (r *registerRT) commitLine(ln db.BasketLine) {
 	r.mu.Lock()
 	r.basketSubtotal += ln.LineTotal
 	r.itemProgress++
+	item := ScannedItem{
+		Code: ln.ItemCode, Name: ln.ItemName, Quantity: ln.Quantity,
+		UnitPrice: ln.UnitPrice, LineTotal: ln.LineTotal,
+		QueryMs: r.activeStockMs, ScannedAt: nowMs(),
+	}
+	if r.pendingScan != nil {
+		item.Brand = r.pendingScan.Brand
+		item.Category = r.pendingScan.Category
+		item.Route = r.pendingScan.Route
+		item.QueryMs = r.pendingScan.QueryMs
+	}
+	r.scannedItems = append(r.scannedItems, item)
+	r.pendingScan = nil
 	r.lastEventMs = nowMs()
+	r.mu.Unlock()
+}
+
+func (r *registerRT) setScanMetadata(brand, category string, ms int64, viaQuentra bool) {
+	route := "direct"
+	if viaQuentra {
+		route = "quentra"
+	}
+	r.mu.Lock()
+	r.pendingScan = &ScannedItem{Brand: brand, Category: category, QueryMs: ms, Route: route}
 	r.mu.Unlock()
 }
 

@@ -203,7 +203,22 @@ body{
 }
 @media (max-width:1200px){
   .kpi-row{grid-template-columns:repeat(4,1fr)}
+  /* Body stacks, so release the viewport lock and let the page scroll. */
+  body{overflow:auto}
+  .app{height:auto;min-height:100vh}
   .body{flex-direction:column}
+  .stage{min-height:56vh}
   .side{width:100%;flex-direction:row;flex-wrap:wrap;overflow:visible}
   .side .panel{flex:1;min-width:260px}
 }
+@media (max-width:720px){
+  .kpi-row{grid-template-columns:repeat(3,1fr)}
+  .side{flex-direction:column}
+  .stage{min-height:52vh}
+}
+@media (max-width:480px){
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+}
+
+/* Reserve top-right space on desktop for the shared fixed TR/EN language switch. */
+@media (min-width:1201px){ .toolbar{ padding-right:100px } }

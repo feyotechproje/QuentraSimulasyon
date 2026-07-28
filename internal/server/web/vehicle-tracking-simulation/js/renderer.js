@@ -6,7 +6,7 @@
 import { WORLD, ZONES } from "./world.js";
 import { GATEWAY_MODULES } from "./gateway.js";
 
-const SQUASH = 0.60;
+let SQUASH = 0.60;
 
 const t = (key, fallback) => (window.QuentraI18n ? window.QuentraI18n.t(key, fallback) : fallback);
 const NODE_LABEL_KEYS = {
@@ -17,13 +17,13 @@ const NODE_LABEL_KEYS = {
 };
 
 const C = {
-  bg0: "#0a101e", bg1: "#0d1424",
-  grid: "rgba(120,140,190,0.05)",
-  roadBase: "#28304a", roadEdge: "#1a2036", roadTop: "#333c5c",
-  highway: "#3a4368", lane: "rgba(150,165,210,0.35)", laneY: "rgba(240,200,90,0.5)",
-  water: "#0e2f4a", park: "#16351f", tree: "#1f5a2c",
+  bg0: "#f8fafc", bg1: "#edf2f7",
+  grid: "rgba(71,85,105,0.08)",
+  roadBase: "#cbd5e1", roadEdge: "#94a3b8", roadTop: "#e2e8f0",
+  highway: "#b8c5d6", lane: "rgba(255,255,255,0.82)", laneY: "rgba(217,119,6,0.62)",
+  water: "#dbeafe", park: "#dcfce7", tree: "#15803d",
   purple: "#8b5cf6", indigo: "#4661e6", teal: "#2dd4bf", green: "#34d399",
-  red: "#ef4444", orange: "#f59e0b", text: "#c7d0e6", dim: "#7c88a8",
+  red: "#ef4444", orange: "#f59e0b", text: "#1e293b", dim: "#64748b",
 };
 
 export class Renderer {
@@ -35,20 +35,39 @@ export class Renderer {
     this.cw = 0; this.ch = 0;
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    // Toolbar translations and responsive wrapping can change the available
+    // canvas height without firing a window resize event. Track the rendered
+    // canvas box so the drawing scale always follows the actual panel size.
+    if ("ResizeObserver" in window) {
+      this.resizeObserver = new ResizeObserver(() => this.resize());
+      this.resizeObserver.observe(this.canvas);
+    }
   }
 
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.cw = Math.max(320, rect.width);
-    this.ch = Math.max(240, rect.height);
+    const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
+    const nextWidth = Math.max(320, rect.width);
+    const nextHeight = Math.max(240, rect.height);
+    if (Math.abs(nextWidth - this.cw) < 0.5 &&
+        Math.abs(nextHeight - this.ch) < 0.5 &&
+        nextDpr === this.dpr) return;
+    this.dpr = nextDpr;
+    this.cw = nextWidth;
+    this.ch = nextHeight;
     this.canvas.width = Math.round(this.cw * this.dpr);
     this.canvas.height = Math.round(this.ch * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    // Fit the whole world (with the projected squash) into the canvas.
+    // Fit the whole world into the canvas. On short, wide dashboard panels,
+    // reduce the orthographic squash so the map uses the available width
+    // instead of becoming a tiny island in the middle of the canvas.
     const pad = 24;
+    const availableW = Math.max(1, this.cw - pad * 2);
+    const availableH = Math.max(1, this.ch - pad * 2);
+    const matchedWorldH = WORLD.w * availableH / availableW;
+    SQUASH = Math.max(0.24, Math.min(0.60, (matchedWorldH - 90) / WORLD.h));
     const worldH = WORLD.h * SQUASH + 90; // + central cluster margin
-    const s = Math.min((this.cw - pad * 2) / WORLD.w, (this.ch - pad * 2) / worldH);
+    const s = Math.min(availableW / WORLD.w, availableH / worldH);
     this.scale = s;
     this.offX = (this.cw - WORLD.w * s) / 2;
     this.offY = pad + 6;
@@ -104,7 +123,7 @@ export class Renderer {
       this._rr(ctx, p.x, p.y, w, h, 10); ctx.fill();
       ctx.globalAlpha = 1;
       if (sel) { ctx.strokeStyle = C.purple; ctx.lineWidth = 2; this._rr(ctx, p.x, p.y, w, h, 10); ctx.stroke(); }
-      ctx.fillStyle = "rgba(150,165,205,0.35)";
+      ctx.fillStyle = "rgba(71,85,105,0.48)";
       ctx.font = "600 11px 'Segoe UI',sans-serif";
       ctx.fillText(t("region." + z.id, z.name).toUpperCase(), p.x + 10, p.y + 18);
     }
@@ -130,11 +149,11 @@ export class Renderer {
         ctx.beginPath(); ctx.arc(p.x, p.y, pr.r * this.scale, 0, Math.PI * 2); ctx.fill();
       } else if (pr.type === "fuel") {
         const p = this.project(pr.x, pr.y, 10);
-        ctx.fillStyle = "#1c2740"; this._rr(ctx, p.x - 9, p.y - 8, 18, 12, 3); ctx.fill();
+        ctx.fillStyle = "#e2e8f0"; this._rr(ctx, p.x - 9, p.y - 8, 18, 12, 3); ctx.fill();
         ctx.fillStyle = C.teal; ctx.font = "700 7px 'Segoe UI'"; ctx.fillText("F", p.x - 2, p.y + 1);
       } else if (pr.type === "sign") {
         const p = this.project(pr.x, pr.y, 14);
-        ctx.fillStyle = "#243050"; this._rr(ctx, p.x - 16, p.y - 7, 32, 12, 2); ctx.fill();
+        ctx.fillStyle = "#cbd5e1"; this._rr(ctx, p.x - 16, p.y - 7, 32, 12, 2); ctx.fill();
         ctx.fillStyle = C.dim; ctx.font = "600 7px 'Segoe UI'"; ctx.textAlign = "center";
         ctx.fillText(pr.text, p.x, p.y + 2); ctx.textAlign = "left";
       }
@@ -145,8 +164,8 @@ export class Renderer {
     // Base fill.
     for (const s of sim.net.segmentList) {
       const col = s.roadType === "highway" ? C.highway
-        : s.roadType === "bridge" ? "#2e2a44"
-        : s.roadType === "tunnel" ? "#151b2e" : C.roadBase;
+        : s.roadType === "bridge" ? "#c4b5fd"
+        : s.roadType === "tunnel" ? "#94a3b8" : C.roadBase;
       this._roadStroke(ctx, s, s.width, col);
     }
     // Center lane markings.
@@ -171,7 +190,7 @@ export class Renderer {
       const p = this.project(rb.x, rb.y);
       ctx.strokeStyle = C.roadBase; ctx.lineWidth = 12 * this.scale;
       ctx.beginPath(); ctx.ellipse(p.x, p.y, rb.r * this.scale, rb.r * SQUASH * this.scale, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = "#16351f";
+      ctx.fillStyle = "#dcfce7";
       ctx.beginPath(); ctx.ellipse(p.x, p.y, rb.r * 0.5 * this.scale, rb.r * 0.5 * SQUASH * this.scale, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
@@ -206,7 +225,7 @@ export class Renderer {
     const t1 = this.project(bd.x + bd.w, bd.y, z);
     const t2 = this.project(bd.x + bd.w, bd.y + bd.h, z);
     const t3 = this.project(bd.x, bd.y + bd.h, z);
-    const base = bd.color || "#2b3350";
+    const base = bd.color || "#d8e1ec";
     // South face.
     ctx.fillStyle = shade(base, -0.32);
     ctx.beginPath(); ctx.moveTo(g3.x, g3.y); ctx.lineTo(g2.x, g2.y); ctx.lineTo(t2.x, t2.y); ctx.lineTo(t3.x, t3.y); ctx.closePath(); ctx.fill();
@@ -218,7 +237,7 @@ export class Renderer {
     ctx.beginPath(); ctx.moveTo(t0.x, t0.y); ctx.lineTo(t1.x, t1.y); ctx.lineTo(t2.x, t2.y); ctx.lineTo(t3.x, t3.y); ctx.closePath(); ctx.fill();
     // Window rows on the south face for towers.
     if (bd.kind === "tower" || bd.h3d > 60) {
-      ctx.strokeStyle = "rgba(150,180,240,0.10)"; ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(71,85,105,0.16)"; ctx.lineWidth = 1;
       const rows = Math.floor(z / 16);
       for (let i = 1; i < rows; i++) {
         const yy = i / rows;
@@ -228,7 +247,7 @@ export class Renderer {
       }
     }
     if (bd.label) {
-      ctx.fillStyle = "rgba(200,212,240,0.75)"; ctx.font = "600 9px 'Segoe UI'"; ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(30,41,59,0.78)"; ctx.font = "600 9px 'Segoe UI'"; ctx.textAlign = "center";
       ctx.fillText(bd.label, (t0.x + t2.x) / 2, (t0.y + t2.y) / 2);
       ctx.textAlign = "left";
     }
@@ -238,7 +257,7 @@ export class Renderer {
     for (const n of sim.net.nodeList) {
       if (!n.trafficLight) continue;
       const p = this.project(n.x, n.y, 16);
-      ctx.fillStyle = "#0d1424"; this._rr(ctx, p.x - 3, p.y - 9, 6, 18, 2); ctx.fill();
+      ctx.fillStyle = "#475569"; this._rr(ctx, p.x - 3, p.y - 9, 6, 18, 2); ctx.fill();
       const ns = n.lightPhase === 0;
       ctx.fillStyle = ns ? C.green : "#3a2020";
       ctx.beginPath(); ctx.arc(p.x, p.y - 5, 2.2, 0, 7); ctx.fill();
@@ -364,7 +383,7 @@ export class Renderer {
       ctx.fillStyle = col; ctx.globalAlpha = 0.95;
       this._rr(ctx, p.x - 4, p.y - 4, 8, 8, 2); ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.fillStyle = "#0a101e"; ctx.beginPath(); ctx.arc(p.x, p.y, 1.6, 0, 7); ctx.fill();
+      ctx.fillStyle = "#475569"; ctx.beginPath(); ctx.arc(p.x, p.y, 1.6, 0, 7); ctx.fill();
       // Label only for the selected vehicle's packets to avoid clutter.
       if (sim.selected && sim.selected.kind === "vehicle" && sim.selected.ref.id === pk.vehicleNum) {
         ctx.fillStyle = col; ctx.font = "700 8px 'Segoe UI'";
@@ -401,15 +420,15 @@ export class Renderer {
     const sel = sim.selected && sim.selected.kind === kind;
     ctx.save();
     ctx.shadowColor = color; ctx.shadowBlur = (12 + (glow || 0) * 18);
-    ctx.fillStyle = "#111a2e";
+    ctx.fillStyle = "#ffffff";
     this._rr(ctx, p.x, p.y, w, h, 8); ctx.fill();
     ctx.restore();
-    ctx.strokeStyle = sel ? "#fff" : color; ctx.lineWidth = sel ? 2.5 : 1.5;
+    ctx.strokeStyle = sel ? "#1e293b" : color; ctx.lineWidth = sel ? 2.5 : 1.5;
     this._rr(ctx, p.x, p.y, w, h, 8); ctx.stroke();
     // Header bar.
     ctx.fillStyle = color; ctx.globalAlpha = 0.9;
     this._rr(ctx, p.x, p.y, w, 16, 8); ctx.fill(); ctx.globalAlpha = 1;
-    ctx.fillStyle = "#0a101e"; ctx.font = "700 9px 'Segoe UI'";
+    ctx.fillStyle = "#fff"; ctx.font = "700 9px 'Segoe UI'";
     const lk = NODE_LABEL_KEYS[kind];
     const label = lk ? t(lk[0], lk[1]).toUpperCase() : n.label;
     ctx.fillText(label, p.x + 8, p.y + 11);
@@ -447,9 +466,9 @@ export class Renderer {
     ctx.strokeStyle = "rgba(139,92,246,0.4)";
     ctx.beginPath(); ctx.ellipse(p.x, p.y, 28, 28 * SQUASH, 0, 0, Math.PI * 2); ctx.stroke();
     // Tag.
-    ctx.fillStyle = "rgba(12,18,32,0.9)"; this._rr(ctx, p.x + 16, p.y - 34, 96, 26, 4); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.94)"; this._rr(ctx, p.x + 16, p.y - 34, 96, 26, 4); ctx.fill();
     ctx.strokeStyle = C.purple; ctx.lineWidth = 1; this._rr(ctx, p.x + 16, p.y - 34, 96, 26, 4); ctx.stroke();
-    ctx.fillStyle = "#fff"; ctx.font = "700 9px 'Segoe UI'"; ctx.fillText(v.vid, p.x + 22, p.y - 22);
+    ctx.fillStyle = "#1e293b"; ctx.font = "700 9px 'Segoe UI'"; ctx.fillText(v.vid, p.x + 22, p.y - 22);
     ctx.fillStyle = sim.mode === "quentra" ? C.green : C.orange; ctx.font = "600 8px 'Segoe UI'";
     ctx.fillText(v.speedKmh + " km/h · Δ" + v.gpsDelay.toFixed(1) + "s", p.x + 22, p.y - 12);
   }
@@ -460,7 +479,7 @@ export class Renderer {
     const tone = b.tone === "bad" ? C.red : b.tone === "good" ? C.green : b.tone === "quentra" ? C.purple : C.indigo;
     ctx.textAlign = "center";
     ctx.font = "800 20px 'Segoe UI'";
-    ctx.fillStyle = "rgba(8,12,22,0.55)";
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
     const w = ctx.measureText(b.title).width + 60;
     this._rr(ctx, this.cw / 2 - w / 2, 14, w, 52, 10); ctx.fill();
     ctx.strokeStyle = tone; ctx.lineWidth = 1.5; this._rr(ctx, this.cw / 2 - w / 2, 14, w, 52, 10); ctx.stroke();

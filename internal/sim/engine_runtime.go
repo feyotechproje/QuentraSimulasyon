@@ -119,7 +119,13 @@ func (e *Engine) dispatch(qc *QueuedCustomer) {
 	if err := e.store.SetBasketStatus(e.ctx, qc.BasketID, "QUEUED", &no); err != nil {
 		e.log.Warn("set QUEUED failed", "basket_id", qc.BasketID, "error", err.Error())
 	}
-	qc.QueuedAtMs = nowMs()
+	// Stamp the first queue entry only. Redistributing a queued customer to a
+	// different register must preserve both the original wait start and route.
+	if qc.QueuedAtMs == 0 {
+		qc.QueuedAtMs = nowMs()
+		s := e.Settings()
+		qc.QueuedViaQuentra = s.StockLookup && s.QuentraRewrite && e.store != nil && e.store.HasQuentraGateway()
+	}
 	r.enqueue(*qc)
 	e.emit(EvCustomerQueued, map[string]any{"register": no, "customer": qc.Customer.Name})
 }
@@ -214,6 +220,7 @@ func (e *Engine) BuildSnapshot() Snapshot {
 	state := e.state
 	currency := e.currency
 	e.mu.RUnlock()
+	settings := e.Settings()
 
 	registers := make([]RegisterState, 0, len(regs))
 	inCheckout := 0
@@ -249,12 +256,9 @@ func (e *Engine) BuildSnapshot() Snapshot {
 
 	e.aggMu.Lock()
 	totalSales := e.totalSales
-	var avgProc, avgWait int64
+	var avgProc int64
 	if e.procCount > 0 {
 		avgProc = e.procSumMs / e.procCount
-	}
-	if e.waitCount > 0 {
-		avgWait = e.waitSumMs / e.waitCount
 	}
 	stockSumMs := e.stockSumMs
 	itemSumMs := e.itemSumMs
@@ -268,8 +272,20 @@ func (e *Engine) BuildSnapshot() Snapshot {
 	}
 	avgProcDirect := avgOf(e.procSumByMode[0], e.procCountByMode[0])
 	avgProcQuentra := avgOf(e.procSumByMode[1], e.procCountByMode[1])
-	avgWaitDirect := avgOf(e.waitSumByMode[0], e.waitCountByMode[0])
-	avgWaitQuentra := avgOf(e.waitSumByMode[1], e.waitCountByMode[1])
+	// Waiting time is deliberately a rolling window. A lifetime average keeps
+	// old congestion visible long after the queue has recovered and makes a mode
+	// switch look ineffective. Samples are attributed to the route captured when
+	// the customer first joined the queue.
+	const waitWindow = 60 * time.Second
+	var waitAverages [2]int64
+	e.waitSamples, waitAverages = summarizeWaitSamples(e.waitSamples, nowMs()-waitWindow.Milliseconds())
+	avgWaitDirect := waitAverages[0]
+	avgWaitQuentra := waitAverages[1]
+	activeQuentra := settings.StockLookup && settings.QuentraRewrite && e.store != nil && e.store.HasQuentraGateway()
+	avgWait := avgWaitDirect
+	if activeQuentra {
+		avgWait = avgWaitQuentra
+	}
 	e.aggMu.Unlock()
 
 	var tpm float64
@@ -291,7 +307,7 @@ func (e *Engine) BuildSnapshot() Snapshot {
 	}
 
 	m := Metrics{
-		TotalCustomers: e.Settings().TotalCustomers,
+		TotalCustomers: settings.TotalCustomers,
 		Waiting:        queued,
 		InCheckout:     inCheckout,
 		Completed:      completed,
@@ -305,7 +321,7 @@ func (e *Engine) BuildSnapshot() Snapshot {
 		ElapsedMs:      elapsed,
 		Generated:      int(e.generated.Load()),
 		Currency:       currency,
-		StockMode:      e.Settings().StockMode(),
+		StockMode:      settings.StockMode(),
 		StockLookups:   stockLookups,
 		AvgStockMs:     avgStock,
 		LastStockMs:    e.lastStockMs.Load(),
@@ -319,7 +335,7 @@ func (e *Engine) BuildSnapshot() Snapshot {
 		AvgProcessQuentraMs: avgProcQuentra,
 		AvgWaitDirectMs:     avgWaitDirect,
 		AvgWaitQuentraMs:    avgWaitQuentra,
-		StockValue:     e.lastStockVal.Load(),
+		StockValue:          e.lastStockVal.Load(),
 	}
 
 	return Snapshot{
@@ -330,6 +346,34 @@ func (e *Engine) BuildSnapshot() Snapshot {
 		Completed: sales,
 		Errors:    errs,
 	}
+}
+
+// summarizeWaitSamples drops expired measurements and returns a per-route
+// average for the remaining rolling window. Invalid route values are treated
+// as direct measurements so malformed data cannot disappear silently.
+func summarizeWaitSamples(samples []waitSample, cutoffMs int64) ([]waitSample, [2]int64) {
+	kept := samples[:0]
+	var sums, counts [2]int64
+	for _, sample := range samples {
+		if sample.atMs < cutoffMs {
+			continue
+		}
+		kept = append(kept, sample)
+		mi := sample.mode
+		if mi < 0 || mi > 1 {
+			mi = 0
+		}
+		sums[mi] += sample.waitMs
+		counts[mi]++
+	}
+
+	var averages [2]int64
+	for i := range averages {
+		if counts[i] > 0 {
+			averages[i] = sums[i] / counts[i]
+		}
+	}
+	return kept, averages
 }
 
 // watchCompletion transitions to COMPLETED once every customer is resolved.

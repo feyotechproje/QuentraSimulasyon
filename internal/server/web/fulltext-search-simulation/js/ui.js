@@ -20,6 +20,11 @@ export class UI {
   }
 
   update() {
+    // In live mode the metrics/feed DOM is driven by real measured numbers from
+    // the backend (see live.js); the canvas animation still runs, so only skip
+    // the metric/feed writes here to avoid overwriting the live values.
+    if (window.__ftLive) return;
+
     const m = this.sim.metrics();
     const st = this.sim.statusLabel();
 

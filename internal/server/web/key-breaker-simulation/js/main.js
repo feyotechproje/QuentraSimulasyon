@@ -11,6 +11,7 @@ import { hitTest } from "./world.js";
 import { MODE } from "./models.js";
 import { initQuentraApp } from "/shared/quentra-i18n.js";
 import { KEYBREAKER_INTRO, KEYBREAKER_DICT } from "./i18n.js";
+import { initKeyBreakerLive } from "./live-data.js";
 
 async function boot() {
   await Assets.load();
@@ -102,8 +103,8 @@ initQuentraApp({
   appId: "key-breaker",
   accent: "#ff4d5e",
   accent2: "#ffb020",
-  brand: { name: "Quentra Key Breaker", sub: "SQL Injection Defense", logo: "/assets/quentra-logo.png" },
+  brand: { name: "Quentra Key Breaker", sub: "SQL Injection Defense", logo: "/assets/quentra-logo.jpeg" },
   intro: KEYBREAKER_INTRO,
   dict: KEYBREAKER_DICT,
-  onReady: () => boot(),
+  onReady: () => { boot(); initKeyBreakerLive(); },
 });

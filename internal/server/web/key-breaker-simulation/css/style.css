@@ -40,7 +40,7 @@ body {
 
 /* ---------------- toolbar ---------------- */
 .toolbar {
-  display:flex; align-items:center; gap:18px;
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
   padding:10px 16px;
   background:linear-gradient(90deg,rgba(8,16,28,.9),rgba(10,20,34,.7));
   border:1px solid var(--panel-brd);
@@ -272,3 +272,24 @@ body {
 
 @media (max-width:1500px){ .kpi-strip{grid-template-columns:repeat(5,1fr);} }
 @media (max-width:1200px){ .grid{grid-template-columns:200px 1fr 220px;} }
+/* Tablet: the three-column workspace and bottom strip stack, so unlock the
+   viewport height, let the page scroll, and wrap the toolbar instead of
+   clipping its right-hand controls. */
+@media (max-width:1080px){
+  body{ overflow:auto; }
+  .app{ height:auto; min-height:100vh; }
+  .toolbar{ flex-wrap:wrap; }
+  .brand{ min-width:0; }
+  .toolbar-center{ margin-left:0; }
+  .toolbar-controls{ width:100%; justify-content:center; flex-wrap:wrap; }
+  .kpi-strip{ grid-template-columns:repeat(5,1fr); }
+  .grid{ grid-template-columns:1fr; }
+  .col{ overflow:visible; }
+  .stage{ min-height:56vh; }
+  .bottom{ grid-template-columns:1fr; height:auto; }
+}
+@media (max-width:640px){ .kpi-strip{ grid-template-columns:repeat(3,1fr); } }
+@media (max-width:440px){ .kpi-strip{ grid-template-columns:repeat(2,1fr); } }
+
+/* Reserve top-right space on desktop for the shared fixed TR/EN language switch. */
+@media (min-width:1081px){ .toolbar{ padding-right:100px } }

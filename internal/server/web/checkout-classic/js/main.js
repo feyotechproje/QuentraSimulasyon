@@ -11,7 +11,7 @@ initQuentraApp({
   appId: "checkout-classic",
   accent: "#2563eb",
   accent2: "#f59e0b",
-  brand: { name: "Quentra Checkout", sub: "Classic Control Panel", logo: "/assets/quentra-logo.png" },
+  brand: { name: "Quentra Checkout", sub: "Classic Control Panel", logo: "/assets/quentra-logo.jpeg" },
   intro: CHECKOUT_CLASSIC_INTRO,
   dict: CHECKOUT_CLASSIC_DICT,
   onReady: () => {

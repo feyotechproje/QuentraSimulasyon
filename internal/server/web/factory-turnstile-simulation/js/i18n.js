@@ -52,7 +52,10 @@ export const FACTORY_TURNSTILE_DICT = {
     "status.paused": "SİMÜLASYON DURAKLATILDI",
     "status.stopped": "SİMÜLASYON DURDURULDU",
 
-    // KPI strip (12 panels)
+    // Impact-first KPI strip
+    "kpi.baselineAvg": "Temel Sorgu",
+    "kpi.quentraAvg": "Quentra Sorgu",
+    "kpi.speedup": "Sorgu Hızlanması",
     "kpi.totalWorkers": "Toplam Çalışan",
     "kpi.workersWaiting": "Bekleyen Çalışan",
     "kpi.workersProcessing": "İşlemdeki Çalışan",
@@ -258,6 +261,9 @@ export const FACTORY_TURNSTILE_DICT = {
     "status.paused": "SIMULATION PAUSED",
     "status.stopped": "SIMULATION STOPPED",
 
+    "kpi.baselineAvg": "Baseline Query",
+    "kpi.quentraAvg": "Quentra Query",
+    "kpi.speedup": "Query Speedup",
     "kpi.totalWorkers": "Total Workers",
     "kpi.workersWaiting": "Workers Waiting",
     "kpi.workersProcessing": "Workers Processing",

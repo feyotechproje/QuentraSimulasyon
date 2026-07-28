@@ -55,11 +55,14 @@ func Load() *Config {
 // on. The two-part shape is deliberate — "QuentraSim-<workload>" so every
 // session from this process still groups under a common prefix.
 const (
-	AppRetail      = "QuentraSim-Retail"      // register/checkout simulation
-	AppReportCache = "QuentraSim-ReportCache" // heavy-report cache demo
+	AppRetail      = "QuentraSim-Retail"         // register/checkout simulation
+	AppReportCache = "QuentraSim-ReportCache"    // heavy-report cache demo
 	AppProduction  = "QuentraSim-ProductionLine" // production-line simulation
-	AppVehicle     = "QuentraSim-VehicleGPS"  // vehicle-tracking simulation
-	AppSetup       = "QuentraSim-Setup"       // provisioning against master
+	AppVehicle     = "QuentraSim-VehicleGPS"     // vehicle-tracking simulation
+	AppFulltext    = "QuentraSim-FullText"       // office full-text / NGram search
+	AppKeyBreaker  = "QuentraSim-KeyBreaker"     // SQL-injection defense demo
+	AppAccess      = "QuentraSim-Access"         // turnstile last-movement query
+	AppSetup       = "QuentraSim-Setup"          // provisioning against master
 
 	// quentraSuffix marks a connection that travels through the gateway rather
 	// than hitting SQL Server directly. Appended to the workload's own name so

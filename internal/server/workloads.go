@@ -11,10 +11,14 @@ import (
 // Workload IDs used by the portal's run/stop controls. They match the folder
 // names under web/ so the portal card and the workload share one key.
 const (
-	WorkloadRetail      = "retail-simulation"
-	WorkloadVehicle     = "vehicle-tracking-simulation"
-	WorkloadProduction  = "production-line-simulation"
-	WorkloadReportCache = "report-cache-simulation"
+	WorkloadRetail       = "retail-simulation"
+	WorkloadVehicle      = "vehicle-tracking-simulation"
+	WorkloadProduction   = "production-line-simulation"
+	WorkloadReportCache  = "report-cache-simulation"
+	WorkloadFulltext     = "fulltext-search-simulation"
+	WorkloadKeyBreaker   = "key-breaker-simulation"
+	WorkloadFactory      = "factory-turnstile-simulation"
+	WorkloadTurnstile    = "turnstile"
 )
 
 // workloadStatus is the per-workload snapshot served to the portal.
@@ -90,6 +94,50 @@ func (s *Server) workloads() []workload {
 			stop:    func() error { s.reportCache.Pause(); return nil },
 			status: func() workloadStatus {
 				st := s.reportCache.State()
+				return workloadStatus{Running: st.Running, Provisioned: st.Provisioned}
+			},
+		},
+		{
+			id:      WorkloadFulltext,
+			title:   "Office FullText / NGram Search",
+			present: s.fulltext != nil,
+			start:   func() error { return startProvisioned(s.fulltext.State().Provisioned, s.fulltext.Start) },
+			stop:    func() error { s.fulltext.Pause(); return nil },
+			status: func() workloadStatus {
+				st := s.fulltext.State()
+				return workloadStatus{Running: st.Running, Provisioned: st.Provisioned}
+			},
+		},
+		{
+			id:      WorkloadKeyBreaker,
+			title:   "Key Breaker · SQL Defense",
+			present: s.keyBreaker != nil,
+			start:   func() error { return startProvisioned(s.keyBreaker.State().Provisioned, s.keyBreaker.Start) },
+			stop:    func() error { s.keyBreaker.Pause(); return nil },
+			status: func() workloadStatus {
+				st := s.keyBreaker.State()
+				return workloadStatus{Running: st.Running, Provisioned: st.Provisioned}
+			},
+		},
+		{
+			id:      WorkloadFactory,
+			title:   "Factory Turnstile Girişi",
+			present: s.access != nil,
+			start:   func() error { return startProvisioned(s.access.State().Provisioned, s.access.Start) },
+			stop:    func() error { s.access.Pause(); return nil },
+			status: func() workloadStatus {
+				st := s.access.State()
+				return workloadStatus{Running: st.Running, Provisioned: st.Provisioned}
+			},
+		},
+		{
+			id:      WorkloadTurnstile,
+			title:   "Turnstile Access",
+			present: s.access != nil,
+			start:   func() error { return startProvisioned(s.access.State().Provisioned, s.access.Start) },
+			stop:    func() error { s.access.Pause(); return nil },
+			status: func() workloadStatus {
+				st := s.access.State()
 				return workloadStatus{Running: st.Running, Provisioned: st.Provisioned}
 			},
 		},
