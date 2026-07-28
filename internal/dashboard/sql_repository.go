@@ -208,20 +208,13 @@ func (r *SQLRepository) GetDashboard(ctx context.Context, filter DashboardFilter
 // rejects it with "Invalid column name".
 const lineTotalCol = "TOTALPRICE"
 
-// regionCityQuery renders the "Sales by City for a region" query that the
-// dashboard displays as its before/after SQL. It is executed for real on every
-// run so both routes pay its cost. The Direct route runs the heavy, non-SARGable
-// form the ORM emits (redundant derived table + N'' unicode literal against the
-// varchar REGION column); the Quentra route runs the rewritten SARGable form.
+// regionCityQuery renders the original "Sales by City for a region" query that
+// the dashboard displays. The SAME query is executed on both routes (Direct and
+// Quentra): the redundant derived table plus N'' unicode literal against the
+// varchar REGION column, so the two connections are compared on identical SQL.
 // The region literal is sanitized (single quotes doubled) before interpolation.
-func regionCityQuery(region string, viaQuentra bool) string {
+func regionCityQuery(region string) string {
 	safe := strings.ReplaceAll(region, "'", "''")
-	if viaQuentra {
-		return fmt.Sprintf(`SELECT CITY, SUM(%[1]s)
-FROM %[2]s
-WHERE REGION = '%[3]s'
-GROUP BY CITY;`, lineTotalCol, salesTable, safe)
-	}
 	return fmt.Sprintf(`SELECT "TBL0"."CITY", SUM("TBL0"."%[1]s")
 FROM ( SELECT * FROM %[2]s ) AS "TBL0"
 WHERE "TBL0"."REGION" = N'%[3]s'
@@ -231,8 +224,8 @@ GROUP BY "TBL0"."CITY";`, lineTotalCol, salesTable, safe)
 // runRegionCityQuery executes the region city-sales query on the given session
 // and drains it. It runs purely for its measured server cost; the aggregated
 // city rows already come from the dashboard batch, so results are discarded.
-func runRegionCityQuery(ctx context.Context, conn *sql.Conn, region string, viaQuentra bool) error {
-	rows, err := conn.QueryContext(ctx, regionCityQuery(region, viaQuentra))
+func runRegionCityQuery(ctx context.Context, conn *sql.Conn, region string) error {
+	rows, err := conn.QueryContext(ctx, regionCityQuery(region))
 	if err != nil {
 		return fmt.Errorf("run region city query: %w", err)
 	}
@@ -281,7 +274,7 @@ func (r *SQLRepository) QueryDashboard(ctx context.Context, filter DashboardFilt
 	before, _ := readSessionCounters(queryCtx, conn)
 	started := time.Now()
 	if selected != "" {
-		if err := runRegionCityQuery(queryCtx, conn, selected, viaQuentra); err != nil {
+		if err := runRegionCityQuery(queryCtx, conn, selected); err != nil {
 			return DashboardData{}, QueryMetrics{}, err
 		}
 	}
