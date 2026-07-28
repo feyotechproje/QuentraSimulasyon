@@ -181,32 +181,22 @@ export class Controller {
     await t.wait(400);
 
     // Fetch both results + shared query details up front.
-    const [directRes, quentraRes, details] = await Promise.all([
-      fetchFilter(region, "direct"),
-      fetchFilter(region, "quentra"),
-      fetchQueryDetails(region),
-    ]);
-    this.directRes = directRes;
-    this.quentraRes = quentraRes;
+    const detailsPromise = fetchQueryDetails(region);
 
     // 2. Query executing — start both engines independently.
     this.setState(STATES.QUERY_EXECUTING);
     this.setTaskStage(2);
-    this.direct.setStatus("status.queryExecuting", "is-running");
-    this.quentra.setStatus("status.queryExecuting", "is-running");
-
-    const quentraRun = this.runEngine(this.quentra, quentraRes, details, quentraRes.metrics.elapsedMs);
-    const directRun = this.runEngine(this.direct, directRes, details, directRes.metrics.elapsedMs);
+    const directRun = this.runLiveRequest(this.direct, fetchFilter(region, "direct"), detailsPromise);
+    const quentraRun = this.runLiveRequest(this.quentra, fetchFilter(region, "quentra"), detailsPromise);
 
     // 3. Quentra finishes first → dashboard refreshes instantly.
-    await quentraRun;
-    this.setState(STATES.QUENTRA_COMPLETED);
+    await Promise.race([directRun, quentraRun]);
     this.setTaskStage(3);
 
     // Direct is still grinding.
-    this.setState(STATES.DIRECT_RUNNING);
-    await directRun;
-    this.setState(STATES.DIRECT_COMPLETED);
+    const [directRes, quentraRes] = await Promise.all([directRun, quentraRun]);
+    this.directRes = directRes;
+    this.quentraRes = quentraRes;
 
     // 4. Comparison.
     this.setState(STATES.COMPARISON_READY);
@@ -218,29 +208,24 @@ export class Controller {
    * Drives one engine: climbing timer + live metrics + progressive stages,
    * then applies the filtered data and query panels on completion.
    */
-  async runEngine(dash, res, details, totalMs) {
-    dash.setStages(res.stages);
+  async runLiveRequest(dash, responsePromise, detailsPromise) {
     dash.beginMetrics();
-    const n = res.stages.length;
-    let elapsed = 0;
-    const ticker = this.timeline.addTicker(simDt => {
-      elapsed += simDt;
-      const p = Math.min(1, elapsed / totalMs);
-      dash.setTimer(elapsed, true);
-      dash.updateMetricsLive(p, res.metrics);
-      dash.activateStage(Math.min(n - 1, Math.floor(p * n)));
-    });
+    dash.setStatus("status.queryExecuting", "is-running");
+    const started = performance.now();
+    const timer = window.setInterval(() => dash.setTimer(performance.now() - started, true), 50);
     try {
-      await this.timeline.wait(totalMs);
+      const [res, details] = await Promise.all([responsePromise, detailsPromise]);
+      dash.setStages(res.stages);
+      dash.setTimer(res.metrics.elapsedMs, false);
+      dash.finishStages();
+      dash.finalizeMetrics(res.metrics, res.plan);
+      dash.applyData(res.dashboard, true);
+      dash.setQueryDetails(details);
+      dash.setStatus("status.completedMeasured", "is-done");
+      return res;
     } finally {
-      this.timeline.removeTicker(ticker);
+      window.clearInterval(timer);
     }
-    dash.setTimer(totalMs, false);
-    dash.finishStages();
-    dash.finalizeMetrics(res.metrics, res.plan);
-    dash.applyData(res.dashboard, true);
-    dash.setQueryDetails(details);
-    dash.setStatus("status.completedMeasured", "is-done");
   }
 
   /* ---------- comparison strip ---------- */
