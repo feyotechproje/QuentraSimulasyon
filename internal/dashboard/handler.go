@@ -2,8 +2,11 @@ package dashboard
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
+
+	"supermarketsim/internal/config"
 )
 
 // Handler exposes the demo dashboard endpoints. It is transport-only: all data
@@ -13,12 +16,12 @@ type Handler struct {
 	sim  QuerySimulationService
 }
 
-// NewHandler builds the dashboard HTTP handler with the default mock services.
-func NewHandler() *Handler {
-	repo := NewMockRepository()
+// NewHandler builds the dashboard HTTP handler backed by SALES50M.
+func NewHandler(cfg *config.Config, log *slog.Logger) *Handler {
+	repo := NewSQLRepository(cfg, log)
 	return &Handler{
 		repo: repo,
-		sim:  NewMockSimulationService(repo, "SALES100K"),
+		sim:  NewSQLSimulationService(repo, DatabaseName+"."+salesTable),
 	}
 }
 
@@ -95,7 +98,7 @@ func (h *Handler) handleReset(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }

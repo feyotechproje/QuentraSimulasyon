@@ -62,6 +62,7 @@ const (
 	AppFulltext    = "QuentraSim-FullText"       // office full-text / NGram search
 	AppKeyBreaker  = "QuentraSim-KeyBreaker"     // SQL-injection defense demo
 	AppAccess      = "QuentraSim-Access"         // turnstile last-movement query
+	AppDashboard   = "QuentraSim-Dashboard"      // SALES50M master-filter dashboard
 	AppSetup       = "QuentraSim-Setup"          // provisioning against master
 
 	// quentraSuffix marks a connection that travels through the gateway rather

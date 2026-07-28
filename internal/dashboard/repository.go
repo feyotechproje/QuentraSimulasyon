@@ -3,8 +3,8 @@ package dashboard
 import "context"
 
 // DashboardRepository provides dashboard aggregates for a given filter.
-// A mock implementation ships today; a SQL Server implementation reading the
-// SALES100K table can be added later without changing callers.
+// The production implementation reads the SALES50M database; the in-memory
+// implementation remains available only for isolated tests and offline demos.
 type DashboardRepository interface {
 	GetDashboard(ctx context.Context, filter DashboardFilter) (DashboardData, error)
 }

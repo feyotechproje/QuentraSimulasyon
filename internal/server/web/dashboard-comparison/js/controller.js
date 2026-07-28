@@ -240,7 +240,7 @@ export class Controller {
     dash.finalizeMetrics(res.metrics, res.plan);
     dash.applyData(res.dashboard, true);
     dash.setQueryDetails(details);
-    dash.setStatus(dash.mode === "direct" ? "status.completedSlow" : "status.completedInstant", "is-done");
+    dash.setStatus("status.completedMeasured", "is-done");
   }
 
   /* ---------- comparison strip ---------- */
@@ -257,12 +257,19 @@ export class Controller {
 
     const dReads = directRes.metrics.logicalReadPages, qReads = quentraRes.metrics.logicalReadPages;
     const dCpu = directRes.metrics.cpuMs, qCpu = quentraRes.metrics.cpuMs;
-    const readCut = ((dReads - qReads) / dReads * 100).toFixed(2);
+    const hasReadMetrics = dReads > 0 && qReads >= 0;
+    const readCut = hasReadMetrics ? ((dReads - qReads) / dReads * 100).toFixed(2) + "%" : "—";
+    const readsText = hasReadMetrics
+      ? `<span class="bad">${int(dReads)}</span> → <span class="good">${int(qReads)}</span>`
+      : "—";
+    const cpuText = dCpu > 0 || qCpu > 0
+      ? `<span class="bad">${seconds(dCpu)}</span> → <span class="good">${seconds(qCpu)}</span>`
+      : "—";
     const rows = [
       [t("cmp.timeSaved", "Time Saved"), `<span class="good">${seconds(dMs - qMs)}</span>`],
-      [t("cmp.logicalReads", "Logical Reads"), `<span class="bad">${int(dReads)}</span> → <span class="good">${int(qReads)}</span>`],
-      [t("cmp.readReduction", "Read Reduction"), `<span class="good">${readCut}%</span>`],
-      [t("cmp.cpuTime", "CPU Time"), `<span class="bad">${seconds(dCpu)}</span> → <span class="good">${seconds(qCpu)}</span>`],
+      [t("cmp.logicalReads", "Logical Reads"), readsText],
+      [t("cmp.readReduction", "Read Reduction"), `<span class="good">${readCut}</span>`],
+      [t("cmp.cpuTime", "CPU Time"), cpuText],
       [t("cmp.rowsReturned", "Rows Returned"), `${int(directRes.metrics.rowsReturned)} → ${int(quentraRes.metrics.rowsReturned)}`],
       [t("cmp.resultMatch", "Result Match"), `<span class="good">100%</span>`],
       [t("cmp.semanticValidation", "Semantic Validation"), `<span class="good">${t("cmp.passed", "Passed")}</span>`],

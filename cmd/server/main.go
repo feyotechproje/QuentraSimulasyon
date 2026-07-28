@@ -138,7 +138,7 @@ func main() {
 		log.Info("access workload ready", "db", access.DBName, "state", "idle")
 	}()
 
-	srv := server.New(engine, hub, store, vehMgr, prodMgr, rcMgr, ftMgr, kbMgr, accMgr, log)
+	srv := server.New(engine, hub, store, vehMgr, prodMgr, rcMgr, ftMgr, kbMgr, accMgr, cfg, log)
 
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"supermarketsim/internal/access"
+	"supermarketsim/internal/config"
 	"supermarketsim/internal/dashboard"
 	"supermarketsim/internal/db"
 	"supermarketsim/internal/fulltext"
@@ -35,12 +36,13 @@ type Server struct {
 	fulltext    *fulltext.Manager
 	keyBreaker  *keybreaker.Manager
 	access      *access.Manager
+	cfg         *config.Config
 	log         *slog.Logger
 }
 
 // New creates the HTTP server.
-func New(engine *sim.Engine, hub *sim.Hub, store *db.Store, veh *vehicle.Manager, prod *production.Manager, rc *reportcache.Manager, ft *fulltext.Manager, kb *keybreaker.Manager, acc *access.Manager, log *slog.Logger) *Server {
-	return &Server{engine: engine, hub: hub, store: store, vehicle: veh, production: prod, reportCache: rc, fulltext: ft, keyBreaker: kb, access: acc, log: log}
+func New(engine *sim.Engine, hub *sim.Hub, store *db.Store, veh *vehicle.Manager, prod *production.Manager, rc *reportcache.Manager, ft *fulltext.Manager, kb *keybreaker.Manager, acc *access.Manager, cfg *config.Config, log *slog.Logger) *Server {
+	return &Server{engine: engine, hub: hub, store: store, vehicle: veh, production: prod, reportCache: rc, fulltext: ft, keyBreaker: kb, access: acc, cfg: cfg, log: log}
 }
 
 // Handler builds the router.
@@ -85,7 +87,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/workloads/{id}/stop", s.handleWorkloadAction(false))
 
 	// Quentra Dashboard Performance Lab (demo dashboard endpoints).
-	dashboard.NewHandler().Register(mux)
+	dashboard.NewHandler(s.cfg, s.log).Register(mux)
 
 	// Vehicle tracking real-DB workload endpoints.
 	mux.HandleFunc("GET /api/vehicle/state", s.handleVehicleState)
