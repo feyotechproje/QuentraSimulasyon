@@ -64,13 +64,20 @@ export class Renderer {
     const pad = 24;
     const availableW = Math.max(1, this.cw - pad * 2);
     const availableH = Math.max(1, this.ch - pad * 2);
-    const matchedWorldH = WORLD.w * availableH / availableW;
-    SQUASH = Math.max(0.24, Math.min(0.60, (matchedWorldH - 90) / WORLD.h));
-    const worldH = WORLD.h * SQUASH + 90; // + central cluster margin
-    const s = Math.min(availableW / WORLD.w, availableH / worldH);
+    const cluster = 90; // extra vertical margin for the central SQL cluster
+    // Horizontal scale is fixed by width (the map always spans the panel). Given
+    // that scale, choose SQUASH so the projected world height fills the panel
+    // height instead of collapsing to a thin band — but stay within a natural
+    // range so the isometric look holds and props never invert.
+    const s = availableW / WORLD.w;
+    const targetWorldH = availableH / s;            // world-units of height we can show
+    SQUASH = Math.max(0.34, Math.min(0.72, (targetWorldH - cluster) / WORLD.h));
     this.scale = s;
+    // Centre the fitted world both ways. offY was previously pinned to the top,
+    // which left the squashed map floating high with dead space below and let
+    // props/vehicles near the top edge clip out of the panel.
     this.offX = (this.cw - WORLD.w * s) / 2;
-    this.offY = pad + 6;
+    this.offY = (this.ch - WORLD.h * SQUASH * s) / 2;
   }
 
   project(wx, wy, wz = 0) {

@@ -262,10 +262,11 @@
 .live-panel .lp-dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399;
   box-shadow: 0 0 8px #34d399; animation: lp-pulse 1.6s infinite; flex: none; }
 @keyframes lp-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-.live-panel .lp-title { font-weight: 800; letter-spacing: .6px; font-size: 11px; }
+.live-panel .lp-title { font-weight: 800; letter-spacing: .6px; font-size: 11px; margin-right: auto; }
 .live-panel .lp-db { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: .4px;
   color: #9aa3c4; background: rgba(124,107,255,.12); border: 1px solid rgba(124,107,255,.28);
   padding: 2px 8px; border-radius: 999px; }
+.live-panel .lp-db:empty { display: none; }
 .live-panel .lp-close { border: 0; background: none; color: #9aa3c4; cursor: pointer;
   font-size: 16px; line-height: 1; padding: 0 2px; }
 .live-panel .lp-close:hover { color: #fff; }
@@ -341,3 +342,10 @@
   overflow: visible;
   flex: 0 0 auto;
 }
+/* Docked in the side column the card must stay compact so the panel below it
+   (Turnstile Status) is visible without scrolling: few feed rows, tight SQL.
+   The feed is capped to ~5 rows by the page, so let them all show legibly. */
+.live-panel.is-docked .lp-feed { max-height: none; }
+.live-panel.is-docked .lp-fi { font-size: 11.5px; padding-block: 2px; }
+.live-panel.is-docked .lp-sqlblk pre { font-size: 10px; line-height: 1.35; }
+.live-panel.is-docked .lp-grid { gap: 5px 10px; }

@@ -36,11 +36,12 @@ body {
 
 /* ---- Toolbar ---- */
 .toolbar {
-  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 16px; flex-wrap: nowrap;
   padding: 10px 18px;
   background: linear-gradient(180deg, rgba(20,28,48,0.9), rgba(11,17,32,0.9));
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(8px);
+  overflow-x: auto;
 }
 .brand { display: flex; align-items: center; gap: 11px; }
 .brand-mark {
@@ -53,7 +54,7 @@ body {
 .brand-text strong { display: block; font-size: 15px; letter-spacing: 0.3px; }
 .brand-text em { font-style: normal; font-size: 11px; color: var(--text-dim); }
 
-.toolbar-status { display: flex; align-items: center; gap: 16px; margin-left: 6px; }
+.toolbar-status { display: flex; align-items: center; gap: 16px; margin-left: 6px; flex-wrap: nowrap; flex: 0 0 auto; }
 .status-pill {
   display: flex; align-items: center; gap: 7px;
   padding: 5px 12px; border-radius: 999px;
@@ -77,7 +78,7 @@ body {
 .live-db[data-live="true"] { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.4); color: var(--green); }
 .live-db[data-live="true"] .live-dot { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.6s infinite; }
 
-.toolbar-controls { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+.toolbar-controls { display: flex; align-items: center; gap: 12px; margin-left: 20px; flex-wrap: nowrap; flex: 0 0 auto; }
 .mode-group, .ctrl-group, .speed, .run-group { display: flex; align-items: center; gap: 4px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
 /* Demo / Live: which numbers you are looking at. Live is green to match the
    live-db badge; demo is amber so simulated figures never look measured. */
@@ -101,6 +102,20 @@ body {
 .speed-label { font-size: 10px; color: var(--text-mute); padding-left: 6px; text-transform: uppercase; letter-spacing: 0.6px; }
 .speed-btn.is-active { background: rgba(70,97,230,0.25); color: #fff; }
 .btn:disabled { opacity: 0.35; cursor: default; }
+
+/* Icon control buttons: play (green) · pause · stop (red) · reset. */
+.ibtn {
+  width: 32px; height: 32px; display: grid; place-items: center;
+  border: 1px solid var(--line); background: var(--bg-2);
+  border-radius: 8px; color: var(--text-mute); cursor: pointer;
+  transition: all 0.14s; padding: 0;
+}
+.ibtn:hover:not(:disabled) { color: var(--text); border-color: var(--line-2); background: rgba(255,255,255,0.06); }
+.ibtn:disabled { opacity: 0.35; cursor: default; }
+.ibtn-play { color: var(--green); border-color: rgba(52,211,153,0.4); }
+.ibtn-play:hover:not(:disabled) { color: var(--green); border-color: var(--green); background: rgba(52,211,153,0.12); }
+.ibtn-stop { color: var(--red); border-color: rgba(239,68,68,0.4); }
+.ibtn-stop:hover:not(:disabled) { color: var(--red); border-color: var(--red); background: rgba(239,68,68,0.12); }
 
 /* ---- KPI strip ---- */
 .kpi-strip {
@@ -235,9 +250,8 @@ body {
 @media (max-width: 1024px) {
   .app { height: auto; min-height: 100vh; }
   body { overflow: auto; }
-  .toolbar { flex-wrap: wrap; justify-content: center; }
-  .toolbar-status { margin-left: 0; flex-wrap: wrap; justify-content: center; }
-  .toolbar-controls { margin-left: 0; width: 100%; justify-content: center; }
+  /* Toolbar stays on a single row and scrolls horizontally instead of
+     wrapping — matches the retail/factory sims. */
   .content { grid-template-columns: 1fr; }
   .canvas-wrap { min-height: 56vh; }
   .side { overflow: visible; }

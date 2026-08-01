@@ -16,15 +16,16 @@ export class VehicleBackend {
     this.state = null;
     this.connected = false;
     this._lastMode = null;
-    // Live by default: this page exists to show the real workload. Demo mode
-    // stops the SQL traffic entirely and lets the visualisation run on its own
-    // simulated numbers, which are labelled as such.
-    this.live = true;
+    // Demo by default: the page opens on simulated numbers and touches no SQL
+    // Server. Switching to Live starts the real VEHICLEGPS workload; leaving it
+    // stops the traffic again.
+    this.live = false;
     sim.backend = null;
-    sim.liveMode = true;
-    // The server starts no workload at boot: claim ours while this page is
-    // open and release it on unload so a closed tab stops the SQL traffic.
-    this.workload = claimWorkload(WORKLOAD_ID);
+    sim.liveMode = false;
+    // Reserve our workload slot (and release it on unload) but do NOT auto-start
+    // it: the page opens in Demo mode, which must touch no SQL Server. The real
+    // VEHICLEGPS traffic only begins when the user switches to Live (setLive).
+    this.workload = claimWorkload(WORKLOAD_ID, { autoStart: false });
     this._poll();
     this._watchMode();
   }

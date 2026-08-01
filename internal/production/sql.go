@@ -94,5 +94,18 @@ BEGIN
 	CREATE INDEX IX_Production_ProductionDate ON dbo.Production (ProductionDate) INCLUDE (LineId, Quantity);
 END`
 
-const execUnoptimizedSQL = `EXEC dbo.sp_GetDailyProduction_Unoptimized @LineId=@LineId;`
-const execOptimizedSQL = `EXEC dbo.sp_GetDailyProduction_Optimized @LineId=@LineId;`
+// execDailyProductionSQL is the single statement the application sends in BOTH
+// modes. It is the deliberately non-sargable form: CONVERT(date, ProductionDate)
+// wraps the indexed column, so a direct connection (Baseline) must scan. Routed
+// through the Quentra gateway, the same text is rewritten into a sargable seek —
+// the app never changes, only the route does.
+const execDailyProductionSQL = `
+SELECT
+	LineId,
+	COUNT(*)      AS UnitsProduced,
+	SUM(Quantity) AS TotalQuantity
+FROM dbo.Production
+WHERE CONVERT(date, ProductionDate) = CONVERT(date, GETDATE())
+  AND (@LineId IS NULL OR LineId = @LineId)
+GROUP BY LineId
+ORDER BY LineId;`

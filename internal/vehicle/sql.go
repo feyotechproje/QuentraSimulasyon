@@ -61,7 +61,7 @@ BEGIN
 	   SET Lat = @Lat,
 	       Lng = @Lng,
 	       Speed = @Speed,
-	       Heading = @Heading,
+	       Heading = @Heading, 
 	       Status = CASE WHEN @Speed = 0 THEN 'STOPPED' ELSE 'MOVING' END,
 	       LastUpdate = SYSUTCDATETIME()
 	 WHERE VehicleId = @VehicleId;

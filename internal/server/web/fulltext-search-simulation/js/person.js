@@ -271,12 +271,12 @@ export class Workstation {
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
     rr(ctx, cx - 14 * bs, yShoulder - 2 * bs, 28 * bs, 7 * bs, 3.5 * bs); ctx.fill();
 
-    // Arms reaching forward onto the keyboard. From this high camera angle the
-    // keyboard sits at the same screen height as the middle of the back, so the
-    // hands must come around the OUTSIDE of the torso (past its ±34*bs edge) to
-    // stay visible — otherwise they'd be hidden behind the body.
-    const kbY = base - 64 * s;   // on the key rows of the keyboard at base-72*s
-    const handX = 50 * s;   // just outside the torso silhouette, on the keyboard
+    // Arms resting on the chair armrests. The hand sits LOW on the armrest,
+    // below the elbow bend, so the widest sideways point of the limb (the elbow)
+    // stays covered by the long sleeve and only a small hand shows — otherwise a
+    // skin patch at elbow height reads as a bare elbow poking through the sleeve.
+    const kbY = base - 50 * s;   // low on the armrest, well under the elbow
+    const handX = 47 * s;   // resting on the armrest, just outside the torso
     const typeL = Math.sin(emp.typePhase) * 2.5 * s * emp.typeIntensity;
     const typeR = Math.sin(emp.typePhase + 1.7) * 2.5 * s * emp.typeIntensity;
     this._arm(ctx, p.shirt, p.skin, cx - 30 * bs, yShoulder + 12 * bs, cx - handX, kbY + typeL, bs, s);
@@ -330,26 +330,30 @@ export class Workstation {
   // reaching forward onto a desk, instead of hanging straight down.
   _arm(ctx, sleeve, skin, sx, sy, hx, hy, bs, ds) {
     const outward = Math.sign(hx - sx) || 1;
-    // Elbow: slightly below the midpoint and pushed away from the torso.
-    const ex = (sx + hx) / 2 + outward * 6 * bs;
-    const ey = (sy + hy) / 2 + 10 * bs;
+    // Elbow sits BETWEEN the shoulder and the hand — closer to the shoulder and
+    // only a little lower — so the limb reads as "upper arm angling down, forearm
+    // resting forward". Previously it was pushed outward past the hand, which
+    // splayed the elbows out like wings.
+    const ex = sx + (hx - sx) * 0.34 + outward * 1 * bs;
+    const ey = sy + (hy - sy) * 0.5 + 5 * bs;
 
-    // Upper arm (sleeve) — shoulder to elbow.
-    ctx.strokeStyle = sleeve; ctx.lineWidth = 12 * bs; ctx.lineCap = 'round';
+    // The WHOLE arm is sleeve-coloured (long sleeve) drawn as one continuous
+    // limb — a bare skin forearm at this angle read as an odd flipper poking out
+    // the side. Shoulder → elbow → hand, tapering slightly toward the wrist.
+    ctx.strokeStyle = sleeve; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = 12 * bs;
     ctx.beginPath();
     ctx.moveTo(sx, sy);
-    ctx.quadraticCurveTo(sx + outward * 5 * bs, (sy + ey) / 2, ex, ey);
+    ctx.quadraticCurveTo(sx + outward * 2 * bs, (sy + ey) / 2, ex, ey);
     ctx.stroke();
-
-    // Forearm (skin) — elbow forward to the hand on the keyboard.
-    ctx.strokeStyle = skin; ctx.lineWidth = 8 * bs;
+    ctx.lineWidth = 9.5 * bs;
     ctx.beginPath();
     ctx.moveTo(ex, ey);
-    ctx.quadraticCurveTo((ex + hx) / 2 + outward * 2 * ds, (ey + hy) / 2 + 2 * ds, hx, hy);
+    ctx.quadraticCurveTo((ex + hx) / 2 - outward * 1 * ds, (ey + hy) / 2 + 2 * ds, hx, hy);
     ctx.stroke();
 
-    // Hand resting on the keys (desk scale, so it matches the keyboard size).
+    // Small hand resting at the wrist (skin), just peeking past the cuff.
     ctx.fillStyle = skin;
-    ctx.beginPath(); ctx.ellipse(hx, hy, 6 * ds, 5 * ds, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(hx, hy, 4.6 * ds, 4 * ds, 0, 0, Math.PI * 2); ctx.fill();
   }
 }

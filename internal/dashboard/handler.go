@@ -21,7 +21,7 @@ func NewHandler(cfg *config.Config, log *slog.Logger) *Handler {
 	repo := NewSQLRepository(cfg, log)
 	return &Handler{
 		repo: repo,
-		sim:  NewSQLSimulationService(repo, DatabaseName+"."+salesTable),
+		sim:  NewSQLSimulationService(repo, salesTable),
 	}
 }
 
@@ -30,7 +30,25 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /demo/dashboard", h.handleDashboard)
 	mux.HandleFunc("GET /demo/dashboard/filter", h.handleFilter)
 	mux.HandleFunc("GET /demo/dashboard/query-details", h.handleQueryDetails)
+	mux.HandleFunc("GET /demo/dashboard/capture-probe", h.handleCaptureProbe)
 	mux.HandleFunc("POST /demo/dashboard/reset", h.handleReset)
+}
+
+// handleCaptureProbe is a temporary diagnostic: it runs the region query through
+// both routes and returns the SQL the backend actually executed, so we can see
+// the real Quentra rewrite straight from SQL Server's DMVs.
+func (h *Handler) handleCaptureProbe(w http.ResponseWriter, r *http.Request) {
+	repo, ok := h.repo.(*SQLRepository)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "capture probe requires the live SQL repository")
+		return
+	}
+	res, err := repo.ProbeRewrite(r.Context(), strings.TrimSpace(r.URL.Query().Get("region")))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {

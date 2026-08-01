@@ -19,45 +19,32 @@
         </div>
       </div>
 
-      <div class="toolbar-status">
-        <div class="status-pill" id="statusPill" data-state="running">
-          <span class="dot"></span>
-          <span id="statusLabel" data-i18n="st.running">RUNNING</span>
-        </div>
-        <div class="tb-meta">
-          <span class="tb-label" data-i18n="tb.simTime">Simulation Time</span>
-          <span class="tb-value" id="simClock">09:15:00</span>
-        </div>
-        <div class="tb-sep"></div>
-        <div class="tb-meta">
-          <span class="tb-label" data-i18n="tb.mode">Mode</span>
-          <span class="tb-value" id="modeLabel" data-i18n="mode.baseline">Baseline</span>
-        </div>
-        <div class="tb-sep"></div>
-        <div class="live-db" id="liveDb" data-live="false" title="Live SQL Server workload" data-i18n-attr="title:hint.liveDb">
-          <span class="live-dot"></span>
-          <span id="liveDbLabel" data-i18n="db.connecting">VEHICLEGPS · connecting…</span>
-        </div>
-      </div>
-
       <div class="toolbar-controls">
         <!-- Run mode: demo (nothing touches SQL Server) vs live (the real
              VEHICLEGPS workload). Kept separate from the baseline/Quentra
              choice, which selects what the workload does. -->
         <div class="run-group" role="group" aria-label="Run mode">
-          <button class="run-btn" id="btnDemoRun" type="button" data-i18n="run.demo">Demo</button>
-          <button class="run-btn is-active" id="btnLiveRun" type="button" data-i18n="run.live">Live</button>
+          <button class="run-btn is-active" id="btnDemoRun" type="button" data-i18n="run.demo">Demo</button>
+          <button class="run-btn" id="btnLiveRun" type="button" data-i18n="run.live">Live</button>
         </div>
         <div class="mode-group" role="group" aria-label="Mode">
           <button class="mode-btn is-active" id="btnBaseline" data-i18n="mode.baseline">Baseline</button>
           <button class="mode-btn" id="btnQuentra" data-i18n="mode.quentra">Quentra</button>
           <button class="mode-btn mode-auto" id="btnAuto" data-i18n="mode.auto">Auto Demo</button>
         </div>
-        <div class="ctrl-group">
-          <button class="btn" id="btnPause" data-i18n="btn.pause">Pause</button>
-          <button class="btn" id="btnResume" disabled data-i18n="btn.resume">Resume</button>
-          <button class="btn btn-danger" id="btnStop" data-i18n="btn.stop">Stop</button>
-          <button class="btn btn-ghost" id="btnReset" data-i18n="btn.reset">Reset</button>
+        <div class="ctrl-group" role="group" aria-label="Simulation controls">
+          <button class="ibtn ibtn-play" id="btnResume" title="Başlat / Devam Et" aria-label="Başlat / Devam Et" data-i18n-attr="title:btn.resume;aria-label:btn.resume" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="ibtn ibtn-pause" id="btnPause" title="Duraklat" aria-label="Duraklat" data-i18n-attr="title:btn.pause;aria-label:btn.pause">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+          </button>
+          <button class="ibtn ibtn-stop" id="btnStop" title="Durdur" aria-label="Durdur" data-i18n-attr="title:btn.stop;aria-label:btn.stop">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
+          </button>
+          <button class="ibtn ibtn-reset" id="btnReset" title="Sıfırla" aria-label="Sıfırla" data-i18n-attr="title:btn.reset;aria-label:btn.reset">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 11-5 5H5a7 7 0 107-7z"/></svg>
+          </button>
         </div>
         <div class="speed" role="group" aria-label="Speed">
           <span class="speed-label" data-i18n="speed.label">Speed</span>

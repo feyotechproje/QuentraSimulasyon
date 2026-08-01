@@ -17,23 +17,29 @@
         <span data-i18n="brand.sub">FullText / NGram · Office Search Lab</span>
       </div>
       <div class="tb-sep"></div>
+
+      <!-- Run mode (Demo / Canlı) is injected here by live.js so it sits up front
+           as the primary choice, matching the other sims. -->
+      <div id="liveToggleSlot" class="tb-group"></div>
+
       <div class="status-pill baseline" id="statusPill"><span id="statusText" data-i18n="status.baseline">Baseline</span></div>
 
-      <div class="tb-spacer"></div>
-
-      <div class="tb-group">
-        <span class="tb-label" data-i18n="mode.label">Mode</span>
+      <div class="tb-group seg" role="group" aria-label="Mode">
         <button class="tb active" data-mode="auto" data-group="mode" data-i18n="mode.auto">Auto Demo</button>
         <button class="tb" data-mode="baseline" data-group="mode" data-i18n="mode.baseline">Baseline</button>
         <button class="tb" data-mode="quentra" data-group="mode" data-i18n="mode.quentra">Quentra</button>
       </div>
-      <div class="tb-sep"></div>
-      <div class="tb-group">
-        <button class="tb ghost" id="btnPause" data-i18n="btn.pause">Pause</button>
-        <button class="tb ghost" id="btnResume" data-i18n="btn.resume">Resume</button>
-        <button class="tb ghost" id="btnReset" data-i18n="btn.reset">Reset</button>
+      <div class="tb-group seg" role="group" aria-label="Simulation controls">
+        <button class="ibtn ibtn-play" id="btnResume" title="Devam Et" aria-label="Devam Et" data-i18n-attr="title:btn.resume;aria-label:btn.resume">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="ibtn" id="btnPause" title="Duraklat" aria-label="Duraklat" data-i18n-attr="title:btn.pause;aria-label:btn.pause">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+        </button>
+        <button class="ibtn" id="btnReset" title="Sıfırla" aria-label="Sıfırla" data-i18n-attr="title:btn.reset;aria-label:btn.reset">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 11-5 5H5a7 7 0 107-7z"/></svg>
+        </button>
       </div>
-      <div class="tb-sep"></div>
       <div class="tb-group">
         <span class="tb-label" data-i18n="speed.label">Speed</span>
         <select class="tb" id="speed">
@@ -52,6 +58,30 @@
       </div>
 
       <aside class="panel">
+        <!-- Side-by-side comparison of the two real query paths. Always shows
+             BOTH so the difference reads at a glance, regardless of mode.
+             Populated by live.js from refAvgMs / quentraAvgMs. -->
+        <div class="panel-sec cmp-sec" id="cmpCard" hidden>
+          <h4 data-i18n="panel.compare">Query Comparison</h4>
+          <div class="cmp">
+            <div class="cmp-row ref">
+              <div class="cmp-top">
+                <span class="cmp-name" data-i18n="cmp.reference">Reference · LIKE</span>
+                <span class="cmp-ms" id="cmpRefMs">—</span>
+              </div>
+              <div class="cmp-sub"><span id="cmpRefScanned">—</span> <span data-i18n="cmp.scanned">scanned</span></div>
+            </div>
+            <div class="cmp-row qn">
+              <div class="cmp-top">
+                <span class="cmp-name" data-i18n="cmp.quentra">Quentra · :14330</span>
+                <span class="cmp-ms" id="cmpQnMs">—</span>
+              </div>
+              <div class="cmp-sub"><span id="cmpQnScanned">—</span> <span data-i18n="cmp.scanned">scanned</span> · <span data-i18n="cmp.viaGw">via gateway</span></div>
+            </div>
+            <div class="cmp-speed" id="cmpSpeed"><span class="cmp-bolt">⚡</span> <span id="cmpSpeedVal">—</span></div>
+          </div>
+        </div>
+
         <div class="panel-sec">
           <h4 data-i18n="panel.liveMetrics">Live Metrics</h4>
           <div class="metrics">

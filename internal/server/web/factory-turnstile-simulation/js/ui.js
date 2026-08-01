@@ -41,13 +41,12 @@ export class UI {
       statusPill: $("statusPill"), statusLabel: $("statusLabel"),
       clock: $("simClock"), shift: $("simShift"),
       kBaseAvg: $("kBaseAvg"), kQnAvg: $("kQnAvg"), kSpeedup: $("kSpeedup"),
-      kAvgQueue: $("kAvgQueue"), kPending: $("kPending"), kPerMin: $("kPerMin"),
+      kEntered: $("kEntered"), kPerMin: $("kPerMin"), kAvgCheck: $("kAvgCheck"),
       kUtil: $("kUtil"), kWaiting: $("kWaiting"),
       gateGrid: $("gateGrid"), gateSummary: $("gateSummary"),
       heatmap: $("heatmap"), bottleneck: $("bottleneck"),
       cwc: $("cwc"), feed: $("accessFeed"),
-      pipeline: $("pipeline"), pipeFindTime: $("pipeFindTime"), pipeTag: $("pipeTag"),
-      canvasHint: $("canvasHint"),
+      pipeline: $("pipeline"), pipeFindTime: $("pipeFindTime"),
       rwImprove: $("rwImprove"), rwBefore: $("rwBefore"), rwAfter: $("rwAfter"),
       rwBaseAvg: $("rwBaseAvg"), rwQnAvg: $("rwQnAvg"),
       rwBaseBar: $("rwBaseBar"), rwQnBar: $("rwQnBar"),
@@ -135,17 +134,12 @@ export class UI {
     document.querySelectorAll(".mode-btn").forEach((b) => {
       b.addEventListener("click", () => {
         this.sim.setMode(b.dataset.mode);
+        // In live mode the same top control also switches the real backend path
+        // (the live card no longer carries its own mode switch).
+        if (window.setAccessLiveMode) window.setAccessLiveMode(b.dataset.mode);
         this._applyMode();
         this.refresh();
       });
-    });
-    const search = $("searchInput");
-    search.addEventListener("input", () => {
-      const q = search.value.trim().toUpperCase();
-      if (!q) return;
-      const w = this.sim.workers.find((x) => x.employeeId.includes(q));
-      for (const x of this.sim.workers) x.highlight = false;
-      if (w) { w.highlight = true; this.sim.selectedWorker = w; this.sim.selectedGate = null; }
     });
     $("clearSel").addEventListener("click", () => {
       this.sim.selectedGate = null;
@@ -201,13 +195,6 @@ export class UI {
     const q = this.sim.mode === "quentra";
     document.querySelectorAll(".mode-btn").forEach((b) =>
       b.classList.toggle("is-active", b.dataset.mode === this.sim.mode));
-    this.el.pipeTag.textContent = q ? t("pipeline.tag.quentra", "QUENTRA") : t("pipeline.tag.baseline", "BASELINE");
-    this.el.pipeTag.classList.toggle("warn", !q);
-    if (this.el.canvasHint) {
-      this.el.canvasHint.textContent = q
-        ? t("hint.quentra", "Click a turnstile or a worker to inspect · 15 lanes · Quentra (rewritten keyed last-movement lookup)")
-        : t("hint.baseline", "Click a turnstile or a worker to inspect · 15 lanes · Baseline (slow last-movement query)");
-    }
     if (this.el.rwBefore) this.el.rwBefore.dataset.active = (!q).toString();
     if (this.el.rwAfter) this.el.rwAfter.dataset.active = q.toString();
   }
@@ -231,10 +218,10 @@ export class UI {
       ? formatSpeedup(comparison.bAvg / comparison.qAvg)
       : "—";
     e.kWaiting.textContent = k.waiting;
-    e.kAvgQueue.textContent = k.avgQueue.toFixed(1) + "s";
+    e.kEntered.textContent = k.successfulEntries;
     e.kPerMin.textContent = Math.round(k.entriesPerMin);
+    e.kAvgCheck.textContent = k.avgCheck.toFixed(1) + "s";
     e.kUtil.textContent = Math.round(k.utilization * 100) + "%";
-    e.kPending.textContent = k.pendingChecks;
     if (!this._acc) this._syncControls();
 
     this._renderGates();

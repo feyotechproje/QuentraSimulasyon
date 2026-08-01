@@ -31,11 +31,12 @@ body {
 
 /* ===== Toolbar ===== */
 .toolbar {
-  display: flex; align-items: center; gap: 16px;
+  display: flex; align-items: center; gap: 12px;
   height: 52px; padding: 0 18px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   flex: none;
+  flex-wrap: nowrap; overflow-x: auto;
 }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-logo { width: auto; height: 30px; display: block; object-fit: contain; }
@@ -57,8 +58,23 @@ body {
 .status-pill.quentra::before { background: var(--purple); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
 
-.tb-group { display: flex; align-items: center; gap: 6px; }
+.tb-group { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .tb-spacer { flex: 1; }
+/* Segmented groups: a light pill container so mode buttons and icon controls
+   read as grouped units, matching the vehicle/production sims. */
+.tb-group.seg { gap: 4px; padding: 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; }
+.tb-group.seg button.tb:not(.active) { border: 0; background: transparent; }
+.tb-group.seg button.tb:hover:not(.active) { background: rgba(124,58,237,.08); }
+
+/* Icon control buttons: play (green) · pause · reset. */
+.ibtn {
+  width: 32px; height: 32px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--line); background: var(--panel);
+  border-radius: 8px; color: var(--muted); cursor: pointer; transition: all .15s;
+}
+.ibtn:hover { color: var(--purple); border-color: var(--purple); background: #fff; }
+.ibtn-play { color: #16a34a; border-color: #bfe6ce; }
+.ibtn-play:hover { color: #16a34a; border-color: #16a34a; background: #eefaf3; }
 button.tb {
   font: inherit; font-size: 12.5px; font-weight: 600;
   padding: 7px 13px; border-radius: 8px;
@@ -90,6 +106,27 @@ select.tb { font: inherit; font-size: 12.5px; padding: 6px 8px; border-radius: 8
 }
 .panel-sec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .panel-sec h4 { margin: 0 0 12px; font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--faint); }
+
+/* ===== Query comparison card ===== */
+.cmp { display: flex; flex-direction: column; gap: 8px; }
+.cmp-row { padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line); }
+.cmp-row.ref { background: #fef6e7; border-color: #f7e3b8; }
+.cmp-row.qn  { background: #eefaf1; border-color: #c5ecd0; }
+.cmp-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cmp-name { font-size: 11.5px; font-weight: 700; }
+.cmp-row.ref .cmp-name { color: var(--orange); }
+.cmp-row.qn  .cmp-name { color: var(--green); }
+.cmp-ms { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+.cmp-row.ref .cmp-ms { color: var(--orange); }
+.cmp-row.qn  .cmp-ms { color: var(--green); }
+.cmp-sub { font-size: 10.5px; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.cmp-speed {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px; border-radius: 9px; font-size: 13px; font-weight: 800;
+  color: #fff; background: linear-gradient(135deg, var(--purple), #6d28d9);
+  box-shadow: 0 3px 10px rgba(124,58,237,.3);
+}
+.cmp-bolt { font-size: 14px; }
 
 .metrics { display: flex; flex-direction: column; gap: 9px; }
 .metric {
@@ -133,8 +170,9 @@ select.tb { font: inherit; font-size: 12.5px; padding: 6px 8px; border-radius: 8
   .panel-sec { border-bottom: none; border-right: 1px solid var(--line); min-width: 240px; }
 }
 @media (max-width: 900px) {
-  .toolbar { height: auto; min-height: 52px; flex-wrap: wrap; padding: 8px 14px; gap: 10px; }
-  .tb-spacer { display: none; }
+  /* Toolbar stays a single row and scrolls horizontally instead of wrapping,
+     matching the other sims. */
+  .toolbar { padding: 8px 14px; gap: 10px; }
 }
 /* Phone: stack canvas over the panel and let the page scroll instead of the
    panel becoming a cramped horizontal scroller. */

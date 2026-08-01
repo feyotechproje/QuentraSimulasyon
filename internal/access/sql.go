@@ -1,7 +1,5 @@
 package access
 
-import "fmt"
-
 // SQL for the turnstile / factory "last movement" workload. It runs against the
 // pre-existing TIGERMARKET ERP database, treating each stock-transaction line
 // as an access "movement": the demo asks "what was the most recent movement for
@@ -46,22 +44,15 @@ ORDER BY DATE_ DESC`
 		  AND counter_name IN ('SQL Compilations/sec','Batch Requests/sec')`
 )
 
-// baselineSQL builds the ad-hoc statement: the key is concatenated in and a
-// unique marker guarantees the statement text is never identical, forcing a
-// fresh plan every time — the plan-cache bloat the demo shows.
-func baselineSQL(key int, marker int64) string {
-	return fmt.Sprintf(
-		"SELECT TOP (1) LOGICALREF, DATE_, AMOUNT, PRICE, TRCODE FROM dbo.LG_117_01_STLINE WHERE STOCKREF = %d ORDER BY DATE_ DESC; /*adhoc-%d*/",
-		key, marker)
-}
-
-// directDisplaySQL / quentraDisplaySQL return the exact statements each path
-// sends, for the UI's "gönderilen sorgu" panel: the ad-hoc concatenated lookup
-// on the direct link vs the parameterized one routed through Quentra.
-func directDisplaySQL(key int) string {
-	return fmt.Sprintf("SELECT TOP 1 LOGICALREF, DATE_, AMOUNT, PRICE, TRCODE\nFROM dbo.LG_117_01_STLINE\nWHERE STOCKREF = %d          -- literal, her sorgu yeni plan\nORDER BY DATE_ DESC;", key)
+// directDisplaySQL / quentraDisplaySQL return the exact statement each path
+// sends, for the UI's "gönderilen sorgu" panel. Both routes now run the SAME
+// parameterized last-movement lookup — direct to SQL Server vs through the
+// Quentra gateway — so the two blocks show identical SQL and the only
+// difference is the connection it travels on.
+func directDisplaySQL() string {
+	return "SELECT TOP 1 LOGICALREF, DATE_, AMOUNT, PRICE, TRCODE\nFROM dbo.LG_117_01_STLINE\nWHERE STOCKREF = @key\nORDER BY DATE_ DESC;   -- direkt bağlantı (localhost)"
 }
 
 func quentraDisplaySQL() string {
-	return "EXEC sp_executesql\n  N'SELECT TOP 1 LOGICALREF, DATE_, AMOUNT, PRICE, TRCODE\n    FROM dbo.LG_117_01_STLINE\n    WHERE STOCKREF = @key ORDER BY DATE_ DESC',\n  N'@key int', @key = ?   -- parametreli, tek plan"
+	return "SELECT TOP 1 LOGICALREF, DATE_, AMOUNT, PRICE, TRCODE\nFROM dbo.LG_117_01_STLINE\nWHERE STOCKREF = @key\nORDER BY DATE_ DESC;   -- Quentra geçidi (localhost:14330)"
 }

@@ -379,8 +379,7 @@ export class Dashboard {
       panels.push(this._queryPanel(t("query.generatedQuery", "Generated Query"), details.originalQuery, true));
       panels.push(this._issuePanel(t("query.detectedIssues", "Detected Issues"), details.issues.map(i => i.detail), "bad"));
     } else {
-      panels.push(this._queryPanel(t("query.originalQuery", "Original Query"), details.originalQuery, false));
-      panels.push(this._queryPanel(t("query.rewrittenQuery", "Rewritten Query"), details.rewrittenQuery, true));
+      panels.push(this._queryPanel(t("query.originalQuery", "Original Query"), details.originalQuery, true));
       panels.push(this._issuePanel(t("query.appliedOptimizations", "Applied Optimizations"), details.optimizations, "good"));
     }
     this.el.queries.innerHTML = panels.join("");

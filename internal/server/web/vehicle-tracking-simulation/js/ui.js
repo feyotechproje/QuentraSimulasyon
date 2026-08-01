@@ -116,7 +116,9 @@ export class UI {
   }
 
   _status() {
+    // Status pill removed from the toolbar; keep the guard so the tick is safe.
     const pill = this.el.statusPill;
+    if (!pill) return;
     if (this.engine.stopped) { pill.dataset.state = "stopped"; this.el.statusLabel.textContent = t("st.stopped", "DURDURULDU"); }
     else if (this.engine.running) { pill.dataset.state = "running"; this.el.statusLabel.textContent = t("st.running", "RUNNING"); }
     else { pill.dataset.state = "paused"; this.el.statusLabel.textContent = t("st.paused", "PAUSED"); }
@@ -126,8 +128,9 @@ export class UI {
   tick() {
     const s = this.sim, m = s.metrics.snapshot(s), e = this.el;
     const q = s.mode === "quentra";
-    e.clock.textContent = s.clockLabel();
-    e.modeLabel.textContent = s.auto.active ? t("mode.auto", "Auto Demo") : q ? t("mode.quentra", "Quentra") : t("mode.baseline", "Baseline");
+    // Sim-time / mode readouts were removed from the toolbar; update only if present.
+    if (e.clock) e.clock.textContent = s.clockLabel();
+    if (e.modeLabel) e.modeLabel.textContent = s.auto.active ? t("mode.auto", "Auto Demo") : q ? t("mode.quentra", "Quentra") : t("mode.baseline", "Baseline");
     this._modeButtons();
     this._renderLiveDb(m);
 
@@ -357,13 +360,9 @@ export class UI {
       return `<div class="sql-line">${lt}${l.val ? `<span class="pval">${esc(l.val)}</span>` : ""}</div>`;
     }).join("");
     this.el.rewritePanel.innerHTML = `
-      <div class="sql-box adhoc">${adhocHtml}
-        <div class="sql-tags"><span class="sql-tag bad">${t("rw.diffLiterals", "EVERY UPDATE HAS DIFFERENT LITERALS")}</span><span class="sql-tag bad">${t("rw.newPlan", "NEW AD-HOC PLAN")}</span><span class="sql-tag bad">${t("rw.compRequired", "COMPILATION REQUIRED")}</span></div>
-      </div>
+      <div class="sql-box adhoc">${adhocHtml}</div>
       <div class="rewrite-arrow"><div class="ar">${q ? "⟶" : "⟶"}</div><div class="lbl">${t("rw.label", "QUENTRA<br>REWRITE")}</div></div>
-      <div class="sql-box proc" style="${q ? "" : "opacity:0.45"}">${procHtml}
-        <div class="sql-tags"><span class="sql-tag good">${t("rw.parameterized", "PARAMETERIZED")}</span><span class="sql-tag good">${t("rw.planReused", "PLAN REUSED")}</span><span class="sql-tag good">${t("rw.compAvoided", "COMPILATION AVOIDED")}</span><span class="sql-tag good">${t("rw.zeroChange", "ZERO APP CHANGE")}</span></div>
-      </div>`;
+      <div class="sql-box proc" style="${q ? "" : "opacity:0.45"}">${procHtml}</div>`;
   }
 }
 

@@ -222,6 +222,29 @@ function updateSwitch(state) {
     b.classList.toggle("is-active", b.dataset.lang === state.lang));
 }
 
+// Makes the page's brand logo a link back to the main menu (all simulations).
+// Covers both the intro overlay brand (.qi-brand) and each page's own toolbar
+// logo (.toolbar .brand), so every simulation gets it from one place.
+function mountBrandHome(config) {
+  const home = (config && config.home) || "/";
+  // Every simulation's header logo uses .brand (in .toolbar / .topbar / header);
+  // the intro overlay uses .qi-brand. Wire both back to the main menu.
+  const brands = document.querySelectorAll(".brand, .qi-brand");
+  brands.forEach((b) => {
+    if (b.dataset.homeWired) return;
+    b.dataset.homeWired = "1";
+    b.style.cursor = "pointer";
+    b.setAttribute("role", "link");
+    b.setAttribute("tabindex", "0");
+    b.setAttribute("title", "Ana menü");
+    const go = () => { window.location.href = home; };
+    b.addEventListener("click", go);
+    b.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
+    });
+  });
+}
+
 /** Entry point. */
 export function initQuentraApp(config) {
   const state = QuentraI18n;
@@ -237,6 +260,7 @@ export function initQuentraApp(config) {
     localStorage.setItem(LANG_KEY, state.lang);
     applyTranslations(state);
     mountSwitch(state);
+    mountBrandHome(config);
     if (typeof config.onReady === "function") config.onReady(state.lang, state.t.bind(state));
   };
 

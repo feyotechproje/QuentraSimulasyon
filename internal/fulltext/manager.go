@@ -27,6 +27,7 @@ import (
 	_ "github.com/microsoft/go-mssqldb"
 
 	"supermarketsim/internal/config"
+	"supermarketsim/internal/sqlcapture"
 )
 
 const (
@@ -127,6 +128,10 @@ type Manager struct {
 	mu      sync.RWMutex
 	metrics Metrics
 
+	// capCache holds the SQL each route's backend session actually executed,
+	// captured from SQL Server's DMVs and refreshed at most once per interval.
+	capCache *sqlcapture.Cache
+
 	cpuPrevMs int64
 	cpuPrevAt time.Time
 
@@ -140,6 +145,7 @@ func NewManager(cfg *config.Config, log *slog.Logger) *Manager {
 	m := &Manager{cfg: cfg, log: log, stopCh: make(chan struct{})}
 	m.mode.Store("reference")
 	m.metrics = Metrics{Mode: "reference"}
+	m.capCache = sqlcapture.NewCache(30 * time.Second)
 	return m
 }
 
@@ -186,12 +192,36 @@ func (m *Manager) State() Metrics {
 		term = searchTerms[0]
 	}
 	out.GatewayUp = m.gatewayUp.Load()
-	out.DirectSQL = directDisplaySQL(term)
-	out.QuentraSQL = quentraDisplaySQL(term)
+	out.DirectSQL, out.QuentraSQL = m.displaySQL(term)
 	m.feedMu.Lock()
 	out.Recent = append([]SearchEvent(nil), m.feed...)
 	m.feedMu.Unlock()
 	return out
+}
+
+// displaySQL returns the SQL shown in the direct and Quentra panels. While the
+// workload runs it reports what each route's backend session ACTUALLY executed,
+// captured from SQL Server's DMVs — so a gateway LIKE→CONTAINS rewrite shows up
+// for real instead of a hand-authored string. When idle (or before the first
+// capture) it falls back to the static reference statement, shown for both legs
+// since the app sends the identical LIKE down each route.
+func (m *Manager) displaySQL(term string) (string, string) {
+	if m.running.Load() && m.db != nil {
+		run := func(ctx context.Context, conn *sql.Conn) error {
+			rows, err := conn.QueryContext(ctx, referenceSQL, sql.Named("term", term))
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+			}
+			return rows.Err()
+		}
+		if d, q, ok := m.capCache.Get(m.db, m.gw, "search", run); ok {
+			return d, q
+		}
+	}
+	return directDisplaySQL(term), directDisplaySQL(term)
 }
 
 // Provision opens the pool, creates the full-text catalog/index (idempotent)
@@ -318,10 +348,14 @@ func (m *Manager) pathFor(iter int) (path, sqlText, arg string) {
 		}
 	}
 	term := searchTerms[rand.Intn(len(searchTerms))]
+	// The application sends the SAME direct query — the leading-wildcard LIKE —
+	// on BOTH routes. The mode only picks the ROUTE: "reference" goes direct and
+	// SQL Server scans; "quentra" goes through the gateway (:14330), which is
+	// what rewrites the LIKE into a full-text lookup. Emitting CONTAINS from the
+	// client would change the app, defeating the whole comparison.
 	if mode == "quentra" {
-		return "quentra", quentraSQL, containsArg(term)
+		return "quentra", referenceSQL, term
 	}
-	// term stored for the feed is the plain fragment either way.
 	return "reference", referenceSQL, term
 }
 
@@ -337,14 +371,11 @@ func (m *Manager) worker(id int, stop <-chan struct{}) {
 		iter++
 
 		path, sqlText, arg := m.pathFor(iter)
-		// Plain fragment for display (strip the CONTAINS quoting).
+		// arg is the plain fragment on both routes now (same LIKE query).
 		display := arg
-		if path == "quentra" {
-			display = arg[1 : len(arg)-2] // drop leading '"' and trailing '*"'
-		}
 
 		// The quentra path travels the gateway pool (:14330); the reference path
-		// stays on the direct connection.
+		// stays on the direct connection. Same statement, different route.
 		pool := m.db
 		if path == "quentra" {
 			pool = m.quentraPool()
@@ -376,12 +407,10 @@ func (m *Manager) worker(id int, stop <-chan struct{}) {
 			continue
 		}
 
-		// Documents examined: the reference scan walks the whole table; the
-		// full-text path only touches the rows CONTAINS returns.
-		scanned := matches
-		if path == "reference" {
-			scanned = m.tableRows.Load()
-		}
+		// Both routes now run the same leading-wildcard LIKE, so both walk the
+		// whole table — the gateway does not rewrite it into a seek on the app's
+		// behalf. Report the full scan for both, honestly.
+		scanned := m.tableRows.Load()
 		m.record(path, dur, matches, scanned, display)
 		m.sleep(stop, pacing)
 	}

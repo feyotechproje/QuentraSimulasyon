@@ -85,25 +85,32 @@ export const fmt = {
   pct: (n) => (n == null ? '—' : Math.round(n) + '%'),
 };
 
-// Renders the "gönderilen sorgu" pair: the bad query on the direct connection
-// and the optimized one routed through Quentra (:14330). The block matching the
-// active mode is highlighted. Reads state.directSql / state.quentraSql / mode.
+// Renders the "gönderilen sorgu" panel. When a single path is selected
+// (baseline OR quentra) only that block is shown, matching the page's top
+// Temel/Quentra control; "auto" shows both side by side. Reads
+// state.directSql / state.quentraSql / mode.
 export function renderSqlPair(el, s) {
   if (!el) return;
   if (!s || (!s.directSql && !s.quentraSql)) { el.innerHTML = ''; return; }
   const mode = s.mode || 'auto';
-  const dActive = mode !== 'quentra';
-  const qActive = mode !== 'baseline' && mode !== 'reference' && mode !== 'like';
   const gwDown = s.gatewayUp === false;
-  el.innerHTML =
-    `<div class="lp-sqlblk direct ${dActive ? 'is-active' : ''}">
+  const isBaseline = mode === 'baseline' || mode === 'reference' || mode === 'like';
+  const isQuentra = mode === 'quentra';
+
+  const directBlk =
+    `<div class="lp-sqlblk direct is-active">
        <div class="lp-sqlh">Direkt bağlantı · <b>kötü sorgu</b></div>
        <pre>${esc(s.directSql || '')}</pre>
-     </div>
-     <div class="lp-sqlblk quentra ${qActive ? 'is-active' : ''}">
+     </div>`;
+  const quentraBlk =
+    `<div class="lp-sqlblk quentra is-active">
        <div class="lp-sqlh">Quentra <span>:14330</span> · <b>optimize</b>${gwDown ? ' · <i>gw kapalı → direkt</i>' : ''}</div>
        <pre>${esc(s.quentraSql || '')}</pre>
      </div>`;
+
+  if (isBaseline) el.innerHTML = directBlk;
+  else if (isQuentra) el.innerHTML = quentraBlk;
+  else el.innerHTML = directBlk + quentraBlk; // auto → both
 }
 
 function esc(s) {

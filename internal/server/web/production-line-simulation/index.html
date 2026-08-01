@@ -53,15 +53,37 @@
     }
     .brand-mark svg{display:block}
     .sub{color:var(--muted);font-size:12px;margin-top:2px;font-weight:500}
-    .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    button,select{
-      border:1px solid rgba(255,255,255,.1);background:#151d27;color:var(--text);
-      border-radius:10px;padding:9px 13px;font-weight:600;cursor:pointer;font-size:13px;
+    .controls{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+    select{
+      border:1px solid rgba(255,255,255,.16);background:#1b2634;color:var(--text);
+      border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer;font-size:13px;
       transition:.18s;
     }
-    button:hover{border-color:rgba(255,255,255,.24)}
-    button.active{background:linear-gradient(150deg,#4a63ff,#7d92ff);border-color:transparent}
-    button.good.active{background:linear-gradient(150deg,#2f9e58,#57e08a);color:#06110a}
+    select:hover{border-color:rgba(255,255,255,.3)}
+
+    /* Segmented mode toggle + icon control group — readable on the dark bar,
+       matching the vehicle/turnstile sims. Inactive segments use a lighter
+       surface with a visible border instead of near-black boxes. */
+    .mode-group,.ctrl-group,.speed-group{
+      display:flex;align-items:center;gap:4px;flex:0 0 auto;
+      background:#1a2431;border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:4px;
+    }
+    .speed-group{gap:6px;padding:4px 8px 4px 4px}
+    .speed-label{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-left:6px}
+    .mode-btn{
+      border:0;background:transparent;color:#c4d0dd;
+      border-radius:8px;padding:7px 15px;font-weight:700;cursor:pointer;font-size:13px;transition:.16s;
+    }
+    .mode-btn:hover{color:#fff;background:rgba(255,255,255,.06)}
+    .mode-btn.active{background:linear-gradient(150deg,#4a63ff,#7d92ff);color:#fff;box-shadow:0 2px 10px rgba(74,99,255,.4)}
+    .mode-btn.good.active{background:linear-gradient(150deg,#2f9e58,#57e08a);color:#06110a;box-shadow:0 2px 10px rgba(87,224,138,.35)}
+    .ibtn{
+      width:32px;height:32px;display:grid;place-items:center;padding:0;
+      border:1px solid rgba(255,255,255,.14);background:#1f2a38;color:#c4d0dd;
+      border-radius:8px;cursor:pointer;transition:.16s;
+    }
+    .ibtn:hover{color:#fff;border-color:rgba(255,255,255,.32);background:#263444}
+    .ibtn.is-paused{color:var(--green);border-color:rgba(87,224,138,.5);background:rgba(87,224,138,.12)}
     .status{
       display:flex;align-items:center;gap:8px;padding:8px 13px;border-radius:999px;
       background:#0f1620;border:1px solid rgba(255,255,255,.08);color:#cdd6e1;font-size:13px;font-weight:600;
@@ -189,16 +211,31 @@
       <div class="status"><span class="dot"></span><span id="runState" data-i18n="run.running">RUNNING</span>
         <span class="mode-pill" id="modePill" data-i18n="mode.baseline">BASELINE</span>
       </div>
-      <button id="baselineBtn" class="active" data-i18n="btn.baseline">Baseline</button>
-      <button id="quentraBtn" class="good" data-i18n="btn.quentra">Quentra</button>
-      <button id="pauseBtn" data-i18n="btn.pause">Pause</button>
-      <button id="resetBtn" data-i18n="btn.reset">Reset</button>
-      <select id="speedSelect" aria-label="Simulation speed" data-i18n-attr="aria-label:speed.aria">
-        <option value="0.5">0.5×</option>
-        <option value="1" selected>1×</option>
-        <option value="2">2×</option>
-        <option value="4">4×</option>
-      </select>
+      <div class="mode-group" role="group" aria-label="Run mode">
+        <button id="demoBtn" class="mode-btn active" data-i18n="run.demo">Demo</button>
+        <button id="liveBtn" class="mode-btn good" data-i18n="run.live">Live</button>
+      </div>
+      <div class="mode-group" role="group" aria-label="Query mode">
+        <button id="baselineBtn" class="mode-btn active" data-i18n="btn.baseline">Baseline</button>
+        <button id="quentraBtn" class="mode-btn good" data-i18n="btn.quentra">Quentra</button>
+      </div>
+      <div class="ctrl-group" role="group" aria-label="Simulation controls">
+        <button class="ibtn" id="pauseBtn" title="Duraklat" aria-label="Duraklat" data-i18n-attr="title:btn.pause;aria-label:btn.pause">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+        </button>
+        <button class="ibtn" id="resetBtn" title="Sıfırla" aria-label="Sıfırla" data-i18n-attr="title:btn.reset;aria-label:btn.reset">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 11-5 5H5a7 7 0 107-7z"/></svg>
+        </button>
+      </div>
+      <div class="speed-group">
+        <span class="speed-label" data-i18n="speed.label">Speed</span>
+        <select id="speedSelect" aria-label="Simulation speed" data-i18n-attr="aria-label:speed.aria">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </div>
     </div>
   </header>
 
@@ -271,24 +308,37 @@
   import { claimWorkload } from "/shared/workload-control.js";
   import { PRODUCTION_INTRO, PRODUCTION_DICT } from "./js/i18n.js";
 
-  // The server starts no workload at boot. Claim the PRODUCTIONLINE workload
-  // while this page is open and release it on unload, so the real SQL traffic
-  // only runs for the simulation the user actually picked.
-  const workload = claimWorkload("production-line-simulation");
+  // Reserve the PRODUCTIONLINE workload slot (and release it on unload) but do
+  // NOT auto-start it: the page opens in Demo mode, which must touch no SQL
+  // Server. The real workload only begins when the user switches to Live.
+  const workload = claimWorkload("production-line-simulation", { autoStart: false });
 
-  // Provisioning runs in the background, so the first claim can arrive before
-  // the database is ready — retry until it takes.
-  (async () => {
-    for (let i = 0; i < 60; i++) {
-      const r = await fetch("/api/production/state", { cache: "no-store" }).catch(() => null);
-      if (r?.ok) {
-        const st = await r.json().catch(() => ({}));
-        if (st.running) return;
-        if (st.provisioned) await workload.start();
+  // Live/Demo run mode. Live drives the real PRODUCTIONLINE workload (Baseline =
+  // direct localhost, Quentra = gateway localhost:14330, same query both ways).
+  // Demo stops the SQL traffic and lets the visualisation run on simulated
+  // numbers. Exposed on window so the render script's buttons can toggle it.
+  let liveStarted = false;
+  window.__prodRun = {
+    live: false,
+    async setLive(on) {
+      this.live = !!on;
+      if (this.live) {
+        // Provisioning runs in the background; keep trying until the DB is ready.
+        for (let i = 0; i < 60 && this.live; i++) {
+          const r = await fetch("/api/production/state", { cache: "no-store" }).catch(() => null);
+          if (r?.ok) {
+            const st = await r.json().catch(() => ({}));
+            if (st.running) { liveStarted = true; return; }
+            if (st.provisioned) { await workload.start(); liveStarted = true; return; }
+          }
+          await new Promise((res) => setTimeout(res, 2000));
+        }
+      } else if (liveStarted) {
+        liveStarted = false;
+        await workload.stop();
       }
-      await new Promise((res) => setTimeout(res, 2000));
-    }
-  })();
+    },
+  };
 
   initQuentraApp({
     appId: "production-line",
@@ -305,6 +355,8 @@
   const T = (key, fallback) => (window.QuentraI18n ? window.QuentraI18n.t(key, fallback) : fallback);
   const canvas = document.getElementById('scene');
   const ctx = canvas.getContext('2d');
+  const demoBtn     = document.getElementById('demoBtn');
+  const liveBtn     = document.getElementById('liveBtn');
   const baselineBtn = document.getElementById('baselineBtn');
   const quentraBtn  = document.getElementById('quentraBtn');
   const pauseBtn    = document.getElementById('pauseBtn');
@@ -1093,14 +1145,26 @@
     state.lines.forEach(l=>{ l.displayed=Math.max(0,l.actual-3); l.lag=3; l.refreshAgo=8.4; });
     baselineBtn.classList.add('active'); quentraBtn.classList.remove('active');
     swapSQL(false);
+    pushMode('baseline');
     addEvent(T('evt.baselineEngaged','Baseline mode — slow non-sargable query'),false);
     syncUI();
+  }
+
+  // In Live mode the Baseline/Quentra choice must reach the server so the real
+  // workload routes direct vs through the gateway. In Demo it stays visual only.
+  function pushMode(mode){
+    if(!(window.__prodRun && window.__prodRun.live)) return;
+    fetch('/api/production/mode', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mode }),
+    }).catch(()=>{});
   }
 
   function setQuentra(){
     if(state.mode==='quentra') return;
     state.mode='quentra';
     quentraBtn.classList.add('active'); baselineBtn.classList.remove('active');
+    pushMode('quentra');
     // animated rewrite notification
     showToast(T('toast.rewriting','REWRITING QUERY…'), false);
     setTimeout(()=> showToast(T('toast.optimized','QUERY OPTIMIZED'), true), 900);
@@ -1169,11 +1233,36 @@
   }
 
   /* =================== EVENTS =================== */
+  // Demo / Live run mode. Demo = simulated numbers, no SQL. Live = real
+  // PRODUCTIONLINE workload (Baseline direct, Quentra via gateway; same query).
+  function setRunMode(live){
+    demoBtn.classList.toggle('active', !live);
+    liveBtn.classList.toggle('active', live);
+    if (window.__prodRun){
+      window.__prodRun.setLive(live);
+      // Entering Live: make the server's route match the visible Baseline/Quentra
+      // choice right away (setLive starts the workload asynchronously).
+      if (live) pushMode(state.mode);
+    }
+  }
+  demoBtn.addEventListener('click', ()=> setRunMode(false));
+  liveBtn.addEventListener('click', ()=> setRunMode(true));
+
   baselineBtn.addEventListener('click', setBaseline);
   quentraBtn.addEventListener('click', setQuentra);
+  // Pause/Resume is now an icon button: swap the glyph (|| ↔ ▶) and tint, and
+  // keep the tooltip in sync so it stays localized.
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>';
+  const ICON_PLAY  = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
+  function renderPauseBtn(){
+    const label = state.paused ? T('btn.resume','Resume') : T('btn.pause','Pause');
+    pauseBtn.innerHTML = state.paused ? ICON_PLAY : ICON_PAUSE;
+    pauseBtn.classList.toggle('is-paused', state.paused);
+    pauseBtn.title = label; pauseBtn.setAttribute('aria-label', label);
+  }
   pauseBtn.addEventListener('click', ()=>{
     state.paused=!state.paused;
-    pauseBtn.textContent=state.paused?T('btn.resume','Resume'):T('btn.pause','Pause');
+    renderPauseBtn();
     ui.runState.textContent=state.paused?T('run.paused','PAUSED'):T('run.running','RUNNING');
   });
   resetBtn.addEventListener('click', ()=>{
@@ -1181,7 +1270,7 @@
     // Reset also lifts a pause, so the scene actually runs again instead of
     // staying frozen on the old "DURAKLATILDI" state.
     state.paused = false;
-    pauseBtn.textContent = T('btn.pause','Pause');
+    renderPauseBtn();
     ui.runState.textContent = T('run.running','RUNNING');
   });
   speedSelect.addEventListener('change', ()=> state.speed=Number(speedSelect.value));

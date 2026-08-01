@@ -70,6 +70,7 @@ type Metrics struct {
 	TotalPlans     int64   `json:"totalPlans"`
 	SQLCpuPct      int     `json:"sqlCpuPct"`
 	LastSample     int64   `json:"lastSample"`
+	GatewayUp      bool    `json:"gatewayUp"`
 }
 
 // Manager owns the PRODUCTIONLINE connection pool, the worker pools and the
@@ -78,7 +79,13 @@ type Manager struct {
 	cfg *config.Config
 	log *slog.Logger
 
-	db *sql.DB
+	// db is the direct connection to SQL Server (Baseline route). quentraDB
+	// reaches the SAME database through the Quentra gateway (localhost:14330).
+	// Workers send byte-identical SQL down whichever pool the mode selects, so
+	// the Baseline/Quentra comparison is a pure routing difference — the gateway
+	// is what makes the non-sargable query fast, not a different statement.
+	db        *sql.DB
+	quentraDB *sql.DB
 
 	mode        atomic.Value // string
 	running     atomic.Bool
@@ -120,6 +127,19 @@ func (m *Manager) modeStr() string {
 	}
 	return v
 }
+
+// pool selects the connection a worker query should travel over. Falls back to
+// the direct pool when the gateway is unavailable, so the workload keeps running
+// instead of failing every refresh.
+func (m *Manager) pool(viaQuentra bool) *sql.DB {
+	if viaQuentra && m.quentraDB != nil {
+		return m.quentraDB
+	}
+	return m.db
+}
+
+// HasQuentraGateway reports whether the gateway pool was established.
+func (m *Manager) HasQuentraGateway() bool { return m.quentraDB != nil }
 
 // SetMode switches the active workload profile.
 func (m *Manager) SetMode(mode string) {
@@ -171,6 +191,23 @@ func (m *Manager) Provision(ctx context.Context) error {
 		return fmt.Errorf("ping %s: %w", DBName, err)
 	}
 	m.db = pool
+
+	// 2b. Second pool through the Quentra gateway. Best-effort: if the gateway
+	// is down the workload still runs, just always on the direct connection.
+	if gw, gerr := sql.Open("sqlserver", m.cfg.QuentraDSNFor(DBName, config.AppProduction)); gerr == nil {
+		gw.SetMaxOpenConns(insertWorkerCount + queryWorkerCount + 6)
+		gw.SetMaxIdleConns(queryWorkerCount)
+		gw.SetConnMaxLifetime(30 * time.Minute)
+		gctx, gcancel := context.WithTimeout(ctx, 10*time.Second)
+		if perr := gw.PingContext(gctx); perr == nil {
+			m.quentraDB = gw
+		} else {
+			_ = gw.Close()
+			m.log.Warn("quentra gateway unreachable; production stays on the direct connection",
+				"error", perr.Error())
+		}
+		gcancel()
+	}
 
 	// 3. Table.
 	if _, err := m.db.ExecContext(ctx, createTableSQL); err != nil {
@@ -255,6 +292,9 @@ func (m *Manager) Stop() {
 	if m.db != nil {
 		_ = m.db.Close()
 	}
+	if m.quentraDB != nil {
+		_ = m.quentraDB.Close()
+	}
 }
 
 // insertWorker simulates new units coming off the line.
@@ -306,13 +346,13 @@ func (m *Manager) queryWorker(id int, stop <-chan struct{}) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		start := time.Now()
-		var q string
-		if m.modeStr() == "quentra" {
-			q = execOptimizedSQL
-		} else {
-			q = execUnoptimizedSQL
-		}
-		rows, err := m.db.QueryContext(ctx, q, sql.Named("LineId", lineID))
+		// The application always sends the SAME dashboard query — the deliberately
+		// non-sargable one. The mode only picks the ROUTE: Baseline goes direct and
+		// SQL Server scans; Quentra goes through the gateway, which rewrites it into
+		// a sargable seek. Optimizing here in the client would defeat the point,
+		// which is that the app is unchanged and only Quentra makes it fast.
+		viaQuentra := m.modeStr() == "quentra"
+		rows, err := m.pool(viaQuentra).QueryContext(ctx, execDailyProductionSQL, sql.Named("LineId", lineID))
 		if err == nil {
 			for rows.Next() {
 			}
@@ -406,6 +446,7 @@ func (m *Manager) sampler(stop <-chan struct{}) {
 			TotalPlans:     total,
 			SQLCpuPct:      cpu,
 			LastSample:     now.Unix(),
+			GatewayUp:      m.quentraDB != nil,
 		}
 		m.mu.Unlock()
 	}

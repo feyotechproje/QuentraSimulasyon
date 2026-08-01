@@ -19,11 +19,13 @@
         </div>
       </div>
 
+      <!-- Merged status row: state + sim time + shift + (Demo/Canlı injected here) -->
       <div class="toolbar-status">
         <div class="status-pill" id="statusPill" data-state="running">
           <span class="dot"></span>
           <span id="statusLabel" data-i18n="status.running">SIMULATION RUNNING</span>
         </div>
+        <div class="tb-sep"></div>
         <div class="tb-meta">
           <span class="tb-label" data-i18n="toolbar.simTime">Simulation Time</span>
           <span class="tb-value" id="simClock">08:00:00</span>
@@ -36,15 +38,19 @@
       </div>
 
       <div class="toolbar-controls">
-        <div class="search">
-          <svg viewBox="0 0 24 24" width="15" height="15"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          <input id="searchInput" type="text" placeholder="Search employee ID…" autocomplete="off" data-i18n-attr="placeholder:search.placeholder" />
-        </div>
-        <div class="ctrl-group">
-          <button class="btn" id="btnPause" title="Pause" data-i18n="btn.pause">Pause</button>
-          <button class="btn" id="btnResume" title="Resume" disabled data-i18n="btn.resume">Resume</button>
-          <button class="btn btn-danger" id="btnStop" title="Stop" data-i18n="btn.stop">Stop</button>
-          <button class="btn btn-ghost" id="btnReset" title="Reset" data-i18n="btn.reset">Reset</button>
+        <div class="ctrl-group" role="group" aria-label="Simulation controls">
+          <button class="ibtn ibtn-play" id="btnResume" title="Başlat / Devam Et" aria-label="Başlat / Devam Et" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="ibtn ibtn-pause" id="btnPause" title="Duraklat" aria-label="Duraklat">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+          </button>
+          <button class="ibtn ibtn-stop" id="btnStop" title="Durdur" aria-label="Durdur">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
+          </button>
+          <button class="ibtn ibtn-reset" id="btnReset" title="Sıfırla" aria-label="Sıfırla">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 11-5 5H5a7 7 0 107-7z"/></svg>
+          </button>
         </div>
         <div class="mode" role="group" aria-label="Query mode">
           <span class="mode-label" data-i18n="mode.label">Query</span>
@@ -58,9 +64,6 @@
           <button class="speed-btn" data-speed="2">2x</button>
           <button class="speed-btn" data-speed="4">4x</button>
         </div>
-        <button class="icon-btn" id="btnSettings" title="Settings">
-          <svg viewBox="0 0 24 24" width="17" height="17"><path fill="currentColor" d="M12 8a4 4 0 100 8 4 4 0 000-8zm8.94 4a7 7 0 00-.15-1.4l2.1-1.65-2-3.46-2.49 1a7 7 0 00-2.42-1.4L14.5 2h-5l-.48 2.69a7 7 0 00-2.42 1.4l-2.49-1-2 3.46 2.1 1.65A7 7 0 003.06 12c0 .47.05.94.15 1.4L1.1 15.05l2 3.46 2.49-1a7 7 0 002.42 1.4L9.5 22h5l.48-2.69a7 7 0 002.42-1.4l2.49 1 2-3.46-2.1-1.65c.1-.46.15-.93.15-1.4z"/></svg>
-        </button>
       </div>
     </header>
 
@@ -69,9 +72,9 @@
       <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.baselineAvg">Baseline Query</span><span class="kpi-value" id="kBaseAvg">—</span></div>
       <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.quentraAvg">Quentra Query</span><span class="kpi-value" id="kQnAvg">—</span></div>
       <div class="kpi kpi-purple"><span class="kpi-label" data-i18n="kpi.speedup">Query Speedup</span><span class="kpi-value" id="kSpeedup">—</span></div>
-      <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.avgQueueTime">Avg Queue Time</span><span class="kpi-value" id="kAvgQueue">0.0s</span></div>
-      <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.pendingChecks">Pending Movement Checks</span><span class="kpi-value" id="kPending">0</span></div>
+      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.successfulEntries">Successful Entries</span><span class="kpi-value" id="kEntered">0</span></div>
       <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.entriesPerMin">Entries / Min</span><span class="kpi-value" id="kPerMin">0</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.avgCheckTime">Avg Check Time</span><span class="kpi-value" id="kAvgCheck">0.0s</span></div>
       <div class="kpi"><span class="kpi-label" data-i18n="kpi.turnstileUtil">Turnstile Utilization</span><span class="kpi-value" id="kUtil">0%</span></div>
       <div class="kpi"><span class="kpi-label" data-i18n="kpi.workersWaiting">Workers Waiting</span><span class="kpi-value" id="kWaiting">0</span></div>
     </section>
@@ -81,12 +84,43 @@
       <section class="stage">
         <div class="canvas-wrap">
           <canvas id="scene"></canvas>
-          <div class="canvas-hint" id="canvasHint" data-i18n="hint.baseline">Click a turnstile or a worker to inspect · 15 lanes · Baseline (slow last-movement query)</div>
         </div>
 
-        <!-- Query pipeline widget -->
+        <!-- Query rewrite before/after comparison (moved above the pipeline) -->
+        <div class="panel rewrite-panel">
+          <div class="panel-head">
+            <span class="ph-title" data-i18n="rewrite.title">Last Movement Query · Before / After Rewrite</span>
+            <span class="ph-tag rw-improve" id="rwImprove" data-i18n="rewrite.compareHint">Run both modes to compare</span>
+          </div>
+          <div class="rewrite">
+            <div class="rw-col rw-before" id="rwBefore" data-active="true">
+              <div class="rw-col-head"><span class="rw-mode" data-i18n="rewrite.before.mode">Baseline — before Quentra</span></div>
+              <pre class="rw-sql" data-i18n="rewrite.before.sql">SELECT TOP 1 movement_type
+FROM   access_movements
+WHERE  employee_id = @id
+ORDER  BY movement_time DESC;
+-- scans every row, no usable index</pre>
+              <div class="rw-metric"><span class="rw-m-label" data-i18n="rewrite.metric.avgQuery">Avg last-movement query</span><span class="rw-m-val" id="rwBaseAvg">—</span></div>
+              <div class="rw-bar"><i id="rwBaseBar" class="slow"></i></div>
+              <div class="rw-meta" id="rwBaseMeta">0 checks</div>
+            </div>
+            <div class="rw-col rw-after" id="rwAfter" data-active="false">
+              <div class="rw-col-head"><span class="rw-mode" data-i18n="rewrite.after.mode">Quentra — after rewrite</span></div>
+              <pre class="rw-sql" data-i18n="rewrite.after.sql">SELECT last_movement_type
+FROM   employee_last_movement
+WHERE  employee_id = @id;
+-- covering index / cached projection
+-- O(1) keyed read, no scan</pre>
+              <div class="rw-metric"><span class="rw-m-label" data-i18n="rewrite.metric.avgQuery">Avg last-movement query</span><span class="rw-m-val" id="rwQnAvg">—</span></div>
+              <div class="rw-bar"><i id="rwQnBar" class="fast"></i></div>
+              <div class="rw-meta" id="rwQnMeta">0 checks</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Query pipeline widget (moved below the rewrite comparison) -->
         <div class="panel pipeline-panel">
-          <div class="panel-head"><span class="ph-title" data-i18n="pipeline.title">Last Movement Query Pipeline</span><span class="ph-tag warn" id="pipeTag" data-i18n="pipeline.tag.baseline">BASELINE</span></div>
+          <div class="panel-head"><span class="ph-title" data-i18n="pipeline.title">Last Movement Query Pipeline</span></div>
           <div class="pipeline" id="pipeline">
             <div class="pipe-step is-ok" data-step="card"><span class="ps-name" data-i18n="pipeline.cardRead">CARD READ</span><span class="ps-time">0.1s</span></div>
             <div class="pipe-arrow">→</div>
@@ -99,41 +133,16 @@
             <div class="pipe-step" data-step="open"><span class="ps-name" data-i18n="pipeline.open">OPEN TURNSTILE</span><span class="ps-time">—</span></div>
           </div>
         </div>
-
-        <!-- Query rewrite before/after comparison -->
-        <div class="panel rewrite-panel">
-          <div class="panel-head">
-            <span class="ph-title" data-i18n="rewrite.title">Last Movement Query · Before / After Rewrite</span>
-            <span class="ph-tag rw-improve" id="rwImprove" data-i18n="rewrite.compareHint">Run both modes to compare</span>
-          </div>
-          <div class="rewrite">
-            <div class="rw-col rw-before" id="rwBefore" data-active="true">
-              <div class="rw-col-head"><span class="rw-mode" data-i18n="rewrite.before.mode">Baseline — before Quentra</span><span class="rw-badge slow" data-i18n="rewrite.before.badge">Full table scan</span></div>
-              <pre class="rw-sql" data-i18n="rewrite.before.sql">SELECT TOP 1 movement_type
-FROM   access_movements
-WHERE  employee_id = @id
-ORDER  BY movement_time DESC;
--- scans every row, no usable index</pre>
-              <div class="rw-metric"><span class="rw-m-label" data-i18n="rewrite.metric.avgQuery">Avg last-movement query</span><span class="rw-m-val" id="rwBaseAvg">—</span></div>
-              <div class="rw-bar"><i id="rwBaseBar" class="slow"></i></div>
-              <div class="rw-meta" id="rwBaseMeta">0 checks</div>
-            </div>
-            <div class="rw-col rw-after" id="rwAfter" data-active="false">
-              <div class="rw-col-head"><span class="rw-mode" data-i18n="rewrite.after.mode">Quentra — after rewrite</span><span class="rw-badge fast" data-i18n="rewrite.after.badge">Keyed lookup</span></div>
-              <pre class="rw-sql" data-i18n="rewrite.after.sql">SELECT last_movement_type
-FROM   employee_last_movement
-WHERE  employee_id = @id;
--- covering index / cached projection
--- O(1) keyed read, no scan</pre>
-              <div class="rw-metric"><span class="rw-m-label" data-i18n="rewrite.metric.avgQuery">Avg last-movement query</span><span class="rw-m-val" id="rwQnAvg">—</span></div>
-              <div class="rw-bar"><i id="rwQnBar" class="fast"></i></div>
-              <div class="rw-meta" id="rwQnMeta">0 checks</div>
-            </div>
-          </div>
-        </div>
       </section>
 
       <aside class="side">
+        <!-- Selected detail — pinned to the top so a turnstile/worker click is
+             immediately visible in the right panel. -->
+        <div class="panel panel-selected" id="selectedPanel" hidden>
+          <div class="panel-head"><span class="ph-title" id="selTitle">Selected</span><button class="mini-btn" id="clearSel" data-i18n="panel.selected.clear">Clear</button></div>
+          <div class="detail" id="selDetail"></div>
+        </div>
+
         <!-- Current Worker Check -->
         <div class="panel">
           <div class="panel-head"><span class="ph-title" data-i18n="panel.currentCheck">Current Worker Check</span></div>
@@ -146,12 +155,6 @@ WHERE  employee_id = @id;
         <div class="panel">
           <div class="panel-head"><span class="ph-title" data-i18n="panel.turnstileStatus">Turnstile Status</span><span class="ph-sub" id="gateSummary">15 lanes</span></div>
           <div class="gate-grid" id="gateGrid"></div>
-        </div>
-
-        <!-- Selected detail -->
-        <div class="panel" id="selectedPanel" hidden>
-          <div class="panel-head"><span class="ph-title" id="selTitle">Selected</span><button class="mini-btn" id="clearSel" data-i18n="panel.selected.clear">Clear</button></div>
-          <div class="detail" id="selDetail"></div>
         </div>
 
         <!-- Bottleneck Analysis -->

@@ -69,14 +69,8 @@ export const FACTORY_TURNSTILE_DICT = {
     "kpi.turnstileUtil": "Turnike Doluluk Oranı",
     "kpi.pendingChecks": "Bekleyen Hareket Kontrolü",
 
-    // canvas hint
-    "hint.baseline": "Bir turnike veya çalışana tıklayarak inceleyin · 15 hat · Temel (yavaş son hareket sorgusu)",
-    "hint.quentra": "Bir turnike veya çalışana tıklayarak inceleyin · 15 hat · Quentra (yeniden yazılmış anahtarlı sorgu)",
-
     // pipeline panel
     "pipeline.title": "Son Hareket Sorgu Hattı",
-    "pipeline.tag.baseline": "TEMEL",
-    "pipeline.tag.quentra": "QUENTRA",
     "pipeline.cardRead": "KART OKUMA",
     "pipeline.identify": "ÇALIŞANI TANIMLA",
     "pipeline.find": "SON HAREKETİ BUL",
@@ -91,10 +85,8 @@ export const FACTORY_TURNSTILE_DICT = {
     "rewrite.compareHint": "Karşılaştırmak için her iki modu da çalıştırın",
     "rewrite.xFaster": "{n}× daha hızlı",
     "rewrite.before.mode": "Temel — Quentra öncesi",
-    "rewrite.before.badge": "Tam tablo taraması",
     "rewrite.before.sql": "SELECT TOP 1 movement_type\nFROM   access_movements\nWHERE  employee_id = @id\nORDER  BY movement_time DESC;\n-- her satırı tarar, kullanılabilir index yok",
     "rewrite.after.mode": "Quentra — yeniden yazım sonrası",
-    "rewrite.after.badge": "Anahtarlı sorgu",
     "rewrite.after.sql": "SELECT last_movement_type\nFROM   employee_last_movement\nWHERE  employee_id = @id;\n-- kapsayıcı index / önbelleğe alınmış izdüşüm\n-- O(1) anahtarlı okuma, tarama yok",
     "rewrite.metric.avgQuery": "Ort. son hareket sorgusu",
     "rewrite.checks": "{n} kontrol",
@@ -277,12 +269,7 @@ export const FACTORY_TURNSTILE_DICT = {
     "kpi.turnstileUtil": "Turnstile Utilization",
     "kpi.pendingChecks": "Pending Movement Checks",
 
-    "hint.baseline": "Click a turnstile or a worker to inspect · 15 lanes · Baseline (slow last-movement query)",
-    "hint.quentra": "Click a turnstile or a worker to inspect · 15 lanes · Quentra (rewritten keyed last-movement lookup)",
-
     "pipeline.title": "Last Movement Query Pipeline",
-    "pipeline.tag.baseline": "BASELINE",
-    "pipeline.tag.quentra": "QUENTRA",
     "pipeline.cardRead": "CARD READ",
     "pipeline.identify": "IDENTIFY EMPLOYEE",
     "pipeline.find": "FIND LAST MOVEMENT",
@@ -296,10 +283,8 @@ export const FACTORY_TURNSTILE_DICT = {
     "rewrite.compareHint": "Run both modes to compare",
     "rewrite.xFaster": "{n}× faster",
     "rewrite.before.mode": "Baseline — before Quentra",
-    "rewrite.before.badge": "Full table scan",
     "rewrite.before.sql": "SELECT TOP 1 movement_type\nFROM   access_movements\nWHERE  employee_id = @id\nORDER  BY movement_time DESC;\n-- scans every row, no usable index",
     "rewrite.after.mode": "Quentra — after rewrite",
-    "rewrite.after.badge": "Keyed lookup",
     "rewrite.after.sql": "SELECT last_movement_type\nFROM   employee_last_movement\nWHERE  employee_id = @id;\n-- covering index / cached projection\n-- O(1) keyed read, no scan",
     "rewrite.metric.avgQuery": "Avg last-movement query",
     "rewrite.checks": "{n} checks",

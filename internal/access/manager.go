@@ -29,6 +29,7 @@ import (
 	_ "github.com/microsoft/go-mssqldb"
 
 	"supermarketsim/internal/config"
+	"supermarketsim/internal/sqlcapture"
 )
 
 const (
@@ -120,6 +121,10 @@ type Manager struct {
 	mu      sync.RWMutex
 	metrics Metrics
 
+	// capCache holds the SQL each route's backend session actually executed,
+	// captured from SQL Server's DMVs and refreshed at most once per interval.
+	capCache *sqlcapture.Cache
+
 	cpuPrevMs int64
 	cpuPrevAt time.Time
 
@@ -133,6 +138,7 @@ func NewManager(cfg *config.Config, log *slog.Logger) *Manager {
 	m := &Manager{cfg: cfg, log: log, stopCh: make(chan struct{})}
 	m.mode.Store("baseline")
 	m.metrics = Metrics{Mode: "baseline"}
+	m.capCache = sqlcapture.NewCache(30 * time.Second)
 	return m
 }
 
@@ -168,13 +174,8 @@ func (m *Manager) State() Metrics {
 	out.Errors = m.errors.Load()
 	out.LastKey = int(m.lastKey.Load())
 	out.LastRef = m.lastRef.Load()
-	key := out.LastKey
-	if key == 0 {
-		key = keyMin
-	}
 	out.GatewayUp = m.gatewayUp.Load()
-	out.DirectSQL = directDisplaySQL(key)
-	out.QuentraSQL = quentraDisplaySQL()
+	out.DirectSQL, out.QuentraSQL = m.displaySQL()
 	m.errMu.RLock()
 	out.LastError = m.lastErr
 	m.errMu.RUnlock()
@@ -182,6 +183,34 @@ func (m *Manager) State() Metrics {
 	out.Recent = append([]MovementEvent(nil), m.feed...)
 	m.feedMu.Unlock()
 	return out
+}
+
+// displaySQL returns the SQL shown in the direct and Quentra panels. While the
+// workload runs it reports what each route's backend session ACTUALLY executed,
+// captured from SQL Server's DMVs — so a gateway rewrite shows up for real
+// instead of a hand-authored string. When idle (or before the first capture) it
+// falls back to the static reference statements.
+func (m *Manager) displaySQL() (string, string) {
+	if m.running.Load() && m.db != nil {
+		key := m.lastKey.Load()
+		if key <= 0 {
+			key = keyMin
+		}
+		run := func(ctx context.Context, conn *sql.Conn) error {
+			rows, err := conn.QueryContext(ctx, quentraSQL, sql.Named("key", key))
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+			}
+			return rows.Err()
+		}
+		if d, q, ok := m.capCache.Get(m.db, m.gw, "movement", run); ok {
+			return d, q
+		}
+	}
+	return directDisplaySQL(), quentraDisplaySQL()
 }
 
 // Provision opens the pool and verifies the movement table is reachable.
@@ -325,12 +354,14 @@ func (m *Manager) worker(id int, stop <-chan struct{}) {
 			err            error
 		)
 		if path == "quentra" {
-			// Parameterized lookup routed through the Quentra gateway (:14330).
+			// Same parameterized lookup, routed through the Quentra gateway (:14330).
 			err = m.quentraPool().QueryRowContext(ctx, quentraSQL, sql.Named("key", key)).
 				Scan(&ref, &date, &amount, &price, &trcode)
 		} else {
-			// Ad-hoc concatenated lookup straight to SQL Server.
-			err = m.db.QueryRowContext(ctx, baselineSQL(key, time.Now().UnixNano())).
+			// Identical parameterized lookup, straight to SQL Server (localhost).
+			// Both routes now run the SAME statement, so the only difference is the
+			// path they travel — direct vs the Quentra gateway's cache.
+			err = m.db.QueryRowContext(ctx, quentraSQL, sql.Named("key", key)).
 				Scan(&ref, &date, &amount, &price, &trcode)
 		}
 		dur := time.Since(start)

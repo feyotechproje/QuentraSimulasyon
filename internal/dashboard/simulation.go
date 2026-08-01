@@ -2,47 +2,35 @@ package dashboard
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
+
+	"supermarketsim/internal/sqlcapture"
 )
 
-// originalQueryTemplate mirrors the heavy query an ORM/dashboard tool emits:
-// a redundant derived table plus an nvarchar literal against a varchar column.
-const originalQueryTemplate = `EXEC sp_executesql
-N'
-SELECT
-    "TBL0"."CITY",
-    SUM("TBL0"."ORDER_LINETOTAL")
-FROM
-(
-    SELECT *
-    FROM %s
-) AS "TBL0"
-WHERE
-    "TBL0"."REGION" = N''%s''
-GROUP BY
-    "TBL0"."CITY";
-';`
+// regionCityQueryTemplate is the exact "Sales by City for a region" query the
+// dashboard both displays and executes: a redundant derived table plus an
+// nvarchar literal against the varchar REGION column. Both routes (Direct and
+// Quentra) run this identical statement, so the two panels show the same SQL.
+const regionCityQueryTemplate = `SELECT "TBL0"."CITY", SUM("TBL0"."ORDER_LINETOTAL")
+FROM ( SELECT * FROM %s ) AS "TBL0"
+WHERE "TBL0"."REGION" = N'%s'
+GROUP BY "TBL0"."CITY"`
 
-// rewrittenQueryTemplate is the SARGable form the Quentra gateway produces.
-const rewrittenQueryTemplate = `SELECT
-    CITY,
-    SUM(ORDER_LINETOTAL)
-FROM %s
-WHERE REGION = '%s'
-GROUP BY CITY;`
-
-// buildQueryDetails renders the before/after SQL and the analysis for a region.
+// buildQueryDetails renders the region query and the analysis. The same query
+// text is reported for both the original and rewritten fields so both sides of
+// the lab display an identical statement.
 func buildQueryDetails(table string, filter DashboardFilter) QueryDetails {
 	region := filter.Region
 	if region == "" {
 		region = "Marmara"
 	}
-	lowered := strings.ToLower(region)
+	query := fmt.Sprintf(regionCityQueryTemplate, table, region)
 	return QueryDetails{
 		Filter:         filter,
-		OriginalQuery:  fmt.Sprintf(originalQueryTemplate, table, lowered),
-		RewrittenQuery: fmt.Sprintf(rewrittenQueryTemplate, table, lowered),
+		OriginalQuery:  query,
+		RewrittenQuery: query,
 		Issues: []QueryIssue{
 			{Code: "REDUNDANT_SUBQUERY", Detail: "Redundant SELECT * subquery"},
 			{Code: "UNICODE_LITERAL", Detail: "Unicode literal against varchar column"},
@@ -133,8 +121,37 @@ func (s *SQLSimulationService) RunQuentra(ctx context.Context, filter DashboardF
 	}, nil
 }
 
-func (s *SQLSimulationService) QueryDetails(_ context.Context, filter DashboardFilter) (QueryDetails, error) {
-	return buildQueryDetails(s.table, filter), nil
+// QueryDetails returns the region query analysis, with the Original and
+// Rewritten fields filled from the SQL each route's backend session ACTUALLY
+// executed — captured from SQL Server's DMVs, not hand-authored. When a Quentra
+// rewrite rule matches, the rewritten field shows the gateway's real output;
+// when none matches (or capture fails), it falls back to the displayed template
+// so both panels still render.
+func (s *SQLSimulationService) QueryDetails(ctx context.Context, filter DashboardFilter) (QueryDetails, error) {
+	details := buildQueryDetails(s.table, filter)
+	if s.repo == nil || s.repo.direct == nil {
+		return details, nil
+	}
+	region := strings.TrimSpace(filter.Region)
+	if region == "" {
+		region = "Marmara"
+	}
+	run := func(ctx context.Context, conn *sql.Conn) error {
+		return runRegionCityQuery(ctx, conn, region)
+	}
+
+	// Original: exactly what SQL Server receives on the direct route (verbatim).
+	if got, err := sqlcapture.Captured(ctx, s.repo.direct, s.repo.direct, run); err == nil && got != "" {
+		details.OriginalQuery = got
+	}
+	// Rewritten: exactly what SQL Server receives through the Quentra gateway —
+	// the real rewrite when a rule matches, the same original when none does.
+	if s.repo.quentra != nil {
+		if got, err := sqlcapture.Captured(ctx, s.repo.quentra, s.repo.direct, run); err == nil && got != "" {
+			details.RewrittenQuery = got
+		}
+	}
+	return details, nil
 }
 
 func refreshLabel(elapsedMs int) string {
