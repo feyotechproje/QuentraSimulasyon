@@ -1,8 +1,6 @@
 // shield.js — the Quentra energy shield in front of the Key Breaker.
 // Semi-transparent hexagonal barrier that pulses calmly and flares on impact.
 
-import { Assets } from "./assets.js";
-
 export function drawShield(ctx, world, sim, time) {
   const { cx, cy, r } = world.shield;
   const active = sim.protectionActive();
@@ -54,8 +52,8 @@ export function drawShield(ctx, world, sim, time) {
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // Center Quentra icon
-  drawShieldIcon(ctx, cx, cy, r * 0.24, active, time);
+  // Center brand mark is intentionally omitted: the hero already wears a glowing
+  // Quentra "Q" on the chest, so a second Q here would clutter the focal point.
 
   // Impact ripples
   for (const rp of sim.ripples) {
@@ -97,31 +95,4 @@ function hexPath(ctx, x, y, s) {
     i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
   }
   ctx.closePath();
-}
-
-function drawShieldIcon(ctx, cx, cy, r, active, time) {
-  const img = Assets.get("icon");
-  const pulse = 0.5 + 0.5 * Math.sin(time * 2);
-  ctx.save();
-  ctx.globalAlpha = active ? 0.85 + 0.15 * pulse : 0.4;
-  if (img) {
-    const s = r * 2.2;
-    ctx.shadowColor = "rgba(34,227,154,0.8)";
-    ctx.shadowBlur = active ? 20 : 6;
-    ctx.drawImage(img, cx - s / 2, cy - s / 2, s, s);
-  } else {
-    // Vector fallback "Q"
-    ctx.strokeStyle = active ? "#22e39a" : "rgba(120,180,160,.6)";
-    ctx.lineWidth = r * 0.28;
-    ctx.shadowColor = "rgba(34,227,154,0.8)";
-    ctx.shadowBlur = active ? 18 : 4;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx + r * 0.35, cy + r * 0.35);
-    ctx.lineTo(cx + r, cy + r);
-    ctx.stroke();
-  }
-  ctx.restore();
 }

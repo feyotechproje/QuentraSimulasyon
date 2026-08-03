@@ -13,6 +13,10 @@ import (
 // registerRT is the runtime state for a single register/checkout lane.
 type registerRT struct {
 	no int
+	// viaQuentra fixes this register's per-scan route for its whole life: the
+	// left bank scans over the direct connection, the right bank through the
+	// Quentra gateway, so both routes run simultaneously in one store.
+	viaQuentra bool
 
 	mu    sync.Mutex
 	open  bool
@@ -42,13 +46,22 @@ type registerRT struct {
 	notify chan struct{}
 }
 
-func newRegister(no int) *registerRT {
+func newRegister(no int, viaQuentra bool) *registerRT {
 	return &registerRT{
-		no:     no,
-		open:   true,
-		status: RegIdle,
-		notify: make(chan struct{}, 1),
+		no:         no,
+		viaQuentra: viaQuentra,
+		open:       true,
+		status:     RegIdle,
+		notify:     make(chan struct{}, 1),
 	}
+}
+
+// routeName is the register's bank as reported on snapshots.
+func (r *registerRT) routeName() string {
+	if r.viaQuentra {
+		return "quentra"
+	}
+	return "direct"
 }
 
 func (r *registerRT) signal() {
@@ -141,6 +154,7 @@ func (r *registerRT) snapshot() RegisterState {
 	}
 	return RegisterState{
 		No:              r.no,
+		Route:           r.routeName(),
 		Status:          r.status,
 		QueueLen:        len(r.queue),
 		QueueQty:        qq,
@@ -245,21 +259,17 @@ func (e *Engine) processCheckout(ctx context.Context, r *registerRT, qc QueuedCu
 			scanMs = int(float64(s.ScanMs) * ln.Quantity)
 		}
 
-		// Per-scan stock lookup. This is a REAL query against QUENTRA_RETAIL. Both
-		// the on/off switch and the route are read
-		// live, so toggling modes takes effect on the very next scanned item
-		// instead of waiting for every in-flight basket to finish.
+		// Per-scan stock lookup. This is a REAL query against QUENTRA_RETAIL. The
+		// on/off switch is read live; the ROUTE is the register's own bank, fixed
+		// for its whole life, so the direct and Quentra sides run simultaneously
+		// and every sample lands in its own column.
 		live := e.Settings()
 		if live.StockLookup {
 			// One query per scanned barcode: product columns plus the stock
-			// value. The statement is identical either way; only the connection
-			// differs, and the gateway is what rewrites it.
+			// value. The statement is identical on both banks; only the
+			// connection differs, and the gateway is what rewrites it.
 			lctx, lcancel := context.WithTimeout(ctx, 60*time.Second)
-			// Re-read the route per scan rather than using the settings snapshot
-			// taken when this checkout began: a basket can take many seconds, so
-			// a snapshot would keep sending down the old connection long after
-			// the operator switched modes.
-			stock, elapsed, lerr := e.store.ScanItem(lctx, ln.ItemRef, live.QuentraRewrite)
+			stock, elapsed, lerr := e.store.ScanItem(lctx, ln.ItemRef, r.viaQuentra)
 			lcancel()
 			if lerr != nil {
 				if ctx.Err() != nil {
@@ -271,6 +281,7 @@ func (e *Engine) processCheckout(ctx context.Context, r *registerRT, qc QueuedCu
 			ms := elapsed.Milliseconds()
 			totalMs := ms
 			itemMs := int64(0) // single round trip: no separate product-lookup leg
+			mi := modeIndex(r.viaQuentra)
 			r.setStockLookup(stock, ms)
 
 			// Only successful lookups feed the average. A failed query returns
@@ -284,9 +295,9 @@ func (e *Engine) processCheckout(ctx context.Context, r *registerRT, qc QueuedCu
 				e.lastItemMs.Store(itemMs)
 				e.lastScanDbMs.Store(totalMs)
 				e.aggMu.Lock()
-				e.stockSumMs += ms
-				e.itemSumMs += itemMs
-				e.scanDbCount++
+				e.stockSumByMode[mi] += ms
+				e.itemSumByMode[mi] += itemMs
+				e.scanDbCountByMode[mi]++
 				e.aggMu.Unlock()
 			} else {
 				e.stockErrors.Add(1)
@@ -294,9 +305,9 @@ func (e *Engine) processCheckout(ctx context.Context, r *registerRT, qc QueuedCu
 			e.emit(EvStockLookup, map[string]any{
 				"register": r.no, "item": ln.ItemName, "stock": stock,
 				"elapsedMs": ms, "itemMs": itemMs, "scanDbMs": totalMs,
-				"mode": live.StockMode(), "failed": lerr != nil,
+				"route": r.routeName(), "failed": lerr != nil,
 			})
-			r.setScanMetadata("", "", ms, live.QuentraRewrite)
+			r.setScanMetadata("", "", ms, r.viaQuentra)
 		}
 
 		if !e.wait(ctx, scanMs) {
@@ -351,10 +362,9 @@ func (e *Engine) processCheckout(ctx context.Context, r *registerRT, qc QueuedCu
 
 	e.completed.Add(1)
 	e.resolved.Add(1)
-	// Attribute the checkout duration to the route actually used for its scans.
-	// Read live rather than from the opening snapshot, matching the per-scan
-	// routing, so a mode switch is reflected in the right column.
-	cmi := modeIndex(e.Settings().QuentraRewrite)
+	// Attribute the checkout duration to this register's own bank: the route is
+	// fixed per register, so every duration lands in its own column.
+	cmi := modeIndex(r.viaQuentra)
 	e.aggMu.Lock()
 	e.totalSales += res.Total
 	e.procSumMs += dur

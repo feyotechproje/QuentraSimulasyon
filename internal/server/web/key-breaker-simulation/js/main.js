@@ -13,7 +13,7 @@ import { initQuentraApp } from "/shared/quentra-i18n.js";
 import { KEYBREAKER_INTRO, KEYBREAKER_DICT } from "./i18n.js";
 import { initKeyBreakerLive } from "./live-data.js";
 
-async function boot() {
+async function boot(livePanel) {
   await Assets.load();
 
   const ds = new InMemoryKeyBreakerDataSource();
@@ -33,9 +33,9 @@ async function boot() {
 
   // ---- mode buttons ----
   const modeBtns = {
-    btnOff: { mode: MODE.OFF, cls: "is-off-active" },
-    btnActive: { mode: MODE.ACTIVE, cls: "" },
-    btnAuto: { mode: MODE.AUTO, cls: "is-auto-active" },
+    btnOff: { mode: MODE.OFF, cls: "is-off-active", backend: "baseline" },
+    btnActive: { mode: MODE.ACTIVE, cls: "", backend: "quentra" },
+    btnAuto: { mode: MODE.AUTO, cls: "is-auto-active", backend: "auto" },
   };
   const setActiveBtn = (activeId) => {
     Object.keys(modeBtns).forEach(id => {
@@ -49,6 +49,8 @@ async function boot() {
     document.getElementById(id).addEventListener("click", () => {
       sim.setMode(cfg.mode);
       setActiveBtn(id);
+      // Flip the real backend shield to match the chosen visual mode.
+      if (livePanel && livePanel.live) livePanel.live.setMode(cfg.backend);
     });
   });
   setActiveBtn("btnAuto");
@@ -101,10 +103,16 @@ function bindToggle(id, fn) {
 
 initQuentraApp({
   appId: "key-breaker",
-  accent: "#ff4d5e",
-  accent2: "#ffb020",
-  brand: { name: "Quentra Key Breaker", sub: "SQL Injection Defense", logo: "/assets/quentra-logo.jpeg" },
+  accent: "#10b981",
+  accent2: "#2dd4bf",
+  brand: { name: "Quentra Key Breaker", sub: "SQL Injection Defense", logo: "/assets/quentra-logo.png" },
   intro: KEYBREAKER_INTRO,
   dict: KEYBREAKER_DICT,
-  onReady: () => { boot(); initKeyBreakerLive(); },
+  onReady: () => {
+    // The single set of mode controls lives in the top toolbar; the live panel's
+    // in-card mode buttons are removed, so wire the toolbar buttons to also flip
+    // the real backend shield (baseline / quentra / auto).
+    const live = initKeyBreakerLive();
+    boot(live);
+  },
 });

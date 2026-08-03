@@ -117,7 +117,7 @@ func TestChooseRegisterDispatchModes(t *testing.T) {
 	mk := func(mode string) *Engine {
 		e := &Engine{settings: DefaultSettings()}
 		e.settings.DispatchMode = mode
-		e.regs = []*registerRT{newRegister(1), newRegister(2), newRegister(3)}
+		e.regs = []*registerRT{newRegister(1, false), newRegister(2, false), newRegister(3, false)}
 		return e
 	}
 	qc := &QueuedCustomer{TotalQty: 3}
@@ -168,7 +168,7 @@ func TestChooseRegisterDispatchModes(t *testing.T) {
 }
 
 func TestRegisterQueueOps(t *testing.T) {
-	r := newRegister(1)
+	r := newRegister(1, false)
 	r.enqueue(QueuedCustomer{BasketID: "a", TotalQty: 2})
 	r.enqueue(QueuedCustomer{BasketID: "b", TotalQty: 3})
 	n, q := r.queueStats()
@@ -241,14 +241,14 @@ func TestSummarizeWaitSamplesUsesRollingWindowAndRoute(t *testing.T) {
 		{atMs: 90_000, waitMs: 2_000, mode: 1},
 	}
 
-	kept, averages := summarizeWaitSamples(samples, 40_000)
+	kept, sums, counts := summarizeWaitSamples(samples, 40_000)
 	if len(kept) != 4 {
 		t.Fatalf("expected 4 samples in rolling window, got %d", len(kept))
 	}
-	if averages[0] != 20_000 {
-		t.Fatalf("expected direct average 20000ms, got %d", averages[0])
+	if counts[0] != 2 || sums[0]/counts[0] != 20_000 {
+		t.Fatalf("expected direct average 20000ms over 2 samples, got sum=%d count=%d", sums[0], counts[0])
 	}
-	if averages[1] != 3_000 {
-		t.Fatalf("expected Quentra average 3000ms, got %d", averages[1])
+	if counts[1] != 2 || sums[1]/counts[1] != 3_000 {
+		t.Fatalf("expected Quentra average 3000ms over 2 samples, got sum=%d count=%d", sums[1], counts[1])
 	}
 }

@@ -64,22 +64,12 @@
 
     <!-- ================= MAIN GRID ================= -->
     <main class="grid">
-      <!-- LEFT: attackers -->
-      <aside class="col col-left">
-        <section class="panel" id="attackersPanel">
-          <div class="panel-head"><span class="ph-icon danger">◈</span><h3 data-i18n="panel.attackers">External Attackers</h3></div>
-          <div class="attacker-list" id="attackerList"></div>
-        </section>
-        <section class="panel">
-          <div class="panel-head"><span class="ph-icon">◇</span><h3 data-i18n="panel.dist">Attack Type Distribution</h3></div>
-          <div class="dist-list" id="distList"></div>
-        </section>
-      </aside>
+      <!-- LEFT: live data (the CANLI VERİ panel docks into this column) -->
+      <aside class="col col-left"></aside>
 
       <!-- CENTER: canvas stage -->
       <section class="stage">
         <canvas id="scene"></canvas>
-        <div class="stage-hint" id="stageHint" data-i18n="hint.stage">Click a packet, the Key Breaker or the database for details</div>
         <div class="toggle-bar">
           <label class="tgl"><input type="checkbox" id="tglPaths" checked /> <span data-i18n="tgl.paths">Attack Paths</span></label>
           <label class="tgl"><input type="checkbox" id="tglSafe" checked /> <span data-i18n="tgl.safe">Safe Queries</span></label>
@@ -88,38 +78,14 @@
         </div>
       </section>
 
-      <!-- RIGHT: telemetry -->
+      <!-- RIGHT: live attack feed -->
       <aside class="col col-right">
-        <section class="panel" id="inspectorPanel">
-          <div class="panel-head"><span class="ph-icon">⌖</span><h3 id="inspectorTitle" data-i18n="insp.currentAttack">Current Attack</h3></div>
-          <div class="detail-list" id="inspector"></div>
-        </section>
-        <section class="panel">
-          <div class="panel-head"><span class="ph-icon secure">▤</span><h3 data-i18n="panel.serverStatus">Server Status</h3></div>
-          <div class="server-box" id="serverBox"></div>
-        </section>
         <section class="panel">
           <div class="panel-head"><span class="ph-icon">⚡</span><h3 data-i18n="panel.feed">Live Attack Feed</h3></div>
           <div class="feed" id="feed"></div>
         </section>
       </aside>
     </main>
-
-    <!-- ================= BOTTOM STRIP ================= -->
-    <footer class="bottom">
-      <section class="panel panel-flat">
-        <div class="panel-head"><span class="ph-icon">◆</span><h3 data-i18n="panel.kbStatus">Key Breaker Status</h3></div>
-        <div class="kb-status" id="kbStatus"></div>
-      </section>
-      <section class="panel panel-flat">
-        <div class="panel-head"><span class="ph-icon">↯</span><h3 data-i18n="panel.pipeline">Threat Analysis Pipeline</h3></div>
-        <div class="pipeline" id="pipeline"></div>
-      </section>
-      <section class="panel panel-flat">
-        <div class="panel-head"><span class="ph-icon">◷</span><h3 data-i18n="panel.trend">Protection Overview · Blocked vs Allowed</h3></div>
-        <canvas id="trend"></canvas>
-      </section>
-    </footer>
   </div>
 
   <div class="cinematic" id="cinematic"><span id="cinematicText"></span></div>

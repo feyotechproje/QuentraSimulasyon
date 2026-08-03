@@ -51,6 +51,12 @@ export const FACTORY_TURNSTILE_DICT = {
     "status.running": "SİMÜLASYON ÇALIŞIYOR",
     "status.paused": "SİMÜLASYON DURAKLATILDI",
     "status.stopped": "SİMÜLASYON DURDURULDU",
+    "status.idle": "BAŞLAMAYA HAZIR",
+    "status.completed": "VARDİYA TAMAMLANDI",
+    "shiftStart.title": "Vardiyayı Başlat",
+    "shiftStart.hint": "Çalışanlar iki turnike grubuna eşit dağıtılır — yarısı baseline, yarısı Quentra üzerinden.",
+    "shiftStart.workers": "Çalışan sayısı",
+    "shiftStart.start": "Başlat",
 
     // Impact-first KPI strip
     "kpi.baselineAvg": "Temel Sorgu",
@@ -82,7 +88,12 @@ export const FACTORY_TURNSTILE_DICT = {
 
     // rewrite comparison panel
     "rewrite.title": "Son Hareket Sorgusu · Yeniden Yazım Öncesi / Sonrası",
-    "rewrite.compareHint": "Karşılaştırmak için her iki modu da çalıştırın",
+    "rewrite.compareHint": "İki grup da ölçüm topluyor…",
+    "bank.baselineTitle": "BASELINE",
+    "bank.baselineSub": "her kartta yavaş son-hareket sorgusu",
+    "bank.quentraTitle": "QUENTRA",
+    "bank.quentraSub": "aynı kontrol, yolda yeniden yazılır",
+    "detail.route": "Sorgu rotası",
     "rewrite.xFaster": "{n}× daha hızlı",
     "rewrite.before.mode": "Temel — Quentra öncesi",
     "rewrite.before.sql": "SELECT TOP 1 movement_type\nFROM   access_movements\nWHERE  employee_id = @id\nORDER  BY movement_time DESC;\n-- her satırı tarar, kullanılabilir index yok",
@@ -252,6 +263,12 @@ export const FACTORY_TURNSTILE_DICT = {
     "status.running": "SIMULATION RUNNING",
     "status.paused": "SIMULATION PAUSED",
     "status.stopped": "SIMULATION STOPPED",
+    "status.idle": "READY TO START",
+    "status.completed": "SHIFT COMPLETED",
+    "shiftStart.title": "Start the Shift",
+    "shiftStart.hint": "Workers are split evenly between the two turnstile banks — half baseline, half through Quentra.",
+    "shiftStart.workers": "Worker count",
+    "shiftStart.start": "Start",
 
     "kpi.baselineAvg": "Baseline Query",
     "kpi.quentraAvg": "Quentra Query",
@@ -280,7 +297,12 @@ export const FACTORY_TURNSTILE_DICT = {
     "pipeline.flag.critical": "CRITICAL",
 
     "rewrite.title": "Last Movement Query · Before / After Rewrite",
-    "rewrite.compareHint": "Run both modes to compare",
+    "rewrite.compareHint": "Both banks are measuring…",
+    "bank.baselineTitle": "BASELINE",
+    "bank.baselineSub": "slow last-movement query on every card",
+    "bank.quentraTitle": "QUENTRA",
+    "bank.quentraSub": "same check, rewritten in flight",
+    "detail.route": "Query route",
     "rewrite.xFaster": "{n}× faster",
     "rewrite.before.mode": "Baseline — before Quentra",
     "rewrite.before.sql": "SELECT TOP 1 movement_type\nFROM   access_movements\nWHERE  employee_id = @id\nORDER  BY movement_time DESC;\n-- scans every row, no usable index",

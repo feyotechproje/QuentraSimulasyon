@@ -52,6 +52,12 @@ func (h *Handler) handleCaptureProbe(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	// First dashboard visit starts the per-region decor pre-compute in the
+	// background, so region clicks soon refresh instantly — without pinning the
+	// SQL Server at process start for users who never open this page.
+	if repo, ok := h.repo.(*SQLRepository); ok {
+		repo.WarmRegions()
+	}
 	filter := DashboardFilter{Region: strings.TrimSpace(r.URL.Query().Get("region"))}
 	data, err := h.repo.GetDashboard(r.Context(), filter)
 	if err != nil {

@@ -40,16 +40,15 @@
         </div>
 
         <div class="toolbar-controls">
-          <!-- Scenario: run mode (demo / live) and connection (direct / Quentra) -->
+          <!-- Scenario: run mode (demo / live). Both connections always run —
+               the left register bank is direct, the right is Quentra. -->
           <div class="scn-group" role="group" aria-label="Scenario">
             <div class="scn-seg" id="runModeSeg">
               <button class="scn-btn is-active" id="btnDemo" data-runmode="demo" type="button" data-i18n="scn.demo">Demo</button>
               <button class="scn-btn" id="btnLive" data-runmode="live" type="button" data-i18n="scn.live">Live</button>
             </div>
-            <div class="scn-seg conn" id="connSeg">
-              <button class="scn-btn conn-direct is-active" id="btnDirect" data-conn="direct" type="button" data-i18n="scn.direct">Direct</button>
-              <button class="scn-btn conn-quentra" id="btnQuentra" data-conn="quentra" type="button" data-i18n="scn.quentra">Quentra</button>
-              <button class="scn-btn scn-auto is-active" id="btnAuto" type="button" data-i18n="scn.auto">Auto</button>
+            <div class="scn-seg">
+              <button class="scn-btn scn-auto is-active" id="btnAuto" type="button" data-i18n="scn.auto">Story</button>
             </div>
           </div>
           <div class="btn-group">
@@ -68,55 +67,57 @@
         </div>
       </header>
 
-      <!-- KPI cards -->
-      <section class="kpi-row" id="kpiRow">
-        <article class="kpi-card">
-          <span class="kpi-ic ic-a"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M15 8a3 3 0 010 6M3 20a6 6 0 0112 0M14 20a6 6 0 016-4"/></svg></span>
-          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.total">Total Customers</span><span class="kpi-value" id="kpiTotal">0</span></div>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-ic ic-b"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.waiting">Waiting in Queue</span><span class="kpi-value" id="kpiWaiting">0</span></div>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-ic ic-c"><svg viewBox="0 0 24 24"><path d="M3 4h2l2 12h11l2-8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/></svg></span>
-          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.inCheckout">In Checkout</span><span class="kpi-value" id="kpiInCheckout">0</span></div>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-ic ic-a"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></span>
-          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.completed">Completed</span><span class="kpi-value" id="kpiCompleted">0</span></div>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-ic ic-d"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2.5 0 00-2.5-1.5c-1.5 0-2.5 1-2.5 2s1 1.5 2.5 2 2.5 1 2.5 2-1 2-2.5 2A2.5 2.5 0 019.5 15M12 6v1.5M12 16.5V18"/></svg></span>
-          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.sales">Total Sales</span><span class="kpi-value" id="kpiSales">₺0.00</span></div>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-ic ic-c"><svg viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M11 5v14M14 5v14M17 5v14M20 5v14"/></svg></span>
-          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.items">Items Scanned</span><span class="kpi-value" id="kpiItems">0</span></div>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-ic ic-b"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7"/><path d="M12 13V9M9 2h6"/></svg></span>
-          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.avgCheckout">Avg Checkout</span><span class="kpi-value" id="kpiAvgCheckout">0.0s</span>
-            <span class="kpi-split" id="kpiAvgCheckoutSplit" hidden>
-              <span class="ks ks-direct"><i></i><b id="kpiChkDirect">—</b></span>
-              <span class="ks ks-quentra"><i></i><b id="kpiChkQuentra">—</b></span>
-            </span>
+      <!-- KPI band: per-bank clusters on the outside (mirroring the floor
+           layout below), store-wide figures in the middle. -->
+      <section class="kpi-band" id="kpiRow">
+        <div class="kpi-side kpi-side-direct">
+          <div class="kpi-side-head"><i></i><span data-i18n="bank.direct">Direct · localhost</span></div>
+          <div class="kpi-mini-grid">
+            <article class="kpi-mini"><span class="kpi-label" data-i18n="kpi.waiting">Waiting</span><span class="kpi-value" id="kpiDWaiting">0</span></article>
+            <article class="kpi-mini"><span class="kpi-label" data-i18n="kpi.avgCheckout">Avg Checkout</span><span class="kpi-value" id="kpiDAvgChk">0.0s</span></article>
+            <article class="kpi-mini"><span class="kpi-label" data-i18n="kpi.scanQuery">Scan Query</span><span class="kpi-value" id="kpiDScan">—</span></article>
+            <article class="kpi-mini"><span class="kpi-label" data-i18n="kpi.completed">Completed</span><span class="kpi-value" id="kpiDCompleted">0</span></article>
           </div>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-ic ic-b"><svg viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7 3c0 5 10 5 10 0M7 21c0-5 10-5 10 0"/></svg></span>
-          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.avgQueue">Active Mode Wait · Last 60s</span><span class="kpi-value" id="kpiAvgQueue">0.0s</span></div>
-        </article>
-        <article class="kpi-card">
-          <span class="kpi-ic ic-e"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span>
-          <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.tpm">Txns / Min</span><span class="kpi-value" id="kpiTpm">0.0</span></div>
-        </article>
+        </div>
+
+        <div class="kpi-globals">
+          <article class="kpi-card">
+            <span class="kpi-ic ic-a"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M15 8a3 3 0 010 6M3 20a6 6 0 0112 0M14 20a6 6 0 016-4"/></svg></span>
+            <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.total">Total Customers</span><span class="kpi-value" id="kpiTotal">0</span></div>
+          </article>
+          <article class="kpi-card">
+            <span class="kpi-ic ic-d"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2.5 0 00-2.5-1.5c-1.5 0-2.5 1-2.5 2s1 1.5 2.5 2 2.5 1 2.5 2-1 2-2.5 2A2.5 2.5 0 019.5 15M12 6v1.5M12 16.5V18"/></svg></span>
+            <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.sales">Total Sales</span><span class="kpi-value" id="kpiSales">₺0.00</span></div>
+          </article>
+          <article class="kpi-card">
+            <span class="kpi-ic ic-c"><svg viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M11 5v14M14 5v14M17 5v14M20 5v14"/></svg></span>
+            <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.items">Items Scanned</span><span class="kpi-value" id="kpiItems">0</span></div>
+          </article>
+          <article class="kpi-card">
+            <span class="kpi-ic ic-e"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></svg></span>
+            <div class="kpi-meta"><span class="kpi-label" data-i18n="kpi.tpm">Txns / Min</span><span class="kpi-value" id="kpiTpm">0.0</span></div>
+          </article>
+        </div>
+
+        <div class="kpi-side kpi-side-quentra">
+          <div class="kpi-side-head"><i></i><span data-i18n="bank.quentra">Quentra · :14330</span></div>
+          <div class="kpi-mini-grid">
+            <article class="kpi-mini"><span class="kpi-label" data-i18n="kpi.waiting">Waiting</span><span class="kpi-value" id="kpiQWaiting">0</span></article>
+            <article class="kpi-mini"><span class="kpi-label" data-i18n="kpi.avgCheckout">Avg Checkout</span><span class="kpi-value" id="kpiQAvgChk">0.0s</span></article>
+            <article class="kpi-mini"><span class="kpi-label" data-i18n="kpi.scanQuery">Scan Query</span><span class="kpi-value" id="kpiQScan">—</span></article>
+            <article class="kpi-mini"><span class="kpi-label" data-i18n="kpi.completed">Completed</span><span class="kpi-value" id="kpiQCompleted">0</span></article>
+          </div>
+        </div>
       </section>
 
-      <!-- Stage + side panel -->
-      <main class="stage">
-        <section class="canvas-wrap">
-          <canvas id="scene"></canvas>
+      <!-- Dual stage: direct bank | shared panel | Quentra bank -->
+      <main class="stage stage-dual">
+        <section class="canvas-wrap bank bank-direct">
+          <header class="bank-head bh-direct">
+            <b data-i18n="bank.directTitle">DIRECT CONNECTION</b>
+            <span data-i18n="bank.directSub">localhost · scalar UDF on every scan</span>
+          </header>
+          <canvas id="sceneDirect"></canvas>
         </section>
 
         <aside class="side-panel">
@@ -143,6 +144,34 @@
             </section>
           </div>
         </aside>
+
+        <section class="canvas-wrap bank bank-quentra">
+          <header class="bank-head bh-quentra">
+            <b data-i18n="bank.quentraTitle">QUENTRA GATEWAY</b>
+            <span data-i18n="bank.quentraSub">:14330 · same query, rewritten in flight</span>
+          </header>
+          <canvas id="sceneQuentra"></canvas>
+        </section>
+
+        <!-- Live start overlay: shown in live mode while the engine is idle, so
+             the operator picks the customer count before anything runs. -->
+        <div class="live-start" id="liveStart" hidden>
+          <div class="ls-card">
+            <h3 data-i18n="live.title">Start Live Simulation</h3>
+            <p data-i18n="live.hint">Customers are split evenly between the two banks — half direct, half Quentra.</p>
+            <div class="ls-presets" id="livePresets">
+              <button type="button" class="ls-preset" data-count="100">100</button>
+              <button type="button" class="ls-preset" data-count="250">250</button>
+              <button type="button" class="ls-preset is-active" data-count="500">500</button>
+              <button type="button" class="ls-preset" data-count="1000">1000</button>
+            </div>
+            <div class="ls-row">
+              <label for="liveCount" data-i18n="live.customers">Customer count</label>
+              <input id="liveCount" type="number" min="10" max="5000" step="10" value="500" />
+            </div>
+            <button class="ls-start" id="btnLiveStart" type="button" data-i18n="live.start">Start</button>
+          </div>
+        </div>
       </main>
 
       <!-- Footer band: the auto-demo narration and the before/after SQL, full

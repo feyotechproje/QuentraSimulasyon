@@ -42,6 +42,10 @@ export function mountLivePanel(opts) {
   } else {
     document.body.appendChild(card);
   }
+  // A persistent docked card stays in the layout even in Demo mode (it is the
+  // page's only side panel, so hiding it would leave an empty column); instead
+  // it shows a prompt to switch to Canlı. Only meaningful when docked.
+  const persist = !!(opts.persistDocked && mount);
 
   const grid = card.querySelector('.lp-grid');
   const sqlEl = card.querySelector('.lp-sql');
@@ -71,10 +75,23 @@ export function mountLivePanel(opts) {
     }));
   }
 
-  card.querySelector('.lp-close').addEventListener('click', () => {
-    live.disable(); card.hidden = true;
-    toggleWrap.querySelectorAll('.lt-btn').forEach((x) => x.classList.toggle('is-active', x.dataset.live === '0'));
-  });
+  const closeBtn = card.querySelector('.lp-close');
+  if (persist) {
+    // No close affordance for a docked, always-present panel.
+    closeBtn.remove();
+  } else {
+    closeBtn.addEventListener('click', () => {
+      live.disable(); card.hidden = true;
+      toggleWrap.querySelectorAll('.lt-btn').forEach((x) => x.classList.toggle('is-active', x.dataset.live === '0'));
+    });
+  }
+
+  // Clear measured values back to placeholders (used when leaving live mode).
+  function resetCells() {
+    grid.querySelectorAll('.lp-v').forEach((c) => { c.textContent = '—'; c.dataset.tone = ''; });
+    sqlEl.innerHTML = '';
+    feedEl.innerHTML = '';
+  }
 
   function render(s) {
     if (!s || !s.provisioned) { noteEl.textContent = 'veritabanı hazırlanıyor…'; return; }
@@ -97,9 +114,14 @@ export function mountLivePanel(opts) {
   // --- Demo / Canlı toggle in the toolbar ---
   const anchor = document.querySelector(opts.anchor) || document.querySelector('.toolbar') || document.body;
   const toggleWrap = mountLiveToggle(anchor, (isLive) => {
-    if (isLive) { card.hidden = false; live.enable(); }
+    if (isLive) { card.hidden = false; noteEl.textContent = ''; live.enable(); }
+    else if (persist) { live.disable(); resetCells(); noteEl.textContent = opts.demoNote || ''; }
     else { live.disable(); card.hidden = true; }
   });
+
+  // A persistent docked card is visible from the start (Demo mode) with a prompt;
+  // a floating card stays hidden until the user switches to Canlı.
+  if (persist) { card.hidden = false; noteEl.textContent = opts.demoNote || ''; }
 
   window.addEventListener('beforeunload', () => live.disable());
   return { live, card };

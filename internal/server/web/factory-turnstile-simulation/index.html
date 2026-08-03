@@ -52,11 +52,6 @@
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 11-5 5H5a7 7 0 107-7z"/></svg>
           </button>
         </div>
-        <div class="mode" role="group" aria-label="Query mode">
-          <span class="mode-label" data-i18n="mode.label">Query</span>
-          <button class="mode-btn is-active" data-mode="baseline" data-i18n="mode.baseline">Baseline</button>
-          <button class="mode-btn" data-mode="quentra" data-i18n="mode.quentra">Quentra</button>
-        </div>
         <div class="speed" role="group" aria-label="Simulation speed">
           <span class="speed-label" data-i18n="speed.label">Speed</span>
           <button class="speed-btn" data-speed="0.5">0.5x</button>
@@ -79,14 +74,106 @@
       <div class="kpi"><span class="kpi-label" data-i18n="kpi.workersWaiting">Workers Waiting</span><span class="kpi-value" id="kWaiting">0</span></div>
     </section>
 
-    <!-- Content -->
-    <main class="content">
-      <section class="stage">
+    <!-- Content: baseline bank | shared panels | Quentra bank -->
+    <main class="content content-dual">
+      <section class="stage bank bank-baseline">
+        <header class="bank-head bh-baseline">
+          <b data-i18n="bank.baselineTitle">BASELINE</b>
+          <span data-i18n="bank.baselineSub">slow last-movement query on every card</span>
+        </header>
         <div class="canvas-wrap">
-          <canvas id="scene"></canvas>
+          <canvas id="sceneBaseline"></canvas>
+        </div>
+      </section>
+
+      <aside class="side">
+        <!-- Selected detail — pinned to the top so a turnstile/worker click is
+             immediately visible in the panel. -->
+        <div class="panel panel-selected" id="selectedPanel" hidden>
+          <div class="panel-head"><span class="ph-title" id="selTitle">Selected</span><button class="mini-btn" id="clearSel" data-i18n="panel.selected.clear">Clear</button></div>
+          <div class="detail" id="selDetail"></div>
         </div>
 
-        <!-- Query rewrite before/after comparison (moved above the pipeline) -->
+        <!-- Current Worker Check -->
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.currentCheck">Current Worker Check</span></div>
+          <div class="cwc" id="cwc">
+            <p class="empty" data-i18n="empty.waitingForCard">Waiting for a card to be presented…</p>
+          </div>
+        </div>
+
+        <!-- Turnstile Status -->
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.turnstileStatus">Turnstile Status</span><span class="ph-sub" id="gateSummary">10 lanes</span></div>
+          <div class="gate-grid" id="gateGrid"></div>
+        </div>
+
+        <!-- Bottleneck Analysis -->
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.bottleneck">Bottleneck Analysis</span></div>
+          <div class="bottleneck" id="bottleneck"><p class="empty" data-i18n="panel.noBottleneck">No active bottlenecks.</p></div>
+        </div>
+
+        <!-- Queue Heatmap -->
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.queueHeatmap">Queue Heatmap</span></div>
+          <div class="heatmap" id="heatmap"></div>
+          <div class="heat-legend">
+            <span><i style="background:#22c55e"></i><span data-i18n="legend.range1">0–3</span></span>
+            <span><i style="background:#f5b301"></i><span data-i18n="legend.range2">4–6</span></span>
+            <span><i style="background:#f97316"></i><span data-i18n="legend.range3">7–9</span></span>
+            <span><i style="background:#ef4444"></i><span data-i18n="legend.range4">10+</span></span>
+          </div>
+        </div>
+
+        <!-- Shift Entry Progress -->
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.shiftProgress">Shift Entry Progress</span><span class="ph-sub" id="shiftPct">0%</span></div>
+          <div class="progress"><i id="shiftBar"></i></div>
+          <div class="progress-meta"><span id="shiftEntered">0 entered</span><span id="shiftTarget">target 500</span></div>
+        </div>
+
+        <!-- Live Access Events -->
+        <div class="panel">
+          <div class="panel-head"><span class="ph-title" data-i18n="panel.liveEvents">Live Access Events</span></div>
+          <div class="feed" id="accessFeed"></div>
+        </div>
+      </aside>
+
+      <section class="stage bank bank-quentra">
+        <header class="bank-head bh-quentra">
+          <b data-i18n="bank.quentraTitle">QUENTRA</b>
+          <span data-i18n="bank.quentraSub">same check, rewritten in flight</span>
+        </header>
+        <div class="canvas-wrap">
+          <canvas id="sceneQuentra"></canvas>
+        </div>
+      </section>
+
+      <!-- Shift start overlay: pick the worker count before the shift begins.
+           Shown while both banks are idle (retail-style start flow). -->
+      <div class="shift-start" id="shiftStart" hidden>
+        <div class="ss-card">
+          <h3 data-i18n="shiftStart.title">Start the Shift</h3>
+          <p data-i18n="shiftStart.hint">Workers are split evenly between the two banks — half baseline, half through Quentra.</p>
+          <div class="ss-presets" id="shiftPresets">
+            <button type="button" class="ss-preset" data-count="100">100</button>
+            <button type="button" class="ss-preset is-active" data-count="250">250</button>
+            <button type="button" class="ss-preset" data-count="500">500</button>
+            <button type="button" class="ss-preset" data-count="1000">1000</button>
+          </div>
+          <div class="ss-row">
+            <label for="shiftCount" data-i18n="shiftStart.workers">Worker count</label>
+            <input id="shiftCount" type="number" min="20" max="4000" step="10" value="250" />
+          </div>
+          <button class="ss-start" id="btnShiftStart" type="button" data-i18n="shiftStart.start">Start</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Full-width comparison band beneath the two floors -->
+    <section class="compare-band">
+        <!-- Query rewrite before/after comparison -->
         <div class="panel rewrite-panel">
           <div class="panel-head">
             <span class="ph-title" data-i18n="rewrite.title">Last Movement Query · Before / After Rewrite</span>
@@ -134,61 +221,6 @@ WHERE  employee_id = @id;
           </div>
         </div>
       </section>
-
-      <aside class="side">
-        <!-- Selected detail — pinned to the top so a turnstile/worker click is
-             immediately visible in the right panel. -->
-        <div class="panel panel-selected" id="selectedPanel" hidden>
-          <div class="panel-head"><span class="ph-title" id="selTitle">Selected</span><button class="mini-btn" id="clearSel" data-i18n="panel.selected.clear">Clear</button></div>
-          <div class="detail" id="selDetail"></div>
-        </div>
-
-        <!-- Current Worker Check -->
-        <div class="panel">
-          <div class="panel-head"><span class="ph-title" data-i18n="panel.currentCheck">Current Worker Check</span></div>
-          <div class="cwc" id="cwc">
-            <p class="empty" data-i18n="empty.waitingForCard">Waiting for a card to be presented…</p>
-          </div>
-        </div>
-
-        <!-- Turnstile Status -->
-        <div class="panel">
-          <div class="panel-head"><span class="ph-title" data-i18n="panel.turnstileStatus">Turnstile Status</span><span class="ph-sub" id="gateSummary">15 lanes</span></div>
-          <div class="gate-grid" id="gateGrid"></div>
-        </div>
-
-        <!-- Bottleneck Analysis -->
-        <div class="panel">
-          <div class="panel-head"><span class="ph-title" data-i18n="panel.bottleneck">Bottleneck Analysis</span></div>
-          <div class="bottleneck" id="bottleneck"><p class="empty" data-i18n="panel.noBottleneck">No active bottlenecks.</p></div>
-        </div>
-
-        <!-- Queue Heatmap -->
-        <div class="panel">
-          <div class="panel-head"><span class="ph-title" data-i18n="panel.queueHeatmap">Queue Heatmap</span></div>
-          <div class="heatmap" id="heatmap"></div>
-          <div class="heat-legend">
-            <span><i style="background:#22c55e"></i><span data-i18n="legend.range1">0–3</span></span>
-            <span><i style="background:#f5b301"></i><span data-i18n="legend.range2">4–6</span></span>
-            <span><i style="background:#f97316"></i><span data-i18n="legend.range3">7–9</span></span>
-            <span><i style="background:#ef4444"></i><span data-i18n="legend.range4">10+</span></span>
-          </div>
-        </div>
-
-        <!-- Shift Entry Progress -->
-        <div class="panel">
-          <div class="panel-head"><span class="ph-title" data-i18n="panel.shiftProgress">Shift Entry Progress</span><span class="ph-sub" id="shiftPct">0%</span></div>
-          <div class="progress"><i id="shiftBar"></i></div>
-          <div class="progress-meta"><span id="shiftEntered">0 entered</span><span id="shiftTarget">target 500</span></div>
-        </div>
-
-        <!-- Live Access Events -->
-        <div class="panel">
-          <div class="panel-head"><span class="ph-title" data-i18n="panel.liveEvents">Live Access Events</span></div>
-          <div class="feed" id="accessFeed"></div>
-        </div>
-      </aside>
-    </main>
   </div>
 
   <script type="module" src="js/main.js"></script>

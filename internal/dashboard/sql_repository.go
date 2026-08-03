@@ -139,6 +139,11 @@ type SQLRepository struct {
 
 	warmMu  sync.Mutex
 	warming map[string]bool
+	// regionsOnce gates the 7-region decor pre-compute: ~56 heavy SALES50M
+	// aggregations that used to fire at process start and pinned the local SQL
+	// Server for minutes, making every other page stutter. It now runs on the
+	// FIRST dashboard visit instead.
+	regionsOnce sync.Once
 }
 
 func NewSQLRepository(cfg *config.Config, log *slog.Logger) *SQLRepository {
@@ -178,9 +183,10 @@ var warmRegions = []string{
 
 // warmUp runs the unfiltered dashboard once in the background so the expensive
 // first (cold) SALES50M aggregation happens at startup instead of on the first
-// user request. It then pre-computes each region's decorative payload, so a
-// region filter refreshes instantly — only the live showcase query runs on
-// selection. Failures are logged and ignored: the on-demand path still works.
+// user request. The per-region decor pre-compute is NOT done here: it is 7×8
+// heavy aggregations that would pin the local SQL Server for minutes right at
+// process start and make every other simulation stutter — WarmRegions defers
+// it to the first dashboard visit. Failures are logged and ignored.
 func (r *SQLRepository) warmUp() {
 	if r.direct == nil {
 		return
@@ -197,11 +203,20 @@ func (r *SQLRepository) warmUp() {
 		if r.log != nil {
 			r.log.Info("SALES50M dashboard warm-up complete")
 		}
-		// Pre-compute each region's decorative widgets (untimed, one-time).
-		for _, region := range warmRegions {
-			r.warmRegionDecor(region)
-		}
 	}()
+}
+
+// WarmRegions kicks off the one-time per-region decor pre-compute in the
+// background. Called on the first dashboard request, so the heavy SALES50M
+// scans only run when someone is actually using the dashboard.
+func (r *SQLRepository) WarmRegions() {
+	r.regionsOnce.Do(func() {
+		go func() {
+			for _, region := range warmRegions {
+				r.warmRegionDecor(region)
+			}
+		}()
+	})
 }
 
 func (r *SQLRepository) GetDashboard(ctx context.Context, filter DashboardFilter) (DashboardData, error) {

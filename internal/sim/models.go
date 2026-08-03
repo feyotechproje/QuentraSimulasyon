@@ -31,7 +31,9 @@ type Settings struct {
 func DefaultSettings() Settings {
 	return Settings{
 		TotalCustomers: 1000,
-		RegisterCount:  20,
+		// Two banks of five: registers 1..5 scan over the direct connection,
+		// 6..10 through the Quentra gateway, so the comparison runs side by side.
+		RegisterCount: 10,
 		// Distinct products per basket. Each line costs one per-scan query, so
 		// this directly multiplies the database work a single customer causes.
 		ItemsPerCustomer: 2,
@@ -143,7 +145,11 @@ type QueuedCustomer struct {
 
 // RegisterState is the compact live snapshot for one register.
 type RegisterState struct {
-	No              int              `json:"no"`
+	No int `json:"no"`
+	// Route is the fixed connection this register's per-scan queries travel:
+	// "direct" (localhost) or "quentra" (the gateway). Registers are split into
+	// two permanent banks so both routes run side by side in the same store.
+	Route           string           `json:"route"`
 	Status          string           `json:"status"`
 	QueueLen        int              `json:"queueLen"`
 	QueueQty        float64          `json:"queueQty"`
@@ -218,6 +224,12 @@ type Metrics struct {
 	AvgWaitDirectMs     int64 `json:"avgWaitDirectMs"`  // rolling 60-second window
 	AvgWaitQuentraMs    int64 `json:"avgWaitQuentraMs"` // rolling 60-second window
 	StockValue          int64 `json:"stockValue"`       // most recent stock value returned
+	// Per-scan DB time split by the route the scan actually used, so the two
+	// register banks can be compared directly while both run at once.
+	AvgScanDbDirectMs  int64 `json:"avgScanDbDirectMs"`
+	AvgScanDbQuentraMs int64 `json:"avgScanDbQuentraMs"`
+	ScanCountDirect    int64 `json:"scanCountDirect"`
+	ScanCountQuentra   int64 `json:"scanCountQuentra"`
 }
 
 // CompletedSale is a finished checkout record for the UI list.

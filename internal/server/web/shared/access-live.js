@@ -55,11 +55,12 @@ export function initAccessLive(workloadId, accent) {
     })),
   });
 
-  // The factory card dropped its own mode switch, so let the page's top Sorgu
-  // (Temel/Quentra) control drive the live backend path instead: map "baseline"
-  // → the direct route, "quentra" → the gateway route.
+  // The factory page shows both banks side by side with no mode switch at all,
+  // so the live workload alternates routes automatically — both columns of the
+  // card fill simultaneously, mirroring the dual floors above it.
   if (isFactory) {
     window.setAccessLiveMode = (mode) => panel.live.setMode(mode === 'quentra' ? 'quentra' : 'baseline');
+    panel.live.setMode('auto');
   }
   return panel;
 }

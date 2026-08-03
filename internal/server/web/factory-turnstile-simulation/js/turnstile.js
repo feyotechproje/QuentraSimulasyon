@@ -19,8 +19,9 @@ export const GATE_STATE = {
 export const LIGHT = { OFF: "off", RED: "red", YELLOW: "yellow", GREEN: "green", BLUE: "blue" };
 
 export class Turnstile {
-  constructor(index) {
-    this.id = index + 1;
+  /** idOffset shifts numbering so the right bank renders T06.. on its canvas. */
+  constructor(index, idOffset = 0) {
+    this.id = idOffset + index + 1;
     this.index = index;
     this.label = "T" + String(this.id).padStart(2, "0");
     this.x = gateX(index);
@@ -67,8 +68,8 @@ export class Turnstile {
   }
 }
 
-export function buildTurnstiles(count) {
+export function buildTurnstiles(count, idOffset = 0) {
   const gates = [];
-  for (let i = 0; i < count; i++) gates.push(new Turnstile(i));
+  for (let i = 0; i < count; i++) gates.push(new Turnstile(i, idOffset));
   return gates;
 }

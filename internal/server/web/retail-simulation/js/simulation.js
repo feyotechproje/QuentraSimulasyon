@@ -5,18 +5,23 @@
 import { buildWorld, arrivalWaypoints, queueSlot } from "./world.js";
 import { Register } from "./checkout.js";
 import { Customer, CUSTOMER_STATE } from "./customer.js";
+import { DEMO_SCAN_SEC } from "./scenario.js";
 
 export class Simulation {
   /**
    * @param {object} dataSource cosmetic demo data provider
-   * @param {object} [scenario] ScenarioController — when supplied, the per-item
-   *        scan cadence follows the selected connection so the direct-vs-Quentra
-   *        difference is visible in the queues.
+   * @param {object} [opts] one BANK of the dual store:
+   *        registerCount — registers on this floor;
+   *        idOffset      — first register number minus one (right bank: 5);
+   *        conn          — "direct" | "quentra": fixes this floor's scan cadence
+   *                        so the slow and fast banks run side by side.
    */
-  constructor(dataSource, scenario = null) {
+  constructor(dataSource, opts = {}) {
     this.data = dataSource;
-    this.scenario = scenario;
-    this.world = buildWorld();
+    this.conn = opts.conn || "direct";
+    this.registerCount = opts.registerCount || undefined;
+    this.idOffset = opts.idOffset || 0;
+    this.world = buildWorld(this.registerCount, this.idOffset);
     this.registers = this.world.registers.map((r) => new Register(r));
     this.customers = [];
 
@@ -38,7 +43,7 @@ export class Simulation {
   }
 
   reset() {
-    this.world = buildWorld();
+    this.world = buildWorld(this.registerCount, this.idOffset);
     this.registers = this.world.registers.map((r) => new Register(r));
     this.customers = [];
     this.time = 0;
@@ -108,14 +113,11 @@ export class Simulation {
   update(dt) {
     this.time += dt;
 
-    // The scenario decides how long a single scan takes: on a direct connection
-    // every scanned item pays for the slow direct query, while the same SQL can
-    // travel through Quentra. Applied per frame so a switch takes effect at once.
-    if (this.scenario) {
-      this.scenario.tick(dt);
-      const iv = this.scenario.demoScanSec;
-      for (const r of this.registers) r.scanInterval = iv;
-    }
+    // This floor's cadence is FIXED to its bank: the direct bank pays the slow
+    // per-scan query on every item while the Quentra bank runs the rewritten
+    // one — both visible simultaneously, which is the whole comparison.
+    const iv = DEMO_SCAN_SEC[this.conn] || DEMO_SCAN_SEC.direct;
+    for (const r of this.registers) r.scanInterval = iv;
 
     // spawn new arrivals
     this.arrivalTimer -= dt;
@@ -192,6 +194,8 @@ export class Simulation {
       avgCheckout: avg(m.checkoutTimes),
       avgQueue: avg(m.queueTimes),
       tpm,
+      // This floor's fixed demo cadence (ms per scan) for the side KPI cluster.
+      scanMs: (DEMO_SCAN_SEC[this.conn] || 0) * 1000,
     };
   }
 

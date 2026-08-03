@@ -1,11 +1,13 @@
 // ui.js
-// Binds the DOM dashboard to the simulation. All DOM writes are throttled so
-// the render loop stays smooth even with hundreds of workers on the floor.
+// Binds the DOM dashboard to the DUAL simulation: the baseline bank on the left
+// canvas, the Quentra bank on the right, and the shared panels between them.
+// All DOM writes are throttled so the render loop stays smooth even with
+// hundreds of workers on the floor.
 
 import { GATE_STATE } from "./turnstile.js";
 import { WORKER_STATE } from "./worker.js";
 
-const SHIFT_TARGET = 500;
+const DEFAULT_SHIFT_TARGET = 250;
 const DOM_INTERVAL = 0.15; // seconds between DOM refreshes
 
 const $ = (id) => document.getElementById(id);
@@ -30,12 +32,14 @@ function formatSpeedup(value) {
 }
 
 export class UI {
-  constructor(sim, renderer, engine) {
-    this.sim = sim;
-    this.renderer = renderer;
+  /** @param {object} engine multi-view engine: views[0] baseline, views[1] Quentra */
+  constructor(engine) {
     this.engine = engine;
+    this.sims = engine.sims;
     this._acc = 0;
-    this._lastEventSeq = -1;
+    this._lastEventSeq = "";
+    // Operator-chosen shift size (both banks combined); set on the overlay.
+    this.shiftTarget = DEFAULT_SHIFT_TARGET;
 
     this.el = {
       statusPill: $("statusPill"), statusLabel: $("statusLabel"),
@@ -54,25 +58,53 @@ export class UI {
       shiftBar: $("shiftBar"), shiftPct: $("shiftPct"),
       shiftEntered: $("shiftEntered"), shiftTarget: $("shiftTarget"),
       selectedPanel: $("selectedPanel"), selTitle: $("selTitle"), selDetail: $("selDetail"),
+      shiftStart: $("shiftStart"), shiftCount: $("shiftCount"),
+      shiftPresets: $("shiftPresets"), btnShiftStart: $("btnShiftStart"),
     };
-    this.el.shiftTarget.textContent = fmt(t("shift.target", "target {n}"), { n: SHIFT_TARGET });
+    this.el.shiftTarget.textContent = fmt(t("shift.target", "target {n}"), { n: this.shiftTarget });
+
+    // Both comparison columns are always live — the banks run simultaneously.
+    if (this.el.rwBefore) this.el.rwBefore.dataset.active = "true";
+    if (this.el.rwAfter) this.el.rwAfter.dataset.active = "true";
 
     this._buildGateGrid();
     this._buildHeatmap();
     this._wireControls();
-    this._wireCanvas();
-    this._applyMode();
+    this._wireCanvases();
     this.refresh(); // initial paint
 
     // Re-render every dynamic (non data-i18n) string when the user switches
     // language — static DOM text is already handled by the shared runtime.
     window.addEventListener("quentra:langchange", () => {
-      this.el.shiftTarget.textContent = fmt(t("shift.target", "target {n}"), { n: SHIFT_TARGET });
+      this.el.shiftTarget.textContent = fmt(t("shift.target", "target {n}"), { n: this.shiftTarget });
       this._syncControls();
-      this._applyMode();
-      this._lastEventSeq = -1; // force feed re-render with new language
+      this._lastEventSeq = ""; // force feed re-render with new language
       this.refresh();
     });
+  }
+
+  /** Start a shift of `total` workers, split evenly across the two banks. */
+  _startShift(total) {
+    const n = Math.max(20, Math.min(4000, total | 0 || DEFAULT_SHIFT_TARGET));
+    this.shiftTarget = n;
+    this.sims[0].startShift(Math.ceil(n / 2));
+    this.sims[1].startShift(Math.floor(n / 2));
+    this.el.shiftTarget.textContent = fmt(t("shift.target", "target {n}"), { n });
+    // startShift rebuilt the gates, so the shared panel scaffolding must too.
+    this._buildGateGrid();
+    this._buildHeatmap();
+    this._lastEventSeq = "";
+    this._syncControls();
+    this.refresh();
+  }
+
+  /** All (sim, gate) pairs, baseline bank first — the shared panel order. */
+  _allGates() {
+    const out = [];
+    this.sims.forEach((sim, si) => {
+      for (const g of sim.gates) out.push({ sim, si, g });
+    });
+    return out;
   }
 
   // ---- static scaffolding -------------------------------------------------
@@ -80,16 +112,18 @@ export class UI {
     const grid = this.el.gateGrid;
     grid.innerHTML = "";
     this._gateCells = [];
-    for (let i = 0; i < this.sim.gates.length; i++) {
+    for (const { sim, si, g } of this._allGates()) {
       const cell = document.createElement("div");
       cell.className = "gate-cell";
+      cell.dataset.route = si === 1 ? "quentra" : "baseline";
       cell.innerHTML =
         `<div class="gc-top"><span class="gc-name"></span><span class="gc-light off"></span></div>` +
         `<div class="gc-q"></div><div class="gc-bar"><i></i></div>`;
-      cell.addEventListener("click", () => this._selectGate(this.sim.gates[i]));
+      cell.addEventListener("click", () => this._selectGate(sim, g));
       grid.appendChild(cell);
       this._gateCells.push({
         root: cell,
+        g,
         name: cell.querySelector(".gc-name"),
         light: cell.querySelector(".gc-light"),
         q: cell.querySelector(".gc-q"),
@@ -102,101 +136,113 @@ export class UI {
     const hm = this.el.heatmap;
     hm.innerHTML = "";
     this._heatCells = [];
-    for (let i = 0; i < this.sim.gates.length; i++) {
+    const gates = this._allGates();
+    hm.style.gridTemplateColumns = `repeat(${gates.length}, 1fr)`;
+    for (const { g } of gates) {
       const c = document.createElement("div");
       c.className = "hm-cell";
       c.innerHTML = `<div class="hm-bar"><div class="hm-fill"></div></div><span class="hm-label"></span>`;
       hm.appendChild(c);
-      this._heatCells.push({ fill: c.querySelector(".hm-fill"), label: c.querySelector(".hm-label") });
+      this._heatCells.push({ g, fill: c.querySelector(".hm-fill"), label: c.querySelector(".hm-label") });
     }
   }
 
   _wireControls() {
-    $("btnPause").addEventListener("click", () => { this.sim.pause(); this._syncControls(); });
-    $("btnResume").addEventListener("click", () => { this.sim.resume(); this._syncControls(); });
-    $("btnStop").addEventListener("click", () => { this.sim.stop(); this._syncControls(); });
+    const each = (fn) => this.sims.forEach(fn);
+    $("btnPause").addEventListener("click", () => { each((s) => s.pause()); this._syncControls(); });
+    $("btnResume").addEventListener("click", () => { each((s) => s.resume()); this._syncControls(); });
+    $("btnStop").addEventListener("click", () => { each((s) => s.stop()); this._syncControls(); });
     $("btnReset").addEventListener("click", () => {
-      this.sim.reset();
+      each((s) => s.reset());
       this._buildGateGrid();
       this._buildHeatmap();
-      this._lastEventSeq = -1;
+      this._lastEventSeq = "";
       this._syncControls();
-      this._applyMode();
       this.refresh();
     });
     document.querySelectorAll(".speed-btn").forEach((b) => {
       b.addEventListener("click", () => {
         document.querySelectorAll(".speed-btn").forEach((x) => x.classList.remove("is-active"));
         b.classList.add("is-active");
-        this.sim.setSpeed(parseFloat(b.dataset.speed));
+        each((s) => s.setSpeed(parseFloat(b.dataset.speed)));
       });
     });
-    document.querySelectorAll(".mode-btn").forEach((b) => {
-      b.addEventListener("click", () => {
-        this.sim.setMode(b.dataset.mode);
-        // In live mode the same top control also switches the real backend path
-        // (the live card no longer carries its own mode switch).
-        if (window.setAccessLiveMode) window.setAccessLiveMode(b.dataset.mode);
-        this._applyMode();
-        this.refresh();
+    $("clearSel").addEventListener("click", () => this._clearSelection());
+
+    // Shift start overlay: presets fill the count input; Start launches both
+    // banks with the chosen worker budget split between them.
+    if (this.el.shiftPresets) {
+      this.el.shiftPresets.querySelectorAll(".ss-preset").forEach((b) => {
+        b.addEventListener("click", () => {
+          if (this.el.shiftCount) this.el.shiftCount.value = b.dataset.count;
+          this.el.shiftPresets.querySelectorAll(".ss-preset").forEach((x) =>
+            x.classList.toggle("is-active", x === b));
+        });
       });
-    });
-    $("clearSel").addEventListener("click", () => {
-      this.sim.selectedGate = null;
-      this.sim.selectedWorker = null;
-      for (const g of this.sim.gates) g.selected = false;
-      for (const w of this.sim.workers) w.highlight = false;
+    }
+    if (this.el.btnShiftStart) {
+      this.el.btnShiftStart.addEventListener("click", () =>
+        this._startShift(parseInt(this.el.shiftCount && this.el.shiftCount.value, 10)));
+    }
+  }
+
+  _wireCanvases() {
+    for (const view of this.engine.views) {
+      const { sim, renderer } = view;
+      const canvas = renderer.canvas;
+      canvas.addEventListener("click", (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const w = renderer.pickWorker(sim, sx, sy);
+        if (w) { this._selectWorker(sim, w); return; }
+        const g = renderer.pickGate(sim, sx, sy);
+        if (g) this._selectGate(sim, g);
+      });
+    }
+    window.addEventListener("resize", () => {
+      for (const view of this.engine.views) view.renderer.resize();
     });
   }
 
-  _wireCanvas() {
-    const canvas = this.renderer.canvas;
-    canvas.addEventListener("click", (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
-      const w = this.renderer.pickWorker(this.sim, sx, sy);
-      if (w) { this._selectWorker(w); return; }
-      const g = this.renderer.pickGate(this.sim, sx, sy);
-      if (g) this._selectGate(g);
-    });
-    window.addEventListener("resize", () => this.renderer.resize());
+  _clearSelection() {
+    for (const s of this.sims) {
+      s.selectedGate = null;
+      s.selectedWorker = null;
+      for (const g of s.gates) g.selected = false;
+      for (const w of s.workers) w.highlight = false;
+    }
   }
 
-  _selectGate(g) {
-    for (const x of this.sim.gates) x.selected = false;
+  _selectGate(sim, g) {
+    this._clearSelection();
     g.selected = true;
-    this.sim.selectedGate = g;
-    this.sim.selectedWorker = null;
-    for (const w of this.sim.workers) w.highlight = false;
+    sim.selectedGate = g;
   }
 
-  _selectWorker(w) {
-    for (const x of this.sim.workers) x.highlight = false;
+  _selectWorker(sim, w) {
+    this._clearSelection();
     w.highlight = true;
-    this.sim.selectedWorker = w;
-    this.sim.selectedGate = null;
-    for (const g of this.sim.gates) g.selected = false;
+    sim.selectedWorker = w;
   }
 
   _syncControls() {
-    const stopped = this.sim.status === "STOPPED";
-    const paused = this.sim.status === "PAUSED";
-    $("btnPause").disabled = !this.sim.running;
-    $("btnResume").disabled = this.sim.running || stopped;
-    const state = stopped ? "stopped" : paused ? "paused" : "running";
-    this.el.statusPill.dataset.state = state;
-    const statusKey = stopped ? "status.stopped" : paused ? "status.paused" : "status.running";
-    const statusFallback = stopped ? "SIMULATION STOPPED" : paused ? "SIMULATION PAUSED" : "SIMULATION RUNNING";
-    this.el.statusLabel.textContent = t(statusKey, statusFallback);
-  }
-
-  _applyMode() {
-    const q = this.sim.mode === "quentra";
-    document.querySelectorAll(".mode-btn").forEach((b) =>
-      b.classList.toggle("is-active", b.dataset.mode === this.sim.mode));
-    if (this.el.rwBefore) this.el.rwBefore.dataset.active = (!q).toString();
-    if (this.el.rwAfter) this.el.rwAfter.dataset.active = q.toString();
+    const lead = this.sims[0];
+    const st = lead.status; // IDLE | RUNNING | PAUSED | STOPPED | COMPLETED
+    $("btnPause").disabled = !lead.running;
+    // Resume only continues a pause; idle/stopped/completed start via overlay.
+    $("btnResume").disabled = st !== "PAUSED";
+    const stateMap = { RUNNING: "running", PAUSED: "paused" };
+    this.el.statusPill.dataset.state = stateMap[st] || "stopped";
+    const labels = {
+      IDLE: ["status.idle", "READY TO START"],
+      RUNNING: ["status.running", "SIMULATION RUNNING"],
+      PAUSED: ["status.paused", "SIMULATION PAUSED"],
+      STOPPED: ["status.stopped", "SIMULATION STOPPED"],
+      COMPLETED: ["status.completed", "SHIFT COMPLETED"],
+    };
+    const [key, fallback] = labels[st] || labels.RUNNING;
+    this.el.statusLabel.textContent = t(key, fallback);
   }
 
   // ---- throttled refresh --------------------------------------------------
@@ -208,20 +254,34 @@ export class UI {
   }
 
   refresh() {
-    const k = this.sim.kpi;
-    const comparison = this.sim.compareStats();
+    const [base, qn] = this.sims;
+    const kb = base.kpi, kq = qn.kpi;
     const e = this.el;
-    e.clock.textContent = this.sim.clockString();
-    e.kBaseAvg.textContent = formatQueryDuration(comparison.bAvg);
-    e.kQnAvg.textContent = formatQueryDuration(comparison.qAvg);
-    e.kSpeedup.textContent = comparison.bAvg > 0 && comparison.qAvg > 0
-      ? formatSpeedup(comparison.bAvg / comparison.qAvg)
-      : "—";
-    e.kWaiting.textContent = k.waiting;
-    e.kEntered.textContent = k.successfulEntries;
-    e.kPerMin.textContent = Math.round(k.entriesPerMin);
-    e.kAvgCheck.textContent = k.avgCheck.toFixed(1) + "s";
-    e.kUtil.textContent = Math.round(k.utilization * 100) + "%";
+    e.clock.textContent = base.clockString();
+
+    // The start overlay covers the floors whenever both banks are idle — the
+    // operator sizes the shift before it begins (retail-style flow).
+    if (e.shiftStart) {
+      e.shiftStart.hidden = !["IDLE", "STOPPED", "COMPLETED"].includes(base.status);
+    }
+
+    // The two query columns fill SIMULTANEOUSLY — each bank feeds its own side.
+    const bStat = base.compare.baseline;
+    const qStat = qn.compare.quentra;
+    const bAvg = bStat.n ? bStat.sum / bStat.n : 0;
+    const qAvg = qStat.n ? qStat.sum / qStat.n : 0;
+    e.kBaseAvg.textContent = formatQueryDuration(bAvg);
+    e.kQnAvg.textContent = formatQueryDuration(qAvg);
+    e.kSpeedup.textContent = bAvg > 0 && qAvg > 0 ? formatSpeedup(bAvg / qAvg) : "—";
+
+    // Store-wide aggregates across both banks.
+    e.kWaiting.textContent = kb.waiting + kq.waiting;
+    e.kEntered.textContent = kb.successfulEntries + kq.successfulEntries;
+    e.kPerMin.textContent = Math.round(kb.entriesPerMin + kq.entriesPerMin);
+    const checks = base.checkSamples + qn.checkSamples;
+    const avgCheck = checks ? (base.sumCheckTime + qn.sumCheckTime) / checks : 0;
+    e.kAvgCheck.textContent = avgCheck.toFixed(1) + "s";
+    e.kUtil.textContent = Math.round(((kb.utilization + kq.utilization) / 2) * 100) + "%";
     if (!this._acc) this._syncControls();
 
     this._renderGates();
@@ -229,8 +289,8 @@ export class UI {
     this._renderBottleneck();
     this._renderCurrentCheck();
     this._renderPipeline();
-    this._renderRewrite();
-    this._renderShift(k);
+    this._renderRewrite(bStat, qStat, bAvg, qAvg);
+    this._renderShift(kb, kq);
     this._renderFeed();
     this._renderSelected();
   }
@@ -240,9 +300,8 @@ export class UI {
   }
 
   _renderGates() {
-    for (let i = 0; i < this._gateCells.length; i++) {
-      const g = this.sim.gates[i];
-      const c = this._gateCells[i];
+    for (const c of this._gateCells) {
+      const g = c.g;
       c.name.textContent = g.label;
       c.light.className = "gc-light " + this._lightClass(g);
       c.q.textContent = fmt(t("gate.inQueue", "{n} in queue · {state}"), {
@@ -255,26 +314,28 @@ export class UI {
       c.bar.style.background = heat;
       c.root.classList.toggle("sel", g.selected);
     }
+    const lanes = this._gateCells.length;
+    const checking = this.sims.reduce((a, s) => a + (s.kpi.pendingChecks || 0), 0);
     this.el.gateSummary.textContent = fmt(t("gate.summary", "{lanes} lanes · {checking} checking"), {
-      lanes: this.sim.gates.length,
-      checking: this.sim.kpi.pendingChecks,
+      lanes, checking,
     });
   }
 
   _renderHeatmap() {
-    for (let i = 0; i < this._heatCells.length; i++) {
-      const g = this.sim.gates[i];
-      const c = this._heatCells[i];
-      const ql = g.queueLength;
+    for (const c of this._heatCells) {
+      const ql = c.g.queueLength;
       const heat = ql <= 3 ? "#22c55e" : ql <= 6 ? "#f5b301" : ql <= 9 ? "#f97316" : "#ef4444";
       c.fill.style.height = Math.min(100, (ql / 13) * 100) + "%";
       c.fill.style.background = heat;
-      c.label.textContent = g.id;
+      c.label.textContent = c.g.id;
     }
   }
 
   _renderBottleneck() {
-    const rows = this.sim.bottlenecks(4);
+    const rows = this.sims
+      .flatMap((s) => s.bottlenecks(4))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4);
     if (!rows.length) {
       this.el.bottleneck.innerHTML = `<p class="empty">${t("panel.noBottleneck", "No active bottlenecks.")}</p>`;
       return;
@@ -311,8 +372,26 @@ export class UI {
     return t(`movement.${m}`, m || "—");
   }
 
+  /** The longest-running active check across BOTH banks (selection wins). */
+  _activeCheck() {
+    for (const s of this.sims) {
+      if (s.selectedWorker) {
+        const g = s.gates.find((x) => x.currentWorker === s.selectedWorker);
+        if (g) return { sim: s, gate: g, worker: s.selectedWorker };
+      }
+    }
+    let best = null;
+    for (const s of this.sims) {
+      const ac = s.activeCheck();
+      if (ac && (!best || ac.worker.checkElapsed > best.worker.checkElapsed)) {
+        best = { sim: s, gate: ac.gate, worker: ac.worker };
+      }
+    }
+    return best;
+  }
+
   _renderCurrentCheck() {
-    const ac = this.sim.activeCheck();
+    const ac = this._activeCheck();
     if (!ac) {
       this.el.cwc.innerHTML = `<p class="empty">${t("empty.waitingForCard", "Waiting for a card to be presented…")}</p>`;
       return;
@@ -341,13 +420,15 @@ export class UI {
   }
 
   _renderPipeline() {
-    const ac = this.sim.activeCheck();
+    const ac = this._activeCheck();
     const findStep = this.el.pipeline.querySelector('[data-step="find"]');
     const openStep = this.el.pipeline.querySelector('[data-step="open"]');
     const elapsed = ac ? (ac.worker.checkElapsed || 0) : 0;
     this.el.pipeFindTime.textContent = elapsed.toFixed(1) + "s";
     const flag = findStep.querySelector(".ps-flag");
-    if (this.sim.mode === "quentra") {
+    // The tracked check's own bank decides the flag: a Quentra-bank check is
+    // fast by construction, a baseline one escalates with elapsed time.
+    if (ac && ac.sim.mode === "quentra") {
       findStep.classList.remove("is-slow", "is-critical");
       findStep.classList.add("is-ok");
       if (flag) flag.textContent = t("pipeline.flag.fast", "FAST");
@@ -358,37 +439,38 @@ export class UI {
       if (flag) flag.textContent = elapsed >= 7 ? t("pipeline.flag.critical", "CRITICAL") : t("pipeline.flag.slow", "SLOW");
     }
     // OPEN step lights up green briefly when someone is being approved / passing
-    const opening = this.sim.gates.some((g) => g.state === GATE_STATE.OPENING || g.state === GATE_STATE.PASSING);
+    const opening = this.sims.some((s) =>
+      s.gates.some((g) => g.state === GATE_STATE.OPENING || g.state === GATE_STATE.PASSING));
     openStep.classList.toggle("is-ok", opening);
     openStep.querySelector(".ps-time").textContent = opening ? "0.4s" : "—";
   }
 
-  _renderRewrite() {
-    const s = this.sim.compareStats();
+  _renderRewrite(bStat, qStat, bAvg, qAvg) {
     const e = this.el;
-    const maxAvg = Math.max(s.bAvg, s.qAvg, 0.01);
-    e.rwBaseAvg.textContent = s.b.n ? s.bAvg.toFixed(2) + "s" : "—";
-    e.rwQnAvg.textContent = s.q.n ? s.qAvg.toFixed(2) + "s" : "—";
-    e.rwBaseBar.style.width = (s.b.n ? (s.bAvg / maxAvg) * 100 : 0) + "%";
-    e.rwQnBar.style.width = (s.q.n ? (s.qAvg / maxAvg) * 100 : 0) + "%";
+    const maxAvg = Math.max(bAvg, qAvg, 0.01);
+    e.rwBaseAvg.textContent = bStat.n ? bAvg.toFixed(2) + "s" : "—";
+    e.rwQnAvg.textContent = qStat.n ? qAvg.toFixed(2) + "s" : "—";
+    e.rwBaseBar.style.width = (bStat.n ? (bAvg / maxAvg) * 100 : 0) + "%";
+    e.rwQnBar.style.width = (qStat.n ? (qAvg / maxAvg) * 100 : 0) + "%";
     e.rwBaseMeta.textContent = fmt(t("rewrite.checksDetail", "{n} checks · {slow} slow · {timeouts} timeout"),
-      { n: s.b.n, slow: s.b.slow, timeouts: s.b.timeouts });
+      { n: bStat.n, slow: bStat.slow, timeouts: bStat.timeouts });
     e.rwQnMeta.textContent = fmt(t("rewrite.checksDetail", "{n} checks · {slow} slow · {timeouts} timeout"),
-      { n: s.q.n, slow: s.q.slow, timeouts: s.q.timeouts });
-    if (s.b.n && s.q.n && s.qAvg > 0) {
-      const factor = s.bAvg / s.qAvg;
+      { n: qStat.n, slow: qStat.slow, timeouts: qStat.timeouts });
+    if (bStat.n && qStat.n && qAvg > 0) {
+      const factor = bAvg / qAvg;
       e.rwImprove.textContent = fmt(t("rewrite.xFaster", "{n}× faster"),
         { n: factor >= 10 ? factor.toFixed(0) : factor.toFixed(1) });
     } else {
-      e.rwImprove.textContent = t("rewrite.compareHint", "Run both modes to compare");
+      e.rwImprove.textContent = t("rewrite.compareHint", "Both banks are measuring…");
     }
   }
 
-  _renderShift(k) {
-    const pct = Math.min(100, (k.successfulEntries / SHIFT_TARGET) * 100);
+  _renderShift(kb, kq) {
+    const entered = kb.successfulEntries + kq.successfulEntries;
+    const pct = Math.min(100, (entered / this.shiftTarget) * 100);
     this.el.shiftBar.style.width = pct + "%";
     this.el.shiftPct.textContent = Math.round(pct) + "%";
-    this.el.shiftEntered.textContent = fmt(t("shift.entered", "{n} entered"), { n: k.successfulEntries });
+    this.el.shiftEntered.textContent = fmt(t("shift.entered", "{n} entered"), { n: entered });
   }
 
   _feedText(ev) {
@@ -401,11 +483,16 @@ export class UI {
   }
 
   _renderFeed() {
-    const feed = this.sim.events.feed;
-    const top = feed.length ? feed[0].id : -1;
+    // Merge both banks' feeds newest-first; the shared clock makes the string
+    // timestamps directly comparable.
+    const merged = this.sims
+      .flatMap((s, si) => s.events.feed.map((ev) => ({ ev, si })))
+      .sort((a, b) => (a.ev.time < b.ev.time ? 1 : a.ev.time > b.ev.time ? -1 : 0))
+      .slice(0, 60);
+    const top = merged.length ? `${merged[0].si}:${merged[0].ev.id}:${merged.length}` : "";
     if (top === this._lastEventSeq) return;
     this._lastEventSeq = top;
-    this.el.feed.innerHTML = feed.map((ev) =>
+    this.el.feed.innerHTML = merged.map(({ ev }) =>
       `<div class="feed-item ${ev.kind}"><span class="ft">${ev.time}</span><span class="fx">${this._feedText(ev)}</span></div>`
     ).join("");
   }
@@ -439,14 +526,18 @@ export class UI {
   }
 
   _renderSelected() {
-    const g = this.sim.selectedGate;
-    const w = this.sim.selectedWorker;
+    let sim = null, g = null, w = null;
+    for (const s of this.sims) {
+      if (s.selectedGate) { sim = s; g = s.selectedGate; break; }
+      if (s.selectedWorker) { sim = s; w = s.selectedWorker; break; }
+    }
     if (!g && !w) { this.el.selectedPanel.hidden = true; return; }
     this.el.selectedPanel.hidden = false;
     if (g) {
       this.el.selTitle.textContent = fmt(t("detail.turnstileTitle", "Turnstile {label}"), { label: g.label });
       const cw = g.currentWorker;
       const rows = [
+        [t("detail.route", "Query route"), sim.mode === "quentra" ? "Quentra" : t("mode.baseline", "Baseline")],
         [t("detail.currentStatus", "Current status"), this._gateStateLabel(g.state)],
         [t("detail.queueLength", "Queue length"), g.queueLength],
         [t("detail.currentWorker", "Current worker"), cw ? cw.displayName : "—"],

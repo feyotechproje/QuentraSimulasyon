@@ -9,17 +9,18 @@ const outcomeTr = { blocked: 'engellendi', breached: 'İHLAL', denied: 'reddedil
 const outcomeTone = { blocked: 'ok', allowed: 'ok', denied: 'warn', breached: 'bad', error: 'warn' };
 
 export function initKeyBreakerLive() {
-  mountLivePanel({
+  // Docked into the left column as the page's only left-side panel. No in-card
+  // mode buttons: the single mode control is the top toolbar (Koruma Kapalı /
+  // Key Breaker Aktif / Otomatik Demo), which drives this panel's backend mode.
+  return mountLivePanel({
     sim: 'keybreaker',
     workloadId: 'key-breaker-simulation',
     db: 'KEYBREAKER',
     accent: '#22e39a',
     anchor: '.toolbar-controls',
-    modes: [
-      { label: 'Kalkan Açık', mode: 'quentra' },
-      { label: 'Kalkan Kapalı', mode: 'baseline' },
-      { label: 'Otomatik', mode: 'auto' },
-    ],
+    mount: '.col-left',
+    persistDocked: true,
+    demoNote: 'Gerçek ölçümler için üstteki "Canlı" moduna geçin.',
     fields: [
       { label: 'Denenen Saldırı', get: (s) => fmt.int(s.attempts) },
       { label: 'Engellenen', get: (s) => fmt.int(s.blocked), tone: () => 'ok' },

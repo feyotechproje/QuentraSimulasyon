@@ -33,6 +33,9 @@ type Engine struct {
 	pool      poolData
 	startWall time.Time
 	rrCursor  atomic.Int64
+	// bankCursor alternates new arrivals between the direct and Quentra register
+	// banks so both routes receive a statistically identical customer stream.
+	bankCursor atomic.Int64
 
 	// counters
 	generated    atomic.Int64
@@ -62,12 +65,12 @@ type Engine struct {
 	procSumByMode   [2]int64
 	procCountByMode [2]int64
 	waitSamples     []waitSample
-	// Per-scan DB timing. These accumulate the CURRENT stock mode only: they are
-	// cleared by SetStockMode so the average always describes the mode on screen
-	// rather than blending slow baseline samples into the Quentra figure.
-	stockSumMs  int64
-	itemSumMs   int64
-	scanDbCount int64
+	// Per-scan DB timing, split by route. Registers are fixed to a bank, so both
+	// columns fill simultaneously; SetStockMode still clears them so an on/off
+	// toggle starts a fresh measurement window.
+	stockSumByMode    [2]int64
+	itemSumByMode     [2]int64
+	scanDbCountByMode [2]int64
 
 	// pending deltas drained by the snapshot loop
 	pmu             sync.Mutex
@@ -152,12 +155,12 @@ func (e *Engine) SetStockMode(stockLookup, quentraRewrite bool) {
 	e.mu.Unlock()
 
 	// Start a fresh measurement window. Without this the average would still
-	// carry samples from the previous mode, so switching to the Quentra rewrite
-	// would appear to inherit the baseline's slow per-scan time.
+	// carry samples from the previous window, so toggling the lookup would
+	// appear to inherit stale per-scan times.
 	e.aggMu.Lock()
-	e.stockSumMs = 0
-	e.itemSumMs = 0
-	e.scanDbCount = 0
+	e.stockSumByMode = [2]int64{}
+	e.itemSumByMode = [2]int64{}
+	e.scanDbCountByMode = [2]int64{}
 	e.aggMu.Unlock()
 	e.stockLookups.Store(0)
 	e.lastStockMs.Store(0)
@@ -173,7 +176,9 @@ func (e *Engine) SetStockMode(stockLookup, quentraRewrite bool) {
 // Start prepares resources and launches the simulation.
 func (e *Engine) Start() error {
 	e.mu.Lock()
-	if e.state == SimRunning || e.state == SimPreparing || e.state == SimPaused {
+	// STOPPING is also active: its workers are still winding down, and starting
+	// over them would race the old goroutines on the shared runtime state.
+	if e.state == SimRunning || e.state == SimPreparing || e.state == SimPaused || e.state == SimStopping {
 		e.mu.Unlock()
 		return fmt.Errorf("simulation already active (%s)", e.state)
 	}
@@ -241,10 +246,16 @@ func (e *Engine) Start() error {
 	}
 	e.nextOrderID.Store(base)
 
-	// Build registers (all open by default).
+	// Build registers (all open by default), split into two permanent banks:
+	// the first half scans over the direct connection, the second half through
+	// the Quentra gateway — so both routes run side by side in one store. When
+	// the gateway is unreachable every register falls back to direct and the
+	// snapshot's per-register route reports that honestly.
+	gwUp := e.store.HasQuentraGateway()
+	half := (settings.RegisterCount + 1) / 2
 	e.regs = make([]*registerRT, settings.RegisterCount)
 	for i := 0; i < settings.RegisterCount; i++ {
-		e.regs[i] = newRegister(i + 1)
+		e.regs[i] = newRegister(i+1, gwUp && i >= half)
 	}
 
 	e.startWall = time.Now()
@@ -285,9 +296,9 @@ func (e *Engine) resetRuntime() {
 	e.totalSales, e.procSumMs, e.procCount = 0, 0, 0
 	e.procSumByMode, e.procCountByMode = [2]int64{}, [2]int64{}
 	e.waitSamples = nil
-	e.stockSumMs = 0
-	e.itemSumMs = 0
-	e.scanDbCount = 0
+	e.stockSumByMode = [2]int64{}
+	e.itemSumByMode = [2]int64{}
+	e.scanDbCountByMode = [2]int64{}
 	e.aggMu.Unlock()
 	e.pmu.Lock()
 	e.pendingActivity, e.pendingSales, e.pendingErrors = nil, nil, nil
@@ -347,7 +358,7 @@ func (e *Engine) Stop() error {
 // Reset clears runtime state back to idle. Database records are preserved.
 func (e *Engine) Reset() error {
 	st := e.State()
-	if st == SimRunning || st == SimPreparing || st == SimPaused {
+	if st == SimRunning || st == SimPreparing || st == SimPaused || st == SimStopping {
 		return fmt.Errorf("stop the simulation before resetting")
 	}
 	e.mu.Lock()

@@ -1,9 +1,10 @@
 // ui.js
-// Binds the dashboard DOM to the simulation: KPI cards, register grid, event
-// feed, selected-register detail panel and the toolbar controls.
+// Binds the dashboard DOM to the DUAL simulation: per-bank KPI clusters, the
+// shared register grid / event feed / selected-register panel in the middle,
+// and the toolbar controls. The engine drives two sims: [0] = direct bank,
+// [1] = Quentra bank.
 
 import { ENGINE_STATE } from "./engine.js";
-import { REGISTER_STATE } from "./checkout.js";
 import { QuentraI18n } from "/shared/quentra-i18n.js";
 
 const t = (k, f) => QuentraI18n.t(k, f);
@@ -21,19 +22,20 @@ export class UI {
       statusPill: document.getElementById("statusPill"),
       statusLabel: document.getElementById("statusLabel"),
       clock: document.getElementById("simClock"),
+      // store-wide KPIs
       kpiTotal: document.getElementById("kpiTotal"),
-      kpiWaiting: document.getElementById("kpiWaiting"),
-      kpiInCheckout: document.getElementById("kpiInCheckout"),
-      kpiCompleted: document.getElementById("kpiCompleted"),
       kpiSales: document.getElementById("kpiSales"),
       kpiItems: document.getElementById("kpiItems"),
-      kpiAvgCheckout: document.getElementById("kpiAvgCheckout"),
-      kpiAvgQueue: document.getElementById("kpiAvgQueue"),
-      // per-route breakdown under the two timing KPIs
-      kpiAvgCheckoutSplit: document.getElementById("kpiAvgCheckoutSplit"),
-      kpiChkDirect: document.getElementById("kpiChkDirect"),
-      kpiChkQuentra: document.getElementById("kpiChkQuentra"),
       kpiTpm: document.getElementById("kpiTpm"),
+      // per-bank KPI clusters
+      kpiDWaiting: document.getElementById("kpiDWaiting"),
+      kpiDAvgChk: document.getElementById("kpiDAvgChk"),
+      kpiDScan: document.getElementById("kpiDScan"),
+      kpiDCompleted: document.getElementById("kpiDCompleted"),
+      kpiQWaiting: document.getElementById("kpiQWaiting"),
+      kpiQAvgChk: document.getElementById("kpiQAvgChk"),
+      kpiQScan: document.getElementById("kpiQScan"),
+      kpiQCompleted: document.getElementById("kpiQCompleted"),
       registerGrid: document.getElementById("registerGrid"),
       eventFeed: document.getElementById("eventFeed"),
       selected: document.getElementById("selectedRegister"),
@@ -44,9 +46,12 @@ export class UI {
       // scenario switch
       btnDemo: document.getElementById("btnDemo"),
       btnLive: document.getElementById("btnLive"),
-      btnDirect: document.getElementById("btnDirect"),
-      btnQuentra: document.getElementById("btnQuentra"),
       btnAuto: document.getElementById("btnAuto"),
+      // live start overlay
+      liveStart: document.getElementById("liveStart"),
+      liveCount: document.getElementById("liveCount"),
+      livePresets: document.getElementById("livePresets"),
+      btnLiveStart: document.getElementById("btnLiveStart"),
       // stock-lookup before/after panel
       rwScope: document.getElementById("rwScope"),
       rwFoot: document.getElementById("rwFoot"),
@@ -66,30 +71,15 @@ export class UI {
       rwDirectBar: document.getElementById("rwDirectBar"),
       rwQuentraBar: document.getElementById("rwQuentraBar"),
     };
-    this._gridBuilt = false;
+    this._gridKey = "";
   }
 
-  /**
-   * Fill a KPI's direct-vs-Quentra breakdown. A comparison is useful only when
-   * both routes have samples; showing one route below the active value merely
-   * repeats the same number and looks like a second unexplained metric.
-   */
-  _renderSplit(wrap, elDirect, elQuentra, direct, quentra) {
-    if (!wrap) return;
-    if (!direct || !quentra) { wrap.hidden = true; return; }
-    wrap.hidden = false;
-    if (elDirect) elDirect.textContent = t("scn.direct", "Direct") + " " + direct.toFixed(1) + "s";
-    if (elQuentra) elQuentra.textContent = "Quentra " + quentra.toFixed(1) + "s";
-  }
-
-  /** Wire the demo/live and direct/Quentra switches to the scenario controller. */
+  /** Wire the demo/live switch and the story toggle to the scenario. */
   bindScenario(scenario) {
     this.scenario = scenario;
     const e = this.el;
     if (e.btnDemo) e.btnDemo.addEventListener("click", () => scenario.setRunMode("demo"));
     if (e.btnLive) e.btnLive.addEventListener("click", () => scenario.setRunMode("live"));
-    if (e.btnDirect) e.btnDirect.addEventListener("click", () => scenario.selectConnection("direct"));
-    if (e.btnQuentra) e.btnQuentra.addEventListener("click", () => scenario.selectConnection("quentra"));
     if (e.btnAuto) e.btnAuto.addEventListener("click", () => scenario.setAuto(!scenario.auto));
     this.renderScenario();
   }
@@ -139,21 +129,22 @@ export class UI {
     const on = (el, active) => { if (el) el.classList.toggle("is-active", !!active); };
     on(e.btnDemo, s.isDemo);
     on(e.btnLive, !s.isDemo);
-    on(e.btnDirect, !s.isQuentra);
-    on(e.btnQuentra, s.isQuentra);
     on(e.btnAuto, s.auto);
-    // Auto-cycling is a demo-only affordance; live mode is operator-driven.
+    // Narration is a demo-only affordance; live mode is operator-driven.
     if (e.btnAuto) e.btnAuto.disabled = !s.isDemo;
 
-    if (e.rwDirect) e.rwDirect.dataset.active = String(!s.isQuentra);
-    if (e.rwQuentra) e.rwQuentra.dataset.active = String(s.isQuentra);
-    if (e.rwDirectSql) e.rwDirectSql.textContent = s.sql.direct;
-    if (e.rwQuentraSql) e.rwQuentraSql.textContent = s.sql.quentra;
+    // Both banks are always active — the comparison is standing, not switched.
+    // Demo shows the scripted pretty-printed pair; live shows the app's real
+    // statement next to the text captured from SQL Server's DMVs.
+    const sql = s.displaySQL || s.sql;
+    if (e.rwDirect) e.rwDirect.dataset.active = "true";
+    if (e.rwQuentra) e.rwQuentra.dataset.active = "true";
+    if (e.rwDirectSql) e.rwDirectSql.textContent = sql.direct;
+    if (e.rwQuentraSql) e.rwQuentraSql.textContent = sql.quentra;
 
     // The Quentra badge must reflect reality: only claim "Call eliminated" when a
     // rewrite actually removed the UDF. With no matching rule the captured SQL
     // still has the call, so the badge says "No rewrite" and drops the fast tone.
-    // Keep data-i18n in sync so a language switch re-translates the right key.
     if (e.rwQuentraBadge) {
       const key = s.rewritten ? "rw.quentra.badge" : "rw.quentra.badge.none";
       e.rwQuentraBadge.dataset.i18n = key;
@@ -172,11 +163,11 @@ export class UI {
       if (!s.isDemo && s.gatewayUp === false) {
         // Never let a down gateway read as a genuine comparison.
         e.rwFoot.textContent = t("rw.foot.noGateway",
-          "Quentra gateway unreachable: both modes use the direct connection, so the comparison is not real.");
+          "Quentra gateway unreachable: both banks use the direct connection, so the comparison is not real.");
       } else {
         e.rwFoot.textContent = s.isDemo
           ? t("rw.foot.demo", "Demo mode plays a fixed 50x separation; no query is executed.")
-          : t("rw.foot.live", "Live mode runs the real per-scan query; figures are measured query time.");
+          : t("rw.foot.live", "Live mode runs the real per-scan query on both banks at once; figures are measured query time.");
       }
     }
 
@@ -186,15 +177,16 @@ export class UI {
     if (e.rwDirectVal) e.rwDirectVal.textContent = dMs > 0 ? fmtMs(dMs) : dash;
     if (e.rwQuentraVal) e.rwQuentraVal.textContent = qMs > 0 ? fmtMs(qMs) : dash;
 
-    // In live mode spell out what the per-scan figure is made of, so the number
-    // is auditable rather than a bare total.
+    // In live mode spell out how many scans each figure covers, so the numbers
+    // are auditable rather than bare totals.
     if (e.rwBreakdown) {
-      if (s.isDemo || !s.liveSamples) {
+      const total = (s.liveScans ? s.liveScans.direct + s.liveScans.quentra : 0);
+      if (s.isDemo || !total) {
         e.rwBreakdown.textContent = "";
       } else {
         let line = fmt(
-          t("rw.breakdown", "Active mode: {total} per scanned item · {n} scans"),
-          { total: fmtMs(s.liveAvgMs), n: s.liveSamples },
+          t("rw.breakdown2", "Direct {d} scans · Quentra {q} scans"),
+          { d: s.liveScans.direct, q: s.liveScans.quentra },
         );
         // Never present an average as clean when queries were failing.
         if (s.liveErrors > 0) {
@@ -217,6 +209,28 @@ export class UI {
     this.el.btnResume.addEventListener("click", () => c.resume());
     this.el.btnStop.addEventListener("click", () => c.stop());
     this.el.btnReset.addEventListener("click", () => c.reset());
+
+    // Live start overlay: presets fill the count input; Start hands the chosen
+    // size to the backend and disables itself until the state change lands.
+    if (this.el.livePresets) {
+      this.el.livePresets.querySelectorAll(".ls-preset").forEach((b) => {
+        b.addEventListener("click", () => {
+          if (this.el.liveCount) this.el.liveCount.value = b.dataset.count;
+          this.el.livePresets.querySelectorAll(".ls-preset").forEach((x) =>
+            x.classList.toggle("is-active", x === b));
+        });
+      });
+    }
+    if (this.el.btnLiveStart && c.startLive) {
+      this.el.btnLiveStart.addEventListener("click", async () => {
+        this.el.btnLiveStart.disabled = true;
+        try {
+          await c.startLive(parseInt(this.el.liveCount && this.el.liveCount.value, 10));
+        } finally {
+          this.el.btnLiveStart.disabled = false;
+        }
+      });
+    }
 
     document.querySelectorAll(".speed-btn").forEach((b) => {
       b.addEventListener("click", () => {
@@ -247,66 +261,114 @@ export class UI {
     const [state, key] = map[s];
     this.el.statusPill.dataset.state = state;
     this.el.statusLabel.textContent = t(key, key);
-    // Pause is available only while running; Resume ONLY while paused. "Stopped"
-    // is terminal — Resume cannot continue it (use Reset), so it must be disabled
-    // rather than look clickable and do nothing.
     this.el.btnPause.disabled = s !== ENGINE_STATE.RUNNING;
     this.el.btnResume.disabled = s !== ENGINE_STATE.PAUSED;
-    // Stop is pointless once stopped; Reset is the way back.
     if (this.el.btnStop) this.el.btnStop.disabled = s === ENGINE_STATE.STOPPED;
   }
 
-  update(sim, engine) {
-    const k = sim.kpis();
+  /** Main UI refresh: engine carries both banks ([0] direct, [1] Quentra). */
+  update(engine) {
+    const sims = engine.sims;
+    const left = sims[0], right = sims[1];
+    const isLive = typeof left.statusInfo === "function";
     this.renderStory();
-    if (typeof sim.statusInfo === "function") this._syncStatus(sim.statusInfo());
-    this.el.clock.textContent = fmtClock(sim.time);
-    this.el.kpiTotal.textContent = k.total;
-    this.el.kpiWaiting.textContent = k.waiting;
-    this.el.kpiInCheckout.textContent = k.inCheckout;
-    this.el.kpiCompleted.textContent = k.completed;
-    this.el.kpiSales.textContent = sim.money(k.totalSales);
-    this.el.kpiItems.textContent = k.itemsScanned;
-    this.el.kpiAvgCheckout.textContent = k.avgCheckout.toFixed(1) + "s";
-    this.el.kpiAvgQueue.textContent = k.avgQueue.toFixed(1) + "s";
-    // Both timing KPIs shift colour with severity and pulse once they turn bad,
-    // so the slow path is obvious without reading the numbers.
-    setSeverity(this.el.kpiAvgCheckout, k.avgCheckout, 8, 20);
-    setSeverity(this.el.kpiAvgQueue, k.avgQueue, 15, 40);
-    // Direct vs Quentra breakdown, shown once either route has samples.
-    this._renderSplit(this.el.kpiAvgCheckoutSplit, this.el.kpiChkDirect, this.el.kpiChkQuentra,
-      k.avgCheckoutDirect, k.avgCheckoutQuentra);
-    this.el.kpiTpm.textContent = k.tpm.toFixed(1);
+    if (isLive) this._syncStatus(left.statusInfo());
+    // The start overlay covers the floors whenever live mode is attached but
+    // the backend engine is idle — the operator sizes the run before it begins.
+    if (this.el.liveStart) {
+      const idle = isLive && ["IDLE", "STOPPED", "COMPLETED", "ERROR"].includes(left.simState);
+      this.el.liveStart.hidden = !idle;
+    }
+    this.el.clock.textContent = fmtClock(left.time);
 
-    this._renderRegisterGrid(sim);
-    this._renderFeed(sim);
-    this._renderSelected(sim);
+    const lk = left.kpis();
+    const rk = right.kpis();
+
+    // Store-wide figures. Live snapshots already report store totals (both
+    // banks), so read them once; demo sums the two independent floors.
+    const g = isLive ? lk : {
+      total: lk.total + rk.total,
+      totalSales: lk.totalSales + rk.totalSales,
+      itemsScanned: lk.itemsScanned + rk.itemsScanned,
+      tpm: lk.tpm + rk.tpm,
+    };
+    this.el.kpiTotal.textContent = g.total;
+    this.el.kpiSales.textContent = left.money(g.totalSales);
+    this.el.kpiItems.textContent = g.itemsScanned;
+    this.el.kpiTpm.textContent = g.tpm.toFixed(1);
+
+    // Per-bank clusters. Live queue/completed counts come from that bank's own
+    // registers; timing splits come from the backend's per-route metrics.
+    const sumQ = (sim) => sim.registers.reduce((a, r) => a + (r.queueLength || 0), 0);
+    const sumDone = (sim) => sim.registers.reduce((a, r) => a + (r.completedCust || 0), 0);
+    const bank = (sim, k, live) => ({
+      waiting: live ? sumQ(sim) : k.waiting,
+      completed: live ? sumDone(sim) : k.completed,
+      avgChk: live ? (sim === left ? k.avgCheckoutDirect : k.avgCheckoutQuentra) : k.avgCheckout,
+      scanMs: live ? (sim === left ? k.scanMsDirect : k.scanMsQuentra) : k.scanMs,
+    });
+    const d = bank(left, lk, isLive);
+    const q = bank(right, rk, isLive);
+
+    this.el.kpiDWaiting.textContent = d.waiting;
+    this.el.kpiDCompleted.textContent = d.completed;
+    this.el.kpiDAvgChk.textContent = d.avgChk.toFixed(1) + "s";
+    this.el.kpiDScan.textContent = d.scanMs > 0 ? fmtMs(d.scanMs) : "—";
+    this.el.kpiQWaiting.textContent = q.waiting;
+    this.el.kpiQCompleted.textContent = q.completed;
+    this.el.kpiQAvgChk.textContent = q.avgChk.toFixed(1) + "s";
+    this.el.kpiQScan.textContent = q.scanMs > 0 ? fmtMs(q.scanMs) : "—";
+    // Severity colours make the slow bank obvious without reading the numbers.
+    setSeverity(this.el.kpiDAvgChk, d.avgChk, 8, 20);
+    setSeverity(this.el.kpiQAvgChk, q.avgChk, 8, 20);
+    setSeverity(this.el.kpiDScan, d.scanMs / 1000, 1, 3);
+    setSeverity(this.el.kpiQScan, q.scanMs / 1000, 1, 3);
+
+    this._renderRegisterGrid(sims);
+    this._renderFeed(sims);
+    this._renderSelected(sims);
   }
 
-  _renderRegisterGrid(sim) {
+  _findRegister(sim, id) {
+    return sim.registers.find((r) => r.id === id) || null;
+  }
+
+  _routeOf(sims, sim, r) {
+    if (r && r.route) return r.route;
+    return sims.indexOf(sim) === 1 ? "quentra" : "direct";
+  }
+
+  _renderRegisterGrid(sims) {
     const grid = this.el.registerGrid;
-    if (!this._gridBuilt) {
+    const key = sims.map((s) => s.registers.map((r) => r.id).join(",")).join("|");
+    if (this._gridKey !== key) {
+      this._gridKey = key;
       grid.innerHTML = "";
-      for (const r of sim.registers) {
-        const cell = document.createElement("div");
-        cell.className = "reg-cell";
-        cell.dataset.id = r.id;
-        cell.tabIndex = 0;
-        cell.setAttribute("role", "button");
-        cell.innerHTML = `
-          <div class="reg-cell-top"><span class="reg-name">${regLabel(r.id)}</span><span class="reg-queue"></span></div>
-          <span class="reg-cashier"></span>
-          <div class="reg-bar"><i></i></div>`;
-        cell.addEventListener("click", () => this.selectRegister(sim, r.id));
-        cell.addEventListener("keydown", (ev) => {
-          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); this.selectRegister(sim, r.id); }
-        });
-        grid.appendChild(cell);
-      }
-      this._gridBuilt = true;
+      sims.forEach((sim, si) => {
+        for (const r of sim.registers) {
+          const cell = document.createElement("div");
+          cell.className = "reg-cell";
+          cell.dataset.id = r.id;
+          cell.dataset.sim = si;
+          cell.tabIndex = 0;
+          cell.setAttribute("role", "button");
+          cell.innerHTML = `
+            <div class="reg-cell-top"><span class="reg-name">${regLabel(r.id)}</span><span class="reg-queue"></span></div>
+            <span class="reg-cashier"></span>
+            <div class="reg-bar"><i></i></div>`;
+          cell.addEventListener("click", () => this.selectRegister(this.engine, sim, r.id));
+          cell.addEventListener("keydown", (ev) => {
+            if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); this.selectRegister(this.engine, sim, r.id); }
+          });
+          grid.appendChild(cell);
+        }
+      });
     }
     for (const cell of grid.children) {
-      const r = sim.registers[Number(cell.dataset.id) - 1];
+      const sim = sims[Number(cell.dataset.sim)] || sims[0];
+      const r = this._findRegister(sim, Number(cell.dataset.id));
+      if (!r) continue;
+      cell.dataset.route = this._routeOf(sims, sim, r);
       cell.classList.toggle("is-selected", r.id === sim.selectedRegisterId);
       const nameEl = cell.querySelector(".reg-name");
       if (nameEl) nameEl.textContent = regLabel(r.id);
@@ -317,16 +379,22 @@ export class UI {
     }
   }
 
-  _renderFeed(sim) {
-    this.el.eventFeed.innerHTML = sim.events.map((e) => {
+  _renderFeed(sims) {
+    const events = sims
+      .flatMap((s) => s.events)
+      .slice()
+      .sort((a, b) => b.t - a.t)
+      .slice(0, 40);
+    this.el.eventFeed.innerHTML = events.map((e) => {
       const label = e.regId != null ? regLabel(e.regId) : (e.source || "");
       const text = e.key ? fmt(t(e.key, e.key), e.params) : (e.text || "");
       return `<div class="feed-item"><span class="feed-time">${fmtClock(e.t)}</span><span class="feed-text"><b>${label}</b> · ${text}</span></div>`;
     }).join("");
   }
 
-  _renderSelected(sim) {
-    const r = sim.selectedRegister;
+  _renderSelected(sims) {
+    const sim = sims.find((s) => s.selectedRegister) || null;
+    const r = sim ? sim.selectedRegister : null;
     if (!r) {
       this.el.selected.innerHTML = `
         <div class="cc-empty">
@@ -349,37 +417,47 @@ export class UI {
         </div>`;
       return;
     }
+    const route = this._routeOf(sims, sim, r);
+    const routeTag = route === "quentra"
+      ? `<span class="state-chip" data-s="QUENTRA" style="border-color:#c7d2fe;color:#4f46e5">Quentra</span>`
+      : `<span class="state-chip" data-s="DIRECT" style="border-color:#fde68a;color:#b45309">${t("route.direct", "Direct")}</span>`;
     const c = r.currentCustomer;
     const cashApp = (r.cashier && r.cashier.appearance) || {};
     const cashierName = r.cashier && r.cashier.name ? r.cashier.name : t("cc.cashierOnDuty", "Cashier on duty");
     const scanning = r.state === "SCANNING";
     this.el.selected.innerHTML = `
       <div class="detail-title"><strong>${regLabel(r.id)}</strong>
+        ${routeTag}
         <span class="state-chip" data-s="${r.state}">${r.state}</span></div>
       <div class="cc-cashier">
         ${cashierAvatar(cashApp, scanning)}
         <div class="cc-cash-meta">
           <button type="button" class="cc-cash-name" title="${t("cc.cashierSelect", "Select cashier")}">${esc(cashierName)}</button>
           <span class="cc-cash-role">${t("cc.cashierOnDuty", "Cashier on duty")}</span>
-          <span class="cc-cash-status">${scanning ? t("cc.scanning", "Scanning items\u2026") : (c ? t("cc.atRegister", "At the register") : t("cc.ready", "Ready"))}</span>
+          <span class="cc-cash-status">${scanning ? t("cc.scanning", "Scanning items…") : (c ? t("cc.atRegister", "At the register") : t("cc.ready", "Ready"))}</span>
         </div>
       </div>
       ${scanItemBlock(r, sim)}
       ${scannedItemsBlock(r, sim)}
-      <div class="detail-row"><span>${t("cc.currentCustomer", "Current customer")}</span><b>${c ? (c.name || "#" + c.id) : "\u2014"}</b></div>
+      <div class="detail-row"><span>${t("cc.currentCustomer", "Current customer")}</span><b>${c ? (c.name || "#" + c.id) : "—"}</b></div>
       <div class="detail-row"><span>${t("cc.queueLength", "Queue length")}</span><b>${r.queueLength}</b></div>
       <div class="detail-row"><span>${t("cc.scannedItems", "Scanned items")}</span><b>${c ? c.scannedItems + " / " + c.basketItems : "—"}</b></div>
       <div class="detail-row"><span>${t("cc.basketTotal", "Basket total")}</span><b>${c ? sim.money(c.runningTotal || 0) : "—"}</b></div>
       <div class="detail-row"><span>${t("cc.remainingTime", "Remaining time")}</span><b>${r.currentCustomer ? r.estimatedRemaining().toFixed(1) + "s" : "—"}</b></div>
       <div class="detail-row"><span>${t("cc.lastSale", "Last sale")}</span><b>${r.lastSale ? sim.money(r.lastSale.total) : "—"}</b></div>`;
     const cashierButton = this.el.selected.querySelector(".cc-cash-name");
-    if (cashierButton) cashierButton.addEventListener("click", () => this.selectRegister(sim, r.id));
+    if (cashierButton) cashierButton.addEventListener("click", () => this.selectRegister(this.engine, sim, r.id));
   }
 
-  selectRegister(sim, id) {
+  /** Select a register on one bank, clearing any selection on the other. */
+  selectRegister(engine, sim, id) {
+    const sims = engine ? engine.sims : [sim];
+    for (const s of sims) {
+      if (s !== sim) s.selectRegister(null);
+    }
     sim.selectRegister(id);
-    this._renderRegisterGrid(sim);
-    this._renderSelected(sim);
+    this._renderRegisterGrid(sims);
+    this._renderSelected(sims);
   }
 }
 

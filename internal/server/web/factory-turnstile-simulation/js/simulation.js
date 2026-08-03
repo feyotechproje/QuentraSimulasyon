@@ -4,8 +4,7 @@
 // nothing about the DOM or the canvas — the renderer and UI only read from it.
 
 import {
-  WORLD, GATE_COUNT, spawnPoint, queueSlot, readerPoint, entryPath, rejectPath,
-  manualReviewPath,
+  WORLD, BANK_GATE_COUNT, createWorld, spawnPoint, queueSlot, readerPoint, entryPath,
 } from "./world.js";
 import { Worker, WORKER_STATE } from "./worker.js";
 import { buildTurnstiles, GATE_STATE, LIGHT } from "./turnstile.js";
@@ -19,7 +18,7 @@ const PRESENT_TIME = 0.65;
 const RESULT_HOLD = 1.1;
 const SHIFT_START = 8 * 3600; // 08:00:00
 const SPAWN_EVERY = 0.5;
-const SOFT_CAP = 230;
+const SOFT_CAP = 120; // per bank — the store runs two banks side by side
 const MANUAL_LINGER = 7;
 
 // Maps the fixed English "reason" strings produced by access-check.js's
@@ -37,7 +36,18 @@ function reasonKey(reason) {
 }
 
 export class Simulation {
-  constructor() {
+  /**
+   * @param {object} [opts] one BANK of the dual entrance:
+   *        gateCount — turnstiles on this floor;
+   *        idOffset  — first gate number minus one (right bank: 5);
+   *        mode      — "baseline" | "quentra": fixes this floor's query profile
+   *                    so the slow and fast banks run side by side.
+   */
+  constructor(opts = {}) {
+    this.gateCount = opts.gateCount || BANK_GATE_COUNT;
+    this.idOffset = opts.idOffset || 0;
+    this.fixedMode = opts.mode === "quentra" ? "quentra" : "baseline";
+    this.world = createWorld(this.gateCount);
     this.dataSource = new InMemoryFactoryAccessDataSource();
     this.events = new EventLog(60);
     this.reset();
@@ -46,15 +56,21 @@ export class Simulation {
   reset() {
     this.clock = 0;
     this.speed = 1;
-    this.running = true;
-    this.status = "RUNNING";
-    this.mode = "baseline";
-    this.dataSource.profile = SimulationProfile.SlowBaseline;
+    // Boots idle: the seeded queues stand as a static preview until the
+    // operator picks the shift size on the start overlay (retail-style).
+    this.running = false;
+    this.status = "IDLE";
+    // Total workers this bank will admit for the shift; 0 = not started yet.
+    this.totalWorkers = 0;
+    this.mode = this.fixedMode;
+    this.dataSource.profile = this.fixedMode === "quentra"
+      ? SimulationProfile.QuentraOptimized
+      : SimulationProfile.SlowBaseline;
     this.compare = {
       baseline: { sum: 0, n: 0, slow: 0, timeouts: 0, entries: 0 },
       quentra: { sum: 0, n: 0, slow: 0, timeouts: 0, entries: 0 },
     };
-    this.gates = buildTurnstiles(GATE_COUNT);
+    this.gates = buildTurnstiles(this.gateCount, this.idOffset);
     this.workers = [];
     this.spawnTimer = 0;
     this.totalArrived = 0;
@@ -122,10 +138,19 @@ export class Simulation {
     for (const gate of this.gates) this._processGate(gate, dt);
     this._cleanup();
     this._recomputeKPIs();
+
+    // Shift complete: every admitted worker has been resolved and left the
+    // floor. The overlay reappears so the operator can size the next shift.
+    if (this.totalWorkers > 0 && this.totalArrived >= this.totalWorkers && this.workers.length === 0) {
+      this.running = false;
+      this.status = "COMPLETED";
+    }
   }
 
   _spawn(dt) {
     if (this.workers.length >= SOFT_CAP) return;
+    // Stop admitting once the shift's worker budget has walked in.
+    if (this.totalWorkers > 0 && this.totalArrived >= this.totalWorkers) return;
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0) {
       this.spawnTimer += SPAWN_EVERY * (0.6 + Math.random() * 0.9);
@@ -319,7 +344,7 @@ export class Simulation {
       gate.light = LIGHT.RED;
       gate.message.line = "ACCESS DENIED";
       this.accessDenied++;
-      w.setPath(rejectPath(gate.x));
+      w.setPath(this.world.rejectPath(gate.x));
       w.state = WORKER_STATE.WALKING_OUT;
       this.events.push(
         this.clockString(),
@@ -336,7 +361,7 @@ export class Simulation {
       gate.message.line = "MANUAL REVIEW";
       this.manualReview++;
       const deskIndex = this._manualQueueCount();
-      w.setPath(manualReviewPath(gate.x, deskIndex));
+      w.setPath(this.world.manualReviewPath(gate.x, deskIndex));
       w.manualLinger = MANUAL_LINGER;
       this.events.push(
         this.clockString(),
@@ -441,20 +466,17 @@ export class Simulation {
   }
 
   // ---- controls -----------------------------------------------------------
-  pause() { this.running = false; this.status = "PAUSED"; }
-  resume() { this.running = true; this.status = "RUNNING"; }
+  pause() { if (this.running) { this.running = false; this.status = "PAUSED"; } }
+  resume() { if (this.status === "PAUSED") { this.running = true; this.status = "RUNNING"; } }
   stop() { this.running = false; this.status = "STOPPED"; }
   setSpeed(mult) { this.speed = mult; }
 
-  // Swap the last-movement query profile between the slow baseline and the
-  // Quentra query-rewrite lookup. Per-mode metrics keep accumulating so the
-  // before/after comparison persists as you toggle.
-  setMode(mode) {
-    if (mode !== "baseline" && mode !== "quentra") return;
-    this.mode = mode;
-    this.dataSource.profile = mode === "quentra"
-      ? SimulationProfile.QuentraOptimized
-      : SimulationProfile.SlowBaseline;
+  /** Start a fresh shift admitting `total` workers on this bank. */
+  startShift(total) {
+    this.reset();
+    this.totalWorkers = Math.max(1, total | 0);
+    this.running = true;
+    this.status = "RUNNING";
   }
 
   compareStats() {

@@ -4,9 +4,7 @@
 // workers pass *between* the turnstile cabinets rather than over them.
 
 import { drawPerson } from "../../retail-simulation/js/customer.js";
-import {
-  WORLD, WORLD_BOUNDS, SQUASH, GATE_COUNT, gateX, LAST_GATE_X, SECURITY,
-} from "./world.js";
+import { WORLD, SQUASH, createWorld } from "./world.js";
 import { GATE_STATE, LIGHT } from "./turnstile.js";
 
 // Small helper so canvas-drawn scenery text (banners, signs, on-screen gate
@@ -80,8 +78,15 @@ const LIGHT_RGB = {
 };
 
 export class Renderer {
-  constructor(canvas) {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {object} [opts] world: this bank's geometry (createWorld output);
+   *        banner: wall banner text override for the bank.
+   */
+  constructor(canvas, opts = {}) {
     this.canvas = canvas;
+    this.world = opts.world || createWorld();
+    this.banner = opts.banner || null;
     this.ctx = canvas.getContext("2d");
     this.dpr = 1;
     this.scale = 1;
@@ -92,6 +97,7 @@ export class Renderer {
   }
 
   resize() {
+    const WORLD_BOUNDS = this.world.WORLD_BOUNDS;
     const rect = this.canvas.getBoundingClientRect();
     const cssW = Math.max(320, rect.width);
     const cssH = Math.max(320, rect.height);
@@ -163,6 +169,7 @@ export class Renderer {
   // ---- environment --------------------------------------------------------
   _floor() {
     const ctx = this.ctx;
+    const { WORLD_BOUNDS, LAST_GATE_X } = this.world;
     const a = this.toScreen(WORLD_BOUNDS.minX, WORLD_BOUNDS.minY);
     const b = this.toScreen(WORLD_BOUNDS.maxX, WORLD_BOUNDS.maxY);
     const grad = ctx.createLinearGradient(0, a.y, 0, b.y);
@@ -194,6 +201,7 @@ export class Renderer {
 
   _backWall(sim) {
     const ctx = this.ctx;
+    const { WORLD_BOUNDS, LAST_GATE_X } = this.world;
     const wallY = WORLD.corridorY - 26;
     const left = this.toScreen(WORLD_BOUNDS.minX, wallY);
     const right = this.toScreen(WORLD_BOUNDS.maxX, wallY);
@@ -221,7 +229,7 @@ export class Renderer {
     ctx.font = `700 ${Math.max(10, 12 * this.scale)}px 'Segoe UI',sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(t("scene.employeeEntrance", "EMPLOYEE ENTRANCE"), bx.x, bx.y - wallH - bh / 2 - 4);
+    ctx.fillText(this.banner || t("scene.employeeEntrance", "EMPLOYEE ENTRANCE"), bx.x, bx.y - wallH - bh / 2 - 4);
     ctx.fillStyle = COL.accent;
     ctx.fillRect(bx.x - bw / 2, bx.y - wallH - 4, bw, 3 * this.scale);
     ctx.restore();
@@ -508,6 +516,7 @@ export class Renderer {
   // ---- security / manual review ------------------------------------------
   _securityDesk(sim) {
     const ctx = this.ctx;
+    const SECURITY = this.world.SECURITY;
     // desk
     this._isoBox(SECURITY.deskX, SECURITY.deskY, 46, 30, 18,
       "#e6d9c4", "#cdbb9c", "#b9a684", "#9c8a6c");

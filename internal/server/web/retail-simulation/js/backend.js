@@ -89,9 +89,15 @@ function mapStatus(s) {
 }
 
 export class ApiSimulation {
-  constructor(registerCount) {
+  /**
+   * @param {number} registerCount registers on THIS floor (one bank of the store)
+   * @param {object} [opts] idOffset: first register number minus one, so the
+   *        right bank renders backend registers 06..10 on its own canvas.
+   */
+  constructor(registerCount, opts = {}) {
     this.data = new InMemoryDemoDataSource((Date.now() & 0xffff) || 7); // visuals only
-    this.world = buildWorld(registerCount);
+    this.idOffset = opts.idOffset || 0;
+    this.world = buildWorld(registerCount, this.idOffset);
     this.registers = this.world.registers.map((r) => this._makeVisualRegister(r));
     this.customers = [];
 
@@ -151,14 +157,14 @@ export class ApiSimulation {
   _ensureRegisterCount(n) {
     if (n > 0 && n !== this.registers.length) {
       const sel = this.selectedRegisterId;
-      this.world = buildWorld(n);
+      this.world = buildWorld(n, this.idOffset);
       this.registers = this.world.registers.map((r) => this._makeVisualRegister(r));
       this.customers = [];
       this._prevQueueLen.clear();
       // The floor was rebuilt, so re-seed: place the current queues directly
       // rather than marching the whole crowd back in through the door.
       this._seeded = false;
-      if (sel && sel <= n) this.selectRegister(sel);
+      if (sel && this.registerById(sel)) this.selectRegister(sel);
     }
   }
 
@@ -195,6 +201,7 @@ export class ApiSimulation {
     for (const rs of regs) {
       const vr = this.registerById(rs.no);
       if (!vr) continue;
+      vr.route = rs.route || "direct";
       vr.status = rs.status;
       vr.state = mapStatus(rs.status);
       // Item currently under the scanner, for the selected-register panel.
@@ -329,11 +336,14 @@ export class ApiSimulation {
     // completed is newest-first; iterate oldest-first so feed order is natural
     for (let i = completed.length - 1; i >= 0; i--) {
       const s = completed[i];
+      // This floor shows one bank of the store: skip the other bank's sales so
+      // the shared feed (merged across both floors) never duplicates an invoice.
+      const vr = this.registerById(s.register);
+      if (!vr) continue;
       const key = s.invoiceNo || `${s.register}-${s.completedAt}-${s.total}`;
       if (this._seenSales.has(key)) continue;
       this._seenSales.add(key);
-      const vr = this.registerById(s.register);
-      if (vr) vr.lastSale = { total: s.total, items: s.lineCount };
+      vr.lastSale = { total: s.total, items: s.lineCount };
       this._pushEvent(s.register, "feed.invoice", { invoice: s.invoiceNo || "", money: this.money(s.total), items: s.lineCount });
     }
     if (this._seenSales.size > 500) this._seenSales = new Set([...this._seenSales].slice(-300));
@@ -400,6 +410,11 @@ export class ApiSimulation {
       avgCheckoutQuentra: (m.avgProcessQuentraMs || 0) / 1000,
       avgQueueDirect: (m.avgWaitDirectMs || 0) / 1000,
       avgQueueQuentra: (m.avgWaitQuentraMs || 0) / 1000,
+      // Measured per-scan DB time per bank (ms), for the side KPI clusters.
+      scanMsDirect: m.avgScanDbDirectMs || 0,
+      scanMsQuentra: m.avgScanDbQuentraMs || 0,
+      scanCountDirect: m.scanCountDirect || 0,
+      scanCountQuentra: m.scanCountQuentra || 0,
     };
   }
 

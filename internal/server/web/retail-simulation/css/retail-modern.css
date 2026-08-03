@@ -226,3 +226,118 @@ html, body {
   .cc-product-row { grid-template-columns: 22px minmax(0, 1fr) 54px; }
   .cc-product-total { display: none; }
 }
+
+/* ============================== dual-bank stage ==============================
+   The store runs as two register banks side by side: direct on the left canvas,
+   Quentra on the right, with the shared detail panel between them. */
+.stage.stage-dual {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 356px) minmax(0, 1fr);
+}
+.bank { display: flex; flex-direction: column; overflow: hidden; }
+.bank canvas { flex: 1 1 auto; min-height: 0; }
+.bank-head {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding: 7px 12px; border-bottom: 1px solid #dce4ee;
+  font-size: 11px; letter-spacing: .4px;
+  position: sticky; top: 0; z-index: 2; background: #fff;
+}
+.bank-head b { font-size: 12px; letter-spacing: .8px; }
+.bank-head span { color: #64748b; font-weight: 500; }
+.bh-direct b { color: #b45309; }
+.bh-direct { border-top: 3px solid #f59e0b; }
+.bh-quentra b { color: #4f46e5; }
+.bh-quentra { border-top: 3px solid #6366f1; }
+
+/* KPI band: side clusters mirror the floor below; globals sit in the middle. */
+.kpi-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr) minmax(0, 1.15fr);
+  gap: 8px; align-items: stretch;
+}
+.kpi-side {
+  border: 1px solid var(--retail-line); border-radius: 9px; background: #fff;
+  box-shadow: 0 3px 10px rgba(30, 41, 59, .055);
+  padding: 7px 9px 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0;
+}
+.kpi-side-head {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .5px; color: #475569;
+  text-transform: uppercase;
+}
+.kpi-side-head i { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.kpi-side-direct .kpi-side-head i { background: #f59e0b; }
+.kpi-side-quentra .kpi-side-head i { background: #6366f1; }
+.kpi-side-direct { border-top: 3px solid #f59e0b; }
+.kpi-side-quentra { border-top: 3px solid #6366f1; }
+.kpi-mini-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; flex: 1; }
+.kpi-mini {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  min-width: 0; padding: 4px 7px; border: 1px solid #edf1f6; border-radius: 8px; background: #fbfcfe;
+}
+.kpi-mini .kpi-label { font-size: 9.5px; color: #718096; letter-spacing: .3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-mini .kpi-value { font-size: 15px; font-weight: 800; color: #172033; }
+.kpi-mini .kpi-value[data-sev="warn"] { color: #b45309; }
+.kpi-mini .kpi-value[data-sev="bad"] { color: #b91c1c; }
+.kpi-globals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.kpi-globals .kpi-card { min-height: 0; }
+
+/* Register-overview grid: colour cards by bank so 01-05 vs 06-10 reads apart. */
+.reg-cell[data-route="direct"] { border-left: 3px solid #f59e0b; }
+.reg-cell[data-route="quentra"] { border-left: 3px solid #6366f1; }
+
+@media (max-width: 1500px) {
+  .stage.stage-dual { grid-template-columns: minmax(0, 1fr) minmax(270px, 310px) minmax(0, 1fr); }
+}
+@media (max-width: 1180px) {
+  .kpi-band { grid-template-columns: 1fr 1fr; }
+  .kpi-globals { grid-column: 1 / -1; order: -1; }
+}
+@media (max-width: 1120px) {
+  /* Stacked: direct bank, panel, quentra bank each full width. */
+  .stage.stage-dual { grid-template-columns: 1fr; }
+  .bank { min-height: 480px; }
+}
+@media (max-width: 700px) {
+  .kpi-band { grid-template-columns: 1fr; }
+  .kpi-globals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---- live start overlay: pick the customer count before the run begins ---- */
+.stage { position: relative; }
+.live-start {
+  position: absolute; inset: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 23, 42, .38); backdrop-filter: blur(2px); border-radius: 10px;
+}
+.ls-card {
+  width: min(380px, 92%);
+  background: #fff; border: 1px solid var(--retail-line); border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, .28);
+  padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;
+}
+.ls-card h3 { font-size: 15px; color: #172033; }
+.ls-card p { font-size: 11.5px; color: #64748b; line-height: 1.45; }
+.ls-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.ls-preset {
+  padding: 7px 0; border: 1px solid var(--retail-line); border-radius: 8px;
+  background: #f8fafc; color: #334155; font-weight: 700; font-size: 12px; cursor: pointer;
+}
+.ls-preset:hover { border-color: #93b4ee; background: #f2f7ff; }
+.ls-preset.is-active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.ls-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ls-row label { font-size: 12px; color: #475569; font-weight: 600; }
+.ls-row input {
+  width: 110px; padding: 7px 9px; border: 1px solid var(--retail-line); border-radius: 8px;
+  font: inherit; font-weight: 700; color: #172033; text-align: right;
+}
+.ls-start {
+  margin-top: 2px; padding: 10px 0; border: 0; border-radius: 9px; cursor: pointer;
+  background: linear-gradient(90deg, #4f46e5, #7c3aed); color: #fff;
+  font-weight: 800; font-size: 13px; letter-spacing: .3px;
+}
+.ls-start:disabled { opacity: .55; cursor: default; }
+
+/* The author display:flex above would defeat the hidden attribute (UA
+   display:none loses to author styles), leaving the overlay permanently on
+   screen. Honour hidden explicitly. */
+.live-start[hidden] { display: none; }

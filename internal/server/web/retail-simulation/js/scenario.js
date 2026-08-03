@@ -1,21 +1,15 @@
 // scenario.js
 // Drives the "direct connection vs Quentra" comparison on top of the checkout
-// simulation. Two orthogonal axes:
+// simulation. The store runs BOTH routes at once: the left register bank scans
+// over the direct connection, the right bank through the Quentra gateway.
 //
-//   run mode   : "demo" | "live"
-//   connection : "direct" | "quentra"
-//
-// DEMO  — nothing is executed against SQL Server. The scan cadence is scaled
-//         locally by DEMO_SCAN_SEC so the queue visibly piles up on the direct
-//         connection and drains once Quentra rewrites the lookup. The latency
-//         figures shown are the fixed demo constants, and are labelled as such.
-// LIVE  — the real engine runs the per-scan stock lookup. On "direct" that is
-//         the slow scalar UDF (dbo.QUENTRA_GetItemStock); on "quentra" the call
-//         is rewritten to a constant. Latency figures come from the backend
-//         snapshot (avgScanDbMs) — measured, never invented.
-//
-// In demo mode with auto on, a narrated STORY drives both the captions and the
-// connection switches so the animation explains the improvement as it happens.
+// run mode:
+//   DEMO — nothing is executed against SQL Server. The left floor's cadence is
+//          the fixed slow constant, the right floor's the fast one, so the
+//          direct queue visibly piles up while the Quentra side drains.
+//   LIVE — the Go engine runs the real per-scan stock lookup on every register,
+//          each over its own bank's connection. Latency figures come from the
+//          backend snapshot per route — measured, never invented.
 
 export const RUN_MODE = { DEMO: "demo", LIVE: "live" };
 export const CONNECTION = { DIRECT: "direct", QUENTRA: "quentra" };
@@ -24,28 +18,23 @@ export const CONNECTION = { DIRECT: "direct", QUENTRA: "quentra" };
 export const DEMO_SCAN_SEC = { direct: 5, quentra: 0.1 };
 
 /**
- * The auto-demo story. Each beat holds for `hold` seconds, optionally switches
- * the connection, and shows a caption explaining what the audience is watching.
- * `tone` drives the caption's styling: neutral / bad (the problem building) /
- * good (the fix landing).
- *
- * The arc: a normal store -> a software update adds a per-scan stock lookup ->
- * queues grow -> Quentra rewrites the call away -> queues drain -> the summary.
+ * The auto-demo story. Each beat holds for `hold` seconds and shows a caption
+ * explaining what the audience is watching. Both banks always run their own
+ * route — the story narrates the standing comparison instead of switching it.
  */
 export const STORY = [
-  { key: "story.normal",   fallback: "A normal morning. 10 registers, steady flow",            hold: 6,  tone: "neutral", conn: CONNECTION.QUENTRA },
-  { key: "story.update",   fallback: "A software update adds a stock check to every scan",      hold: 7,  tone: "bad",     conn: CONNECTION.DIRECT },
-  { key: "story.udf",      fallback: "Each barcode now calls a scalar UDF that scans the sales table", hold: 8, tone: "bad" },
-  { key: "story.slow",     fallback: "5s per item. The cashier waits, the queue grows",       hold: 9,  tone: "bad" },
-  { key: "story.pain",     fallback: "Nothing is broken. The database is simply asked too much.", hold: 8, tone: "bad" },
-  { key: "story.enter",    fallback: "Quentra rewrites the query at runtime. No code change",  hold: 7,  tone: "good",    conn: CONNECTION.QUENTRA },
-  { key: "story.rewrite",  fallback: "SELECT dbo.QUENTRA_GetItemStock(@p1)  →  SELECT 0",       hold: 8,  tone: "good" },
-  { key: "story.fast",     fallback: "0.1s per item. 50x faster, the queue drains",           hold: 9,  tone: "good" },
-  { key: "story.result",   fallback: "Same hardware · same data · same application code",       hold: 8,  tone: "good" },
+  { key: "story.normal",   fallback: "One store, two register banks: direct on the left, Quentra on the right", hold: 7, tone: "neutral" },
+  { key: "story.update",   fallback: "A software update added a stock check to every scan",                     hold: 7, tone: "bad" },
+  { key: "story.udf",      fallback: "Each barcode now calls a scalar UDF that scans the sales table",          hold: 8, tone: "bad" },
+  { key: "story.slow",     fallback: "Left bank: 5s per item. The cashier waits, the queue grows",              hold: 9, tone: "bad" },
+  { key: "story.enter",    fallback: "Right bank: the SAME query travels through Quentra",                      hold: 7, tone: "good" },
+  { key: "story.rewrite",  fallback: "SELECT dbo.QUENTRA_GetItemStock(@p1)  →  SELECT 0",                        hold: 8, tone: "good" },
+  { key: "story.fast",     fallback: "0.1s per item. 50x faster, the right queue drains",                       hold: 9, tone: "good" },
+  { key: "story.result",   fallback: "Same hardware · same data · same application code",                       hold: 8, tone: "good" },
 ];
 
 // The SQL shown before the backend answers with the grounded text. Mirrors
-// db.Store.StockLookupSQL so the panel is never empty on first paint.
+// db.Store.ItemScanSQL so the panel is never empty on first paint.
 const FALLBACK_SQL = {
   direct:
     "exec sp_executesql\n" +
@@ -63,76 +52,65 @@ const FALLBACK_SQL = {
 export class ScenarioController {
   /**
    * @param {object} client BackendClient — used only in live mode.
-   * @param {function} onChange invoked whenever mode/connection/SQL changes.
+   * @param {function} onChange invoked whenever mode/SQL changes.
    */
   constructor(client, onChange) {
     this.client = client;
     this.onChange = onChange || (() => {});
 
     this.runMode = RUN_MODE.DEMO;
-    this.connection = CONNECTION.DIRECT;
-    this.auto = true;           // auto-cycle in demo mode
-    this._autoElapsed = 0;
+    this.auto = true;           // auto-play the narration in demo mode
 
-    // Narration state: `beat` is the caption currently on screen (null when the
-    // operator is driving manually or in live mode).
+    // Narration state: `beat` is the caption currently on screen (null when in
+    // live mode or when the narration is off).
     this.beat = null;
     this.beatIndex = 0;
     this.beatCount = STORY.length;
     this._beatIndex = null;
     this._beatElapsed = Infinity;
 
-    // Demo-side measurements are derived from the fixed constants; live-side
-    // figures are filled in from the backend snapshot.
-    this.liveAvgMs = 0;      // product + stock, averaged over the current mode
-    this.liveLastMs = 0;
-    this.liveItemMs = 0;     // product-lookup share of the average
-    this.liveStockMs = 0;    // stock-lookup share of the average
-    this.liveSamples = 0;    // scans measured in the current mode window
-    this.liveErrors = 0;     // failed lookups, excluded from the average
-    // Whether the Quentra gateway pool was established. When false, live mode
-    // sends both modes down the same route and the comparison is not real.
+    // Live-side measured figures, split per route (both banks run at once).
+    this.liveMs = { direct: 0, quentra: 0 };       // avg per-scan DB ms
+    this.liveScans = { direct: 0, quentra: 0 };    // samples per route
+    this.liveErrors = 0;                           // failed lookups (excluded)
+    // Whether the Quentra gateway pool was established. When false, both banks
+    // travel the direct connection and the comparison is not real.
     this.gatewayUp = true;
     // Whether the captured Quentra statement shows a real rewrite (the UDF call
     // was eliminated). Live-only; defaults false so the badge never claims a
     // rewrite before the backend confirms one.
     this.liveRewritten = false;
     this.sql = { direct: FALLBACK_SQL.direct, quentra: FALLBACK_SQL.quentra };
-
-    // Remembers the best measurement seen per connection in live mode, so the
-    // comparison panel can still show "before" numbers after switching away.
-    this.seenLiveMs = { direct: 0, quentra: 0 };
   }
 
   // ------------------------------------------------------------------ state ---
   get isDemo() { return this.runMode === RUN_MODE.DEMO; }
-  get isQuentra() { return this.connection === CONNECTION.QUENTRA; }
+
+  /**
+   * SQL texts for the before/after panel. Demo plays the scripted story, so it
+   * shows the matching hand-written pair (both pretty-printed); live shows the
+   * application's real statement and the text CAPTURED from SQL Server, so a
+   * missing rewrite is visible instead of papered over.
+   */
+  get displaySQL() {
+    return this.isDemo ? FALLBACK_SQL : this.sql;
+  }
 
   /**
    * Whether the Quentra side truly rewrote the query (UDF call eliminated). The
-   * demo narrative always shows the rewrite; live mode reflects what was actually
-   * captured, so a missing gateway rule reads as "no rewrite" instead of faking
-   * "call eliminated".
+   * demo narrative always shows the rewrite; live mode reflects what was
+   * actually captured from SQL Server's DMVs.
    */
   get rewritten() { return this.isDemo ? true : this.liveRewritten; }
 
-  /** Seconds per scanned item currently in force (demo mode only). */
-  get demoScanSec() {
-    return this.isQuentra ? DEMO_SCAN_SEC.quentra : DEMO_SCAN_SEC.direct;
-  }
-
-  /** Backend stock-mode string for the current connection. */
-  get stockMode() {
-    return this.isQuentra ? "quentra" : "baseline";
-  }
-
   /**
    * Latency to display for a side, in milliseconds. In demo mode both sides are
-   * the fixed constants; in live mode they are whatever the engine measured.
+   * the fixed constants; in live mode they are whatever the engine measured on
+   * that bank.
    */
   latencyMs(side) {
     if (this.isDemo) return DEMO_SCAN_SEC[side] * 1000;
-    return this.seenLiveMs[side] || 0;
+    return this.liveMs[side] || 0;
   }
 
   /** True when the figures on screen come from real query execution. */
@@ -142,11 +120,11 @@ export class ScenarioController {
   async setRunMode(mode) {
     if (mode === this.runMode) return;
     this.runMode = mode;
-    this._autoElapsed = 0;
     if (mode === RUN_MODE.LIVE) {
-      this.auto = false;                 // live mode is always operator-driven
       this.beat = null;                  // captions describe the demo story only
-      await this._pushStockMode();
+      // Turn the real per-scan lookup ON. Routing is per register bank, so this
+      // single switch arms both sides of the comparison.
+      await this._post("baseline");
     } else {
       // Leaving live mode: stop the real per-scan lookup so we are not holding
       // SQL Server under load while the demo plays.
@@ -155,40 +133,19 @@ export class ScenarioController {
     this.onChange();
   }
 
-  async setConnection(conn) {
-    if (conn === this.connection) return;
-    this.connection = conn;
-    this._autoElapsed = 0;
-    if (this.runMode === RUN_MODE.LIVE) await this._pushStockMode();
-    this.onChange();
-  }
-
   setAuto(on) {
-    this.auto = !!on && this.isDemo;     // auto-cycling only makes sense in demo
-    this._autoElapsed = 0;
-    // Starting auto replays the story from the top; stopping clears the caption.
+    this.auto = !!on && this.isDemo;     // narration only makes sense in demo
     if (this.auto) this.restartStory();
     else this.beat = null;
     this.onChange();
   }
 
-  /** Manual toggle used by the Direct/Quentra buttons. Cancels auto-cycling. */
-  async selectConnection(conn) {
-    this.auto = false;
-    this.beat = null;
-    await this.setConnection(conn);
-  }
-
   /**
-   * Advance the auto-demo. Called each frame with the frame delta.
-   *
-   * When auto is on, the narrated STORY drives both the caption and the
-   * connection switches, so the animation explains itself. With auto off the
-   * operator drives the connection and no captions are shown.
+   * Advance the auto-demo narration. Called once per frame with the delta.
+   * Beats only narrate — both banks always run their own fixed route.
    */
   tick(dt) {
-    if (!this.isDemo) return;
-    if (!this.auto) { this.beat = null; return; }
+    if (!this.isDemo || !this.auto) { this.beat = null; return; }
 
     if (this._beatIndex == null) { this._beatIndex = -1; this._beatElapsed = Infinity; }
     const current = STORY[this._beatIndex];
@@ -196,14 +153,11 @@ export class ScenarioController {
     this._beatElapsed += dt;
     if (this._beatElapsed < hold) return;
 
-    // Advance to the next beat (looping), applying its connection if it sets one.
     this._beatIndex = (this._beatIndex + 1) % STORY.length;
     this._beatElapsed = 0;
-    const beat = STORY[this._beatIndex];
-    this.beat = beat;
+    this.beat = STORY[this._beatIndex];
     this.beatIndex = this._beatIndex;
     this.beatCount = STORY.length;
-    if (beat.conn && beat.conn !== this.connection) this.connection = beat.conn;
     this.onChange();
   }
 
@@ -222,35 +176,23 @@ export class ScenarioController {
   }
 
   /**
-   * Absorb backend snapshot metrics (live mode measurements).
-   *
-   * The headline figure is avgScanDbMs — product lookup + stock lookup summed
-   * per scanned item, which is the database time a cashier actually waits for.
-   * The backend clears this average whenever the stock mode changes, so it only
-   * ever describes the mode currently on screen.
+   * Absorb backend snapshot metrics (live mode measurements). Both banks run at
+   * once, so each column reads its own route's average directly — no mode
+   * gating, no column can land in the wrong side.
    */
   applySnapshot(snap) {
     const m = (snap && snap.metrics) || null;
     if (!m) return;
-    this.liveAvgMs = m.avgScanDbMs || 0;
-    this.liveLastMs = m.lastScanDbMs || 0;
-    this.liveItemMs = m.avgItemMs || 0;
-    this.liveStockMs = m.avgStockMs || 0;
-    this.liveSamples = m.stockLookups || 0;
     this.liveErrors = m.stockErrors || 0;
-    if (this.runMode !== RUN_MODE.LIVE) return;
-    // Only record a measurement when the backend agrees which mode is active,
-    // so a figure never lands in the wrong column during a switch. Requires at
-    // least one sample in the new window, otherwise a freshly-cleared average
-    // (0) would blank out the column mid-switch.
-    if (!this.liveSamples) return;
-    if (m.stockMode === "quentra") this.seenLiveMs.quentra = this.liveAvgMs;
-    else if (m.stockMode === "baseline") this.seenLiveMs.direct = this.liveAvgMs;
+    this.liveScans.direct = m.scanCountDirect || 0;
+    this.liveScans.quentra = m.scanCountQuentra || 0;
+    if (m.avgScanDbDirectMs) this.liveMs.direct = m.avgScanDbDirectMs;
+    if (m.avgScanDbQuentraMs) this.liveMs.quentra = m.avgScanDbQuentraMs;
   }
 
   // ------------------------------------------------------------------ wiring ---
   /**
-   * Each column is the single query the register runs per scanned barcode. The
+   * Each column is the single query a register runs per scanned barcode. The
    * two differ only in the stock expression, which is what the rewrite targets,
    * so the panel's SQL fully accounts for the latency the panel reports.
    */
@@ -260,8 +202,6 @@ export class ScenarioController {
     if (typeof res.gatewayUp === "boolean") this.gatewayUp = res.gatewayUp;
     if (typeof res.quentraRewritten === "boolean") this.liveRewritten = res.quentraRewritten;
   }
-
-  async _pushStockMode() { await this._post(this.stockMode); }
 
   async _post(mode) {
     if (!this.client) return;

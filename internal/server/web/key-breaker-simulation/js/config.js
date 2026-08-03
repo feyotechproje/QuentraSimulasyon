@@ -9,12 +9,12 @@ export const LAYOUT = {
   attackerX: 150,
   attackerTop: 132,
   attackerGap: 92,
-  heroCx: 560,          // Key Breaker character horizontal center
-  heroBaseY: 690,       // feet baseline
-  heroHeight: 520,
-  shieldCx: 632,
-  shieldCy: 372,
-  shieldR: 196,
+  heroCx: 566,          // Key Breaker character horizontal center
+  heroBaseY: 694,       // feet baseline
+  heroHeight: 566,
+  shieldCx: 592,        // energy barrier centred on the hero (frames him)
+  shieldCy: 388,
+  shieldR: 206,
   gatewayX: 812,
   gatewayTop: 176,
   gatewayGap: 74,
@@ -103,6 +103,6 @@ export const TIMINGS = {
 export const ASSETS = {
   hero: "assets/key-breaker.png",
   icon: "assets/quentra-icon.png",
-  logo: "/assets/quentra-logo.jpeg",
+  logo: "/assets/quentra-logo.png",
   reference: "assets/key-breaker-reference.png",
 };

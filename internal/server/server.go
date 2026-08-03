@@ -50,9 +50,16 @@ func New(engine *sim.Engine, hub *sim.Hub, store *db.Store, veh *vehicle.Manager
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	// Static UI.
+	// Static UI. Embedded files carry no modification time, so browsers get no
+	// validator and may heuristically cache modules across rebuilds — which
+	// shows a fresh HTML page wired to STALE JavaScript (buttons dead). Force
+	// revalidation on every request; the payload comes from RAM, so it is cheap.
 	sub, _ := fs.Sub(webFS, "web")
-	mux.Handle("GET /", http.FileServer(http.FS(sub)))
+	staticFiles := http.FileServer(http.FS(sub))
+	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		staticFiles.ServeHTTP(w, r)
+	}))
 
 	// State + settings.
 	mux.HandleFunc("GET /api/state", s.handleState)

@@ -121,10 +121,10 @@ func (e *Engine) dispatch(qc *QueuedCustomer) {
 	}
 	// Stamp the first queue entry only. Redistributing a queued customer to a
 	// different register must preserve both the original wait start and route.
+	// The route is the chosen register's own bank.
 	if qc.QueuedAtMs == 0 {
 		qc.QueuedAtMs = nowMs()
-		s := e.Settings()
-		qc.QueuedViaQuentra = s.StockLookup && s.QuentraRewrite && e.store != nil && e.store.HasQuentraGateway()
+		qc.QueuedViaQuentra = r.viaQuentra
 	}
 	r.enqueue(*qc)
 	e.emit(EvCustomerQueued, map[string]any{"register": no, "customer": qc.Customer.Name})
@@ -148,6 +148,23 @@ func (e *Engine) chooseRegister(qc *QueuedCustomer) *registerRT {
 	}
 	if len(open) == 0 {
 		return nil
+	}
+
+	// Registers form two permanent banks (direct / Quentra). New arrivals
+	// alternate between the banks so both routes see the same load; a customer
+	// re-dispatched from a closing register stays in its original bank so its
+	// accrued wait is never charged to the other side of the comparison.
+	var banks [2][]*registerRT
+	for _, r := range open {
+		mi := modeIndex(r.viaQuentra)
+		banks[mi] = append(banks[mi], r)
+	}
+	if len(banks[0]) > 0 && len(banks[1]) > 0 {
+		bank := int(e.bankCursor.Add(1)-1) % 2
+		if qc.QueuedAtMs != 0 {
+			bank = modeIndex(qc.QueuedViaQuentra)
+		}
+		open = banks[bank]
 	}
 
 	switch mode {
@@ -260,9 +277,9 @@ func (e *Engine) BuildSnapshot() Snapshot {
 	if e.procCount > 0 {
 		avgProc = e.procSumMs / e.procCount
 	}
-	stockSumMs := e.stockSumMs
-	itemSumMs := e.itemSumMs
-	scanDbCount := e.scanDbCount
+	stockSums := e.stockSumByMode
+	itemSums := e.itemSumByMode
+	scanCounts := e.scanDbCountByMode
 	// Per-route averages (0 = direct, 1 = Quentra gateway).
 	avgOf := func(sum, n int64) int64 {
 		if n <= 0 {
@@ -273,19 +290,15 @@ func (e *Engine) BuildSnapshot() Snapshot {
 	avgProcDirect := avgOf(e.procSumByMode[0], e.procCountByMode[0])
 	avgProcQuentra := avgOf(e.procSumByMode[1], e.procCountByMode[1])
 	// Waiting time is deliberately a rolling window. A lifetime average keeps
-	// old congestion visible long after the queue has recovered and makes a mode
-	// switch look ineffective. Samples are attributed to the route captured when
-	// the customer first joined the queue.
+	// old congestion visible long after the queue has recovered. Samples are
+	// attributed to the route captured when the customer first joined the queue;
+	// the blended figure combines both banks.
 	const waitWindow = 60 * time.Second
-	var waitAverages [2]int64
-	e.waitSamples, waitAverages = summarizeWaitSamples(e.waitSamples, nowMs()-waitWindow.Milliseconds())
-	avgWaitDirect := waitAverages[0]
-	avgWaitQuentra := waitAverages[1]
-	activeQuentra := settings.StockLookup && settings.QuentraRewrite && e.store != nil && e.store.HasQuentraGateway()
-	avgWait := avgWaitDirect
-	if activeQuentra {
-		avgWait = avgWaitQuentra
-	}
+	var waitSums, waitCounts [2]int64
+	e.waitSamples, waitSums, waitCounts = summarizeWaitSamples(e.waitSamples, nowMs()-waitWindow.Milliseconds())
+	avgWaitDirect := avgOf(waitSums[0], waitCounts[0])
+	avgWaitQuentra := avgOf(waitSums[1], waitCounts[1])
+	avgWait := avgOf(waitSums[0]+waitSums[1], waitCounts[0]+waitCounts[1])
 	e.aggMu.Unlock()
 
 	var tpm float64
@@ -294,17 +307,22 @@ func (e *Engine) BuildSnapshot() Snapshot {
 	}
 
 	stockLookups := e.stockLookups.Load()
+	scanDbCount := scanCounts[0] + scanCounts[1]
+	stockSumMs := stockSums[0] + stockSums[1]
+	itemSumMs := itemSums[0] + itemSums[1]
 	var avgStock int64
 	if stockLookups > 0 {
 		avgStock = stockSumMs / stockLookups
 	}
-	// Per-scan DB time: product lookup + stock lookup, averaged over the scans
-	// performed since the current stock mode was selected.
+	// Per-scan DB time: product lookup + stock lookup. Blended across both banks
+	// for the legacy fields, and split per route for the side-by-side columns.
 	var avgItem, avgScanDb int64
 	if scanDbCount > 0 {
 		avgItem = itemSumMs / scanDbCount
 		avgScanDb = (itemSumMs + stockSumMs) / scanDbCount
 	}
+	avgScanDirect := avgOf(itemSums[0]+stockSums[0], scanCounts[0])
+	avgScanQuentra := avgOf(itemSums[1]+stockSums[1], scanCounts[1])
 
 	m := Metrics{
 		TotalCustomers: settings.TotalCustomers,
@@ -336,6 +354,10 @@ func (e *Engine) BuildSnapshot() Snapshot {
 		AvgWaitDirectMs:     avgWaitDirect,
 		AvgWaitQuentraMs:    avgWaitQuentra,
 		StockValue:          e.lastStockVal.Load(),
+		AvgScanDbDirectMs:   avgScanDirect,
+		AvgScanDbQuentraMs:  avgScanQuentra,
+		ScanCountDirect:     scanCounts[0],
+		ScanCountQuentra:    scanCounts[1],
 	}
 
 	return Snapshot{
@@ -348,10 +370,11 @@ func (e *Engine) BuildSnapshot() Snapshot {
 	}
 }
 
-// summarizeWaitSamples drops expired measurements and returns a per-route
-// average for the remaining rolling window. Invalid route values are treated
-// as direct measurements so malformed data cannot disappear silently.
-func summarizeWaitSamples(samples []waitSample, cutoffMs int64) ([]waitSample, [2]int64) {
+// summarizeWaitSamples drops expired measurements and returns the per-route
+// sums and counts for the remaining rolling window, so callers can compute both
+// per-route and blended averages. Invalid route values are treated as direct
+// measurements so malformed data cannot disappear silently.
+func summarizeWaitSamples(samples []waitSample, cutoffMs int64) ([]waitSample, [2]int64, [2]int64) {
 	kept := samples[:0]
 	var sums, counts [2]int64
 	for _, sample := range samples {
@@ -366,14 +389,7 @@ func summarizeWaitSamples(samples []waitSample, cutoffMs int64) ([]waitSample, [
 		sums[mi] += sample.waitMs
 		counts[mi]++
 	}
-
-	var averages [2]int64
-	for i := range averages {
-		if counts[i] > 0 {
-			averages[i] = sums[i] / counts[i]
-		}
-	}
-	return kept, averages
+	return kept, sums, counts
 }
 
 // watchCompletion transitions to COMPLETED once every customer is resolved.
@@ -441,8 +457,12 @@ func (e *Engine) OpenRegister(no int) error {
 			return nil
 		}
 	}
-	// Add a brand-new register and launch its worker.
-	r := newRegister(no)
+	// Add a brand-new register and launch its worker. Its bank follows the same
+	// split as the initial layout: numbers past the halfway point are Quentra.
+	s := e.Settings()
+	half := (s.RegisterCount + 1) / 2
+	gwUp := e.store != nil && e.store.HasQuentraGateway()
+	r := newRegister(no, gwUp && no > half)
 	e.regs = append(e.regs, r)
 	e.mu.Unlock()
 	e.wg.Add(1)

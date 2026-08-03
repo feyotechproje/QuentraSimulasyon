@@ -10,8 +10,15 @@ import { REGISTER_STATE } from "./checkout.js";
 const SECTIONS = ["PRODUCE", "BAKERY", "DAIRY", "MEAT", "FROZEN", "PANTRY", "DRINKS", "HOME"];
 
 export class Renderer {
-  constructor(canvas) {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {object} [opts] floorLabel: banner text on the sales floor;
+   *        sections: shelf section names (half-width bank floors show fewer).
+   */
+  constructor(canvas, opts = {}) {
     this.canvas = canvas;
+    this.floorLabel = opts.floorLabel || "SATIŞ ALANI  ·  QUENTRA_RETAIL ÜRÜN AKIŞI";
+    this.sections = opts.sections || SECTIONS;
     this.ctx = canvas.getContext("2d");
     this.dpr = 1;
     this.cssW = 0;
@@ -138,7 +145,7 @@ export class Renderer {
     ctx.font = `700 ${Math.max(10, 12 * this.scale)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText("SATIŞ ALANI  ·  QUENTRA_RETAIL ÜRÜN AKIŞI", tl.x + 18, tl.y + 15);
+    ctx.fillText(this.floorLabel, tl.x + 18, tl.y + 15);
 
     ctx.strokeStyle = "rgba(100,116,139,0.11)";
     ctx.lineWidth = 1;
@@ -186,6 +193,7 @@ export class Renderer {
 
   _drawShelves(world) {
     const ctx = this.ctx;
+    const SECTIONS = this.sections;
     const shelfY = world.bounds.minY + 26;
     const startX = world.bounds.minX + 60;
     const endX = world.bounds.maxX - 60;

@@ -28,8 +28,12 @@ export const WORLD = {
   // Store bounds (computed in build)
 };
 
-/** Builds the immutable list of register descriptors + shared landmarks. */
-export function buildWorld(registerCount = WORLD.registerCount) {
+/**
+ * Builds the immutable list of register descriptors + shared landmarks.
+ * idOffset shifts the register numbering so a floor can represent one BANK of
+ * the store (e.g. the Quentra bank renders registers 06..10 on its own canvas).
+ */
+export function buildWorld(registerCount = WORLD.registerCount, idOffset = 0) {
   const w = WORLD;
   const n = Math.max(1, registerCount | 0);
   const registers = [];
@@ -41,7 +45,7 @@ export function buildWorld(registerCount = WORLD.registerCount) {
     const queueStartY = frontY + w.queueFrontOffset;
     const laneX = cx + w.counterW / 2 + w.laneOffset * 0.5;
     registers.push({
-      id: i + 1,
+      id: idOffset + i + 1,
       cx,
       backY,
       frontY,
