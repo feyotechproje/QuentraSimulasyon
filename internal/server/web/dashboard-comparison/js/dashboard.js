@@ -231,12 +231,13 @@ export class Dashboard {
   }
 
   _paintCities(data) {
+    // Filled from the exact region "sales by city" query shown in the query
+    // panel, which returns only city + sales — so the table is two columns.
     const rows = data.topCities.map(c =>
-      `<tr><td>${c.city}</td><td class="num">${moneyFull(c.sales)}</td>` +
-      `<td class="num">${int(c.orders)}</td><td class="num">₺${dec(c.averageBasket)}</td></tr>`).join("");
+      `<tr><td>${c.city}</td><td class="num">${moneyFull(c.sales)}</td></tr>`).join("");
     this.el.cities.innerHTML =
-      `<table class="dtable"><thead><tr><th>${t("city.city", "City")}</th><th style="text-align:right">${t("city.sales", "Sales")}</th>` +
-      `<th style="text-align:right">${t("city.orders", "Orders")}</th><th style="text-align:right">${t("city.avgBasket", "Avg Basket")}</th></tr></thead>` +
+      `<table class="dtable"><thead><tr><th>${t("city.city", "City")}</th>` +
+      `<th style="text-align:right">${t("city.sales", "Sales")}</th></tr></thead>` +
       `<tbody>${rows}</tbody></table>`;
   }
 
@@ -379,7 +380,11 @@ export class Dashboard {
       panels.push(this._queryPanel(t("query.generatedQuery", "Generated Query"), details.originalQuery, true));
       panels.push(this._issuePanel(t("query.detectedIssues", "Detected Issues"), details.issues.map(i => i.detail), "bad"));
     } else {
-      panels.push(this._queryPanel(t("query.originalQuery", "Original Query"), details.originalQuery, true));
+      // The Quentra column shows the REWRITTEN statement — the SQL the gateway
+      // actually forwarded — so when a rule matches this panel differs from the
+      // Direct column's original. When no rule matches it falls back to the same
+      // text, so the panel still renders.
+      panels.push(this._queryPanel(t("query.rewrittenQuery", "Rewritten Query"), details.rewrittenQuery, true));
       panels.push(this._issuePanel(t("query.appliedOptimizations", "Applied Optimizations"), details.optimizations, "good"));
     }
     this.el.queries.innerHTML = panels.join("");

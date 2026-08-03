@@ -58,6 +58,7 @@ export class UI {
       storyBar: document.getElementById("storyBar"),
       rwDirect: document.getElementById("rwDirect"),
       rwQuentra: document.getElementById("rwQuentra"),
+      rwQuentraBadge: document.getElementById("rwQuentraBadge"),
       rwDirectSql: document.getElementById("rwDirectSql"),
       rwQuentraSql: document.getElementById("rwQuentraSql"),
       rwDirectVal: document.getElementById("rwDirectVal"),
@@ -148,6 +149,18 @@ export class UI {
     if (e.rwQuentra) e.rwQuentra.dataset.active = String(s.isQuentra);
     if (e.rwDirectSql) e.rwDirectSql.textContent = s.sql.direct;
     if (e.rwQuentraSql) e.rwQuentraSql.textContent = s.sql.quentra;
+
+    // The Quentra badge must reflect reality: only claim "Call eliminated" when a
+    // rewrite actually removed the UDF. With no matching rule the captured SQL
+    // still has the call, so the badge says "No rewrite" and drops the fast tone.
+    // Keep data-i18n in sync so a language switch re-translates the right key.
+    if (e.rwQuentraBadge) {
+      const key = s.rewritten ? "rw.quentra.badge" : "rw.quentra.badge.none";
+      e.rwQuentraBadge.dataset.i18n = key;
+      e.rwQuentraBadge.textContent = t(key, s.rewritten ? "Call eliminated" : "No rewrite");
+      e.rwQuentraBadge.classList.toggle("fast", s.rewritten);
+      e.rwQuentraBadge.classList.toggle("slow", !s.rewritten);
+    }
 
     if (e.rwScope) {
       e.rwScope.dataset.live = String(!s.isDemo);

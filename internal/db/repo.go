@@ -9,6 +9,8 @@ import (
 	"time"
 
 	mssql "github.com/microsoft/go-mssqldb"
+
+	"supermarketsim/internal/sqlcapture"
 )
 
 // ErrAlreadyInvoiced is returned when a basket has already been invoiced,
@@ -179,6 +181,48 @@ func nz(v, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+// CaptureScanSQL runs the per-scan statement through the requested route and
+// returns the exact statement text SQL Server actually received — read from the
+// engine's DMVs, not hand-authored. On the Quentra route this is the real
+// rewrite when a gateway rule matched, and the unchanged UDF statement when none
+// did; so the before/after panel never shows a rewrite that did not happen. It
+// returns an empty string (nil error) when the schema cannot support the lookup
+// or the backend text is unavailable, so callers fall back to the static form.
+//
+// The key is forced to -1 (matches no row), so the deliberately slow stock UDF
+// is never evaluated and the capture stays cheap even when nothing rewrote it.
+func (s *Store) CaptureScanSQL(ctx context.Context, viaQuentra bool) (string, error) {
+	sc := s.Schema
+	if sc == nil || sc.ItemTable == "" || sc.ItemKey == "" {
+		return "", nil
+	}
+	target := s.scanPool(viaQuentra)
+	if target == nil {
+		return "", nil
+	}
+	stmt := s.itemScanSelect()
+	run := func(ctx context.Context, conn *sql.Conn) error {
+		rows, err := conn.QueryContext(ctx, stmt, int64(-1))
+		if err != nil {
+			return err
+		}
+		return rows.Close()
+	}
+	captured, err := sqlcapture.Captured(ctx, target, s.DB, run)
+	if err != nil || strings.TrimSpace(captured) == "" {
+		return "", err
+	}
+	return wrapScanExecSQL(captured), nil
+}
+
+// wrapScanExecSQL frames a captured statement in the sp_executesql call the
+// driver actually issues, matching the panel's display while keeping the inner
+// statement text exactly as SQL Server received it.
+func wrapScanExecSQL(stmt string) string {
+	stmt = strings.ReplaceAll(strings.TrimSpace(stmt), "'", "''")
+	return fmt.Sprintf("exec sp_executesql\n  N'%s',\n  N'@p1 bigint', @p1 = 1314", stmt)
 }
 
 // ScanItem performs the single per-scanned-item query a register runs for every

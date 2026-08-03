@@ -93,6 +93,10 @@ export class ScenarioController {
     // Whether the Quentra gateway pool was established. When false, live mode
     // sends both modes down the same route and the comparison is not real.
     this.gatewayUp = true;
+    // Whether the captured Quentra statement shows a real rewrite (the UDF call
+    // was eliminated). Live-only; defaults false so the badge never claims a
+    // rewrite before the backend confirms one.
+    this.liveRewritten = false;
     this.sql = { direct: FALLBACK_SQL.direct, quentra: FALLBACK_SQL.quentra };
 
     // Remembers the best measurement seen per connection in live mode, so the
@@ -103,6 +107,14 @@ export class ScenarioController {
   // ------------------------------------------------------------------ state ---
   get isDemo() { return this.runMode === RUN_MODE.DEMO; }
   get isQuentra() { return this.connection === CONNECTION.QUENTRA; }
+
+  /**
+   * Whether the Quentra side truly rewrote the query (UDF call eliminated). The
+   * demo narrative always shows the rewrite; live mode reflects what was actually
+   * captured, so a missing gateway rule reads as "no rewrite" instead of faking
+   * "call eliminated".
+   */
+  get rewritten() { return this.isDemo ? true : this.liveRewritten; }
 
   /** Seconds per scanned item currently in force (demo mode only). */
   get demoScanSec() {
@@ -246,6 +258,7 @@ export class ScenarioController {
     this.sql.direct = res.baselineSQL || this.sql.direct;
     this.sql.quentra = res.quentraSQL || this.sql.quentra;
     if (typeof res.gatewayUp === "boolean") this.gatewayUp = res.gatewayUp;
+    if (typeof res.quentraRewritten === "boolean") this.liveRewritten = res.quentraRewritten;
   }
 
   async _pushStockMode() { await this._post(this.stockMode); }

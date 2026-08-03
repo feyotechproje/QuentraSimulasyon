@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -121,8 +122,8 @@ type sessionCounters struct {
 }
 
 // SQLRepository owns the direct SQL Server pool and the Quentra TDS route.
-// The unfiltered landing payload is cached in-process after its first real
-// SALES50M read; every comparison/filter run is always executed again.
+// The unfiltered landing payload and each region's decorative payload are cached
+// in-process; a region filter then runs only the live showcase query.
 type SQLRepository struct {
 	direct  *sql.DB
 	quentra *sql.DB
@@ -130,6 +131,14 @@ type SQLRepository struct {
 
 	cacheMu sync.RWMutex
 	full    *DashboardData
+	// byRegion caches each region's decorative dashboard (KPIs, charts, etc.),
+	// computed once from the heavy batch. A region filter runs only the showcase
+	// "sales by city" query live and pulls every other widget from here, so
+	// selecting a region triggers no heavy re-scan.
+	byRegion map[string]*DashboardData
+
+	warmMu  sync.Mutex
+	warming map[string]bool
 }
 
 func NewSQLRepository(cfg *config.Config, log *slog.Logger) *SQLRepository {
@@ -149,16 +158,29 @@ func NewSQLRepository(cfg *config.Config, log *slog.Logger) *SQLRepository {
 		pool.SetConnMaxLifetime(20 * time.Minute)
 		pool.SetConnMaxIdleTime(3 * time.Minute)
 	}
-	repo := &SQLRepository{direct: direct, quentra: quentra, log: log}
+	repo := &SQLRepository{
+		direct:   direct,
+		quentra:  quentra,
+		log:      log,
+		byRegion: make(map[string]*DashboardData),
+		warming:  make(map[string]bool),
+	}
 	repo.warmUp()
 	return repo
 }
 
+// warmRegions are the REGION values whose decorative dashboards are pre-computed
+// at startup so selecting any of them refreshes instantly. They must match the
+// varchar REGION values stored in dbo.SALES.
+var warmRegions = []string{
+	"Marmara", "İç Anadolu", "Ege", "Akdeniz", "Karadeniz", "Güneydoğu Anadolu", "Doğu Anadolu",
+}
+
 // warmUp runs the unfiltered dashboard once in the background so the expensive
 // first (cold) SALES50M aggregation happens at startup instead of on the first
-// user request. The result populates the in-process cache, so the landing page
-// is served instantly. Failures are logged and ignored: the on-demand path
-// still works, it is just cold again.
+// user request. It then pre-computes each region's decorative payload, so a
+// region filter refreshes instantly — only the live showcase query runs on
+// selection. Failures are logged and ignored: the on-demand path still works.
 func (r *SQLRepository) warmUp() {
 	if r.direct == nil {
 		return
@@ -174,6 +196,10 @@ func (r *SQLRepository) warmUp() {
 		}
 		if r.log != nil {
 			r.log.Info("SALES50M dashboard warm-up complete")
+		}
+		// Pre-compute each region's decorative widgets (untimed, one-time).
+		for _, region := range warmRegions {
+			r.warmRegionDecor(region)
 		}
 	}()
 }
@@ -222,8 +248,9 @@ GROUP BY "TBL0"."CITY";`, lineTotalCol, salesTable, safe)
 }
 
 // runRegionCityQuery executes the region city-sales query on the given session
-// and drains it. It runs purely for its measured server cost; the aggregated
-// city rows already come from the dashboard batch, so results are discarded.
+// and drains it. It runs purely for its measured server cost, so the capture
+// callers (QueryDetails, ProbeRewrite) that only need SQL Server to have
+// executed the statement use this drain-only variant.
 func runRegionCityQuery(ctx context.Context, conn *sql.Conn, region string) error {
 	rows, err := conn.QueryContext(ctx, regionCityQuery(region))
 	if err != nil {
@@ -233,6 +260,42 @@ func runRegionCityQuery(ctx context.Context, conn *sql.Conn, region string) erro
 	for rows.Next() {
 	}
 	return rows.Err()
+}
+
+// queryRegionCities executes the displayed region "sales by city" query and
+// returns its real rows, so the Top Cities table is filled from the exact
+// statement shown in the query panel rather than the batch's separate city
+// aggregate. The query selects only CITY and SUM(TOTALPRICE), so Orders and
+// AverageBasket are not available and stay zero; the table renders two columns.
+func queryRegionCities(ctx context.Context, conn *sql.Conn, region string) ([]CityRow, error) {
+	rows, err := conn.QueryContext(ctx, regionCityQuery(region))
+	if err != nil {
+		return nil, fmt.Errorf("run region city query: %w", err)
+	}
+	defer rows.Close()
+	var cities []CityRow
+	for rows.Next() {
+		var (
+			city  string
+			sales sql.NullFloat64
+		)
+		if err := rows.Scan(&city, &sales); err != nil {
+			return nil, fmt.Errorf("scan region city row: %w", err)
+		}
+		cities = append(cities, CityRow{City: city, Sales: sales.Float64})
+	}
+	return cities, rows.Err()
+}
+
+// topCitiesBySales orders the cities highest-sales-first and caps them at n so
+// the Top Cities table stays tidy. The displayed region query has no ORDER
+// BY/TOP, so the ordering is applied here without altering the shown SQL.
+func topCitiesBySales(cities []CityRow, n int) []CityRow {
+	sort.SliceStable(cities, func(i, j int) bool { return cities[i].Sales > cities[j].Sales })
+	if len(cities) > n {
+		cities = cities[:n]
+	}
+	return cities
 }
 
 // dashboardCacheReady returns true when every SALES_DASH_* summary table
@@ -245,39 +308,62 @@ func dashboardCacheReady(ctx context.Context, conn *sql.Conn) bool {
 	return ready == 1
 }
 
-// QueryDashboard performs a measured dashboard refresh over the requested
-// route. CPU and logical reads are deltas from the same SQL session that runs
-// the batch, so the comparison contains measured server figures.
+// QueryDashboard performs a measured dashboard refresh over the requested route.
+// The unfiltered landing runs the full 8-widget batch (served from summary tables
+// when present). A region filter runs ONLY the showcase "sales by city" query
+// live — the emphasis of the demo, where the N'...' unicode literal forces an
+// implicit conversion on Direct that the Quentra rule removes — while every other
+// widget comes from the pre-computed per-region cache. So the reported time
+// reflects that single query alone.
 func (r *SQLRepository) QueryDashboard(ctx context.Context, filter DashboardFilter, viaQuentra bool) (DashboardData, QueryMetrics, error) {
+	if strings.TrimSpace(filter.Region) == "" {
+		return r.queryDashboardBatch(ctx, filter, viaQuentra)
+	}
+	return r.queryRegionShowcase(ctx, filter, viaQuentra)
+}
+
+// conn opens a connection on the requested route (direct or Quentra) and returns
+// a release func the caller defers.
+func (r *SQLRepository) conn(ctx context.Context, viaQuentra bool) (*sql.Conn, func(), error) {
 	pool := r.direct
 	if viaQuentra {
 		pool = r.quentra
 	}
 	if pool == nil {
-		return DashboardData{}, QueryMetrics{}, fmt.Errorf("%s database connection is unavailable", DatabaseName)
+		return nil, nil, fmt.Errorf("%s database connection is unavailable", DatabaseName)
 	}
+	c, err := pool.Conn(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open %s dashboard connection: %w", DatabaseName, err)
+	}
+	return c, func() { _ = c.Close() }, nil
+}
 
+// metrics builds the server figures from before/after session counters.
+func (r *SQLRepository) metrics(before, after sessionCounters, elapsed time.Duration, rows int) QueryMetrics {
+	return QueryMetrics{
+		ElapsedMs:        max(1, int(elapsed.Milliseconds())),
+		CPUMs:            nonNegativeInt(after.cpuMs - before.cpuMs),
+		LogicalReadPages: nonNegativeInt(after.logicalReads - before.logicalReads),
+		RowsReturned:     rows,
+		QueryExecutions:  1,
+	}
+}
+
+// queryDashboardBatch runs the full 8-widget batch on the requested route and
+// reports its measured server cost. It backs the unfiltered landing page and the
+// one-time per-region decorative pre-computation.
+func (r *SQLRepository) queryDashboardBatch(ctx context.Context, filter DashboardFilter, viaQuentra bool) (DashboardData, QueryMetrics, error) {
 	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	conn, err := pool.Conn(queryCtx)
+	conn, release, err := r.conn(queryCtx, viaQuentra)
 	if err != nil {
-		return DashboardData{}, QueryMetrics{}, fmt.Errorf("open %s dashboard connection: %w", DatabaseName, err)
+		return DashboardData{}, QueryMetrics{}, err
 	}
-	defer conn.Close()
-
-	// The displayed before/after "sales by city" query is a filter-simulation
-	// artifact: run it only when a region is actually selected. On the unfiltered
-	// landing/warm-up path it is skipped so the summary-table fast path is not
-	// negated by an extra full columnstore scan.
-	selected := strings.TrimSpace(filter.Region)
+	defer release()
 
 	before, _ := readSessionCounters(queryCtx, conn)
 	started := time.Now()
-	if selected != "" {
-		if err := runRegionCityQuery(queryCtx, conn, selected); err != nil {
-			return DashboardData{}, QueryMetrics{}, err
-		}
-	}
 	data, returned, err := readDashboard(queryCtx, conn, filter)
 	elapsed := time.Since(started)
 	if err != nil {
@@ -285,18 +371,126 @@ func (r *SQLRepository) QueryDashboard(ctx context.Context, filter DashboardFilt
 	}
 	after, _ := readSessionCounters(queryCtx, conn)
 
-	metrics := QueryMetrics{
-		ElapsedMs:        max(1, int(elapsed.Milliseconds())),
-		CPUMs:            nonNegativeInt(after.cpuMs - before.cpuMs),
-		LogicalReadPages: nonNegativeInt(after.logicalReads - before.logicalReads),
-		RowsReturned:     returned,
-		QueryExecutions:  1,
-	}
+	metrics := r.metrics(before, after, elapsed, returned)
 	if r.log != nil {
-		r.log.Info("SALES50M dashboard refreshed", "region", filter.Region, "quentra", viaQuentra,
+		r.log.Info("SALES50M dashboard batch", "region", filter.Region, "quentra", viaQuentra,
 			"elapsedMs", metrics.ElapsedMs, "cpuMs", metrics.CPUMs, "logicalReads", metrics.LogicalReadPages)
 	}
 	return data, metrics, nil
+}
+
+// queryRegionShowcase runs ONLY the showcase "sales by city" query on the chosen
+// route and measures just that. Decorative widgets come from the pre-computed
+// per-region cache (or, until it is warm, the full-data payload) and are NOT part
+// of the measurement, so the reported time is the single query's true cost.
+func (r *SQLRepository) queryRegionShowcase(ctx context.Context, filter DashboardFilter, viaQuentra bool) (DashboardData, QueryMetrics, error) {
+	region := strings.TrimSpace(filter.Region)
+
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	conn, release, err := r.conn(queryCtx, viaQuentra)
+	if err != nil {
+		return DashboardData{}, QueryMetrics{}, err
+	}
+	defer release()
+
+	// Measure ONLY the showcase query.
+	before, _ := readSessionCounters(queryCtx, conn)
+	started := time.Now()
+	regionCities, err := queryRegionCities(queryCtx, conn, region)
+	elapsed := time.Since(started)
+	if err != nil {
+		return DashboardData{}, QueryMetrics{}, err
+	}
+	after, _ := readSessionCounters(queryCtx, conn)
+	metrics := r.metrics(before, after, elapsed, len(regionCities))
+
+	// Decorative widgets: pre-computed per-region payload, untimed. On a cache
+	// miss (not warm yet) decorate with the full-data payload and warm this
+	// region in the background so the next selection is accurate.
+	data, cached := r.regionDecorCached(region)
+	if !cached {
+		go r.warmRegionDecor(region)
+		if data, err = r.fullDashboardCopy(ctx); err != nil {
+			return DashboardData{}, QueryMetrics{}, err
+		}
+	}
+	data.Filter = DashboardFilter{Region: region}
+	data.TopCities = topCitiesBySales(regionCities, 6)
+
+	if r.log != nil {
+		r.log.Info("SALES50M region showcase", "region", region, "quentra", viaQuentra,
+			"elapsedMs", metrics.ElapsedMs, "cpuMs", metrics.CPUMs, "logicalReads", metrics.LogicalReadPages,
+			"decorCached", cached)
+	}
+	return data, metrics, nil
+}
+
+// regionDecorCached returns a copy of a region's pre-computed decorative payload
+// if it has been warmed; the bool reports the cache hit.
+func (r *SQLRepository) regionDecorCached(region string) (DashboardData, bool) {
+	r.cacheMu.RLock()
+	defer r.cacheMu.RUnlock()
+	if d := r.byRegion[region]; d != nil {
+		return *d, true
+	}
+	return DashboardData{}, false
+}
+
+// warmRegionDecor computes a region's decorative payload once (via the direct
+// pool's full batch) and caches it. Concurrent calls for the same region collapse
+// to one via the warming set; failures are logged and ignored.
+func (r *SQLRepository) warmRegionDecor(region string) {
+	region = strings.TrimSpace(region)
+	if region == "" {
+		return
+	}
+	r.warmMu.Lock()
+	r.cacheMu.RLock()
+	already := r.byRegion[region] != nil
+	r.cacheMu.RUnlock()
+	if already || r.warming[region] {
+		r.warmMu.Unlock()
+		return
+	}
+	r.warming[region] = true
+	r.warmMu.Unlock()
+	defer func() {
+		r.warmMu.Lock()
+		delete(r.warming, region)
+		r.warmMu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	data, _, err := r.queryDashboardBatch(ctx, DashboardFilter{Region: region}, false)
+	if err != nil {
+		if r.log != nil {
+			r.log.Warn("region decor warm-up failed", "region", region, "err", err)
+		}
+		return
+	}
+	r.cacheMu.Lock()
+	copyData := data
+	r.byRegion[region] = &copyData
+	r.cacheMu.Unlock()
+	if r.log != nil {
+		r.log.Info("region decor warm-up complete", "region", region)
+	}
+}
+
+// fullDashboardCopy returns a copy of the cached unfiltered dashboard, reading it
+// once if the cache is cold. Used to decorate a region filter before that
+// region's own payload has finished warming.
+func (r *SQLRepository) fullDashboardCopy(ctx context.Context) (DashboardData, error) {
+	r.cacheMu.RLock()
+	if r.full != nil {
+		out := *r.full
+		r.cacheMu.RUnlock()
+		return out, nil
+	}
+	r.cacheMu.RUnlock()
+	return r.GetDashboard(ctx, DashboardFilter{})
 }
 
 func readSessionCounters(ctx context.Context, conn *sql.Conn) (sessionCounters, error) {

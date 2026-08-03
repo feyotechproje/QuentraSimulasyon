@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"supermarketsim/internal/access"
@@ -144,7 +145,7 @@ func (s *Server) handleSetSettings(w http.ResponseWriter, r *http.Request) {
 
 // stockModePayload describes the current scenario plus the exact SQL executed on
 // each side of the Quentra rewrite, so the UI can show a grounded before/after.
-func (s *Server) stockModePayload() map[string]any {
+func (s *Server) stockModePayload(ctx context.Context) map[string]any {
 	st := s.engine.Settings()
 	out := map[string]any{
 		"mode":           st.StockMode(), // off|baseline|quentra
@@ -152,10 +153,19 @@ func (s *Server) stockModePayload() map[string]any {
 		"quentraRewrite": st.QuentraRewrite,
 	}
 	if s.store != nil {
-		// The application sends the baseline query on both routes; the second text
-		// shows the form produced by the Quentra gateway rewrite.
+		// Baseline is the exact statement the application sends; the direct route
+		// never rewrites, so the static form already is the real one.
 		out["baselineSQL"] = s.store.ItemScanSQL(false)
-		out["quentraSQL"] = s.store.ItemScanSQL(true)
+		// Quentra side: the statement SQL Server actually received through the
+		// gateway, captured from its DMVs — the real rewrite when a rule matched,
+		// the unchanged statement when none did. Never the hand-authored rewrite,
+		// so the panel cannot claim a rewrite that did not happen.
+		qSQL, qRewritten := s.capturedQuentraSQL(ctx)
+		out["quentraSQL"] = qSQL
+		// quentraRewritten drives the badge: true only when the gateway actually
+		// eliminated the UDF call, so the UI stops claiming "Call eliminated" when
+		// no rewrite rule matched.
+		out["quentraRewritten"] = qRewritten
 		// Without the gateway both modes travel the same route, so the UI must
 		// not present the comparison as if it were real.
 		out["gatewayUp"] = s.store.HasQuentraGateway()
@@ -163,8 +173,24 @@ func (s *Server) stockModePayload() map[string]any {
 	return out
 }
 
+// capturedQuentraSQL returns the statement SQL Server received on the Quentra
+// route (captured from its DMVs) and whether that statement shows a real rewrite
+// — i.e. the stock UDF call was eliminated. It falls back to the unrewritten
+// application statement (rewritten=false) so the panel never fakes a rewrite.
+func (s *Server) capturedQuentraSQL(ctx context.Context) (string, bool) {
+	capCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	if got, err := s.store.CaptureScanSQL(capCtx, true); err == nil && got != "" {
+		// The rewrite eliminated the call when the captured statement no longer
+		// mentions the stock UDF.
+		rewritten := !strings.Contains(strings.ToUpper(got), strings.ToUpper(db.StockFunctionName))
+		return got, rewritten
+	}
+	return s.store.ItemScanSQL(false), false
+}
+
 func (s *Server) handleGetStockMode(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.stockModePayload())
+	writeJSON(w, http.StatusOK, s.stockModePayload(r.Context()))
 }
 
 // handleSetStockMode switches the per-scan stock lookup between the direct
@@ -189,7 +215,7 @@ func (s *Server) handleSetStockMode(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf("unknown stock mode %q (want off|baseline|quentra)", body.Mode))
 		return
 	}
-	writeJSON(w, http.StatusOK, s.stockModePayload())
+	writeJSON(w, http.StatusOK, s.stockModePayload(r.Context()))
 }
 
 func (s *Server) handleEnvCheck(w http.ResponseWriter, r *http.Request) {

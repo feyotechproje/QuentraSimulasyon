@@ -214,14 +214,19 @@ export class Controller {
     const started = performance.now();
     const timer = window.setInterval(() => dash.setTimer(performance.now() - started, true), 50);
     try {
-      const [res, details] = await Promise.all([responsePromise, detailsPromise]);
+      // Render this column as soon as ITS OWN request returns — do not wait for
+      // the shared query-details fetch, which reruns the slow Direct capture and
+      // would otherwise hold the fast Quentra table back until Direct finishes.
+      const res = await responsePromise;
       dash.setStages(res.stages);
       dash.setTimer(res.metrics.elapsedMs, false);
       dash.finishStages();
       dash.finalizeMetrics(res.metrics, res.plan);
       dash.applyData(res.dashboard, true);
-      dash.setQueryDetails(details);
       dash.setStatus("status.completedMeasured", "is-done");
+      // Fill the SQL panels whenever the shared details arrive — off the critical
+      // path, so the table is already on screen.
+      detailsPromise.then(details => dash.setQueryDetails(details)).catch(() => {});
       return res;
     } finally {
       window.clearInterval(timer);
