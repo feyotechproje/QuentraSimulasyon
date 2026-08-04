@@ -17,7 +17,7 @@ function makeScenes(ctx) {
     {
       key: "connect", dur: 8000, role: "baseline", caps: ["cap.connect"],
       keys: [
-        { at: 0, run: () => { win.reset(); win.setIdentity("destek", "direct"); } },
+        { at: 0, run: () => { win.reset(); ctx.msg(false); win.setIdentity("destek", "direct"); } },
         { at: 600, run: () => win.setStatus(t("sw.stConnecting"), { tone: "run" }) },
         { at: 3400, run: () => win.setStatus(t("sw.stConnected"), { tone: "idle", rows: 0 }) },
       ],
@@ -173,9 +173,18 @@ export class Story {
     if (sc && sc.exit) sc.exit();
   }
 
+  // Leaves the current scene properly (runs its exit hook) before the index
+  // is reset — otherwise a loop/seek out of the message scene would strand
+  // its overlay on screen.
+  _exitScene() {
+    const sc = this.scenes[this.idx];
+    if (sc && sc.exit) sc.exit();
+    this.idx = -1;
+  }
+
   seekTo(ms, autoplay) {
     this.elapsed = Math.max(0, Math.min(ms, this.total - 1));
-    this.idx = -1; // force scene re-entry (fast-forwards the window state)
+    this._exitScene(); // force scene re-entry (fast-forwards the window state)
     this._applyFrame();
     if (autoplay && !this.playing) this.play();
   }
@@ -184,7 +193,7 @@ export class Story {
     if (!this.playing) return;
     this.elapsed += now - this._last;
     this._last = now;
-    if (this.elapsed >= this.total) { this.elapsed = 0; this.idx = -1; } // loop
+    if (this.elapsed >= this.total) { this.elapsed = 0; this._exitScene(); } // loop
     this._applyFrame();
     this._raf = requestAnimationFrame((n) => this._tick(n));
   }
