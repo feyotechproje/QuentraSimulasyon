@@ -83,9 +83,9 @@ type Metrics struct {
 	Masked       bool     `json:"masked"`
 	MaskedFields []string `json:"maskedFields"`
 
-	// The latest lookup's row per route, verbatim.
-	DirectRow  *Row `json:"directRow"`
-	QuentraRow *Row `json:"quentraRow"`
+	// The latest lookup's result set per route, verbatim.
+	DirectRows  []Row `json:"directRows"`
+	QuentraRows []Row `json:"quentraRows"`
 
 	// The exact SQL each route's backend session executed (DMV capture while
 	// running; the static statement when idle). Identical by construction — the
@@ -121,9 +121,9 @@ type Manager struct {
 	qnSumNs   atomic.Int64
 	qnCount   atomic.Int64
 
-	rowMu      sync.RWMutex
-	directRow  *Row
-	quentraRow *Row
+	rowMu       sync.RWMutex
+	directRows  []Row
+	quentraRows []Row
 
 	errMu   sync.RWMutex
 	lastErr string
@@ -197,9 +197,10 @@ func (m *Manager) State() Metrics {
 	}
 
 	m.rowMu.RLock()
-	out.DirectRow, out.QuentraRow = m.directRow, m.quentraRow
+	out.DirectRows = append([]Row(nil), m.directRows...)
+	out.QuentraRows = append([]Row(nil), m.quentraRows...)
 	m.rowMu.RUnlock()
-	out.Masked, out.MaskedFields = diffRows(out.DirectRow, out.QuentraRow)
+	out.Masked, out.MaskedFields = diffRowSets(out.DirectRows, out.QuentraRows)
 
 	out.DirectSQL, out.QuentraSQL = m.displaySQL()
 
@@ -212,26 +213,39 @@ func (m *Manager) State() Metrics {
 	return out
 }
 
-// diffRows compares the two routes field by field; any difference is a mask
-// applied in flight, because both rows came from the same query on the same
-// table.
-func diffRows(d, q *Row) (bool, []string) {
-	if d == nil || q == nil || d.ID != q.ID {
-		return false, nil
+// diffRowSets compares the two routes' result sets field by field; any
+// difference is a mask applied in flight, because both sets came from the same
+// query on the same table.
+func diffRowSets(d, q []Row) (bool, []string) {
+	n := len(d)
+	if len(q) < n {
+		n = len(q)
 	}
+	seen := map[string]bool{}
 	var fields []string
-	pairs := [][3]string{
-		{"ad", d.Ad, q.Ad},
-		{"soyad", d.Soyad, q.Soyad},
-		{"tckn", d.TCKN, q.TCKN},
-		{"telefon", d.Telefon, q.Telefon},
-		{"kanGrubu", d.KanGrubu, q.KanGrubu},
-		{"adres", d.Adres, q.Adres},
-		{"tani", d.Tani, q.Tani},
+	add := func(name string) {
+		if !seen[name] {
+			seen[name] = true
+			fields = append(fields, name)
+		}
 	}
-	for _, p := range pairs {
-		if strings.TrimSpace(p[1]) != strings.TrimSpace(p[2]) {
-			fields = append(fields, p[0])
+	for i := 0; i < n; i++ {
+		if d[i].ID != q[i].ID {
+			continue
+		}
+		pairs := [][3]string{
+			{"ad", d[i].Ad, q[i].Ad},
+			{"soyad", d[i].Soyad, q[i].Soyad},
+			{"tckn", d[i].TCKN, q[i].TCKN},
+			{"telefon", d[i].Telefon, q[i].Telefon},
+			{"kanGrubu", d[i].KanGrubu, q[i].KanGrubu},
+			{"adres", d[i].Adres, q[i].Adres},
+			{"tani", d[i].Tani, q[i].Tani},
+		}
+		for _, p := range pairs {
+			if strings.TrimSpace(p[1]) != strings.TrimSpace(p[2]) {
+				add(p[0])
+			}
 		}
 	}
 	return len(fields) > 0, fields
@@ -242,10 +256,16 @@ func diffRows(d, q *Row) (bool, []string) {
 // Identical text on both sides is the expected, honest result.
 func (m *Manager) displaySQL() (string, string) {
 	if m.running.Load() && m.db != nil {
-		id := int(m.next.Load())%PatientCount + 1
+		id := int(m.next.Load()*5)%PatientCount + 1
 		run := func(ctx context.Context, conn *sql.Conn) error {
-			var r Row
-			return scanPatient(conn.QueryRowContext(ctx, patientQuery, sql.Named("id", id)), &r)
+			rows, err := conn.QueryContext(ctx, patientQuery, sql.Named("id", id))
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+			}
+			return rows.Err()
 		}
 		if d, q, ok := m.capCache.Get(m.db, m.gw, "patient", run); ok {
 			return d, q
@@ -372,10 +392,11 @@ func (m *Manager) worker(stop <-chan struct{}) {
 		default:
 		}
 
-		id := int(m.next.Add(1))%PatientCount + 1
+		// Stride 5 so successive lookups page through different patient windows.
+		id := int(m.next.Add(1)*5)%PatientCount + 1
 
-		dRow, dDur, dErr := m.lookup(m.db, id)
-		qRow, qDur, qErr := m.lookup(m.quentraPool(), id)
+		dRows, dDur, dErr := m.lookup(m.db, id)
+		qRows, qDur, qErr := m.lookup(m.quentraPool(), id)
 		m.total.Add(1)
 
 		if dErr != nil || qErr != nil {
@@ -399,17 +420,21 @@ func (m *Manager) worker(stop <-chan struct{}) {
 		m.qnCount.Add(1)
 
 		m.rowMu.Lock()
-		m.directRow, m.quentraRow = dRow, qRow
+		m.directRows, m.quentraRows = dRows, qRows
 		m.rowMu.Unlock()
 
-		masked, _ := diffRows(dRow, qRow)
+		masked, _ := diffRowSets(dRows, qRows)
 		ev := LookupEvent{
 			ID:       id,
-			NameOpen: strings.TrimSpace(dRow.Ad + " " + dRow.Soyad),
-			NameSeen: strings.TrimSpace(qRow.Ad + " " + qRow.Soyad),
-			Masked:   masked,
 			DirectMs: round2(float64(dDur.Nanoseconds()) / 1e6), QuentraMs: round2(float64(qDur.Nanoseconds()) / 1e6),
-			At: time.Now().UnixMilli(),
+			Masked: masked,
+			At:     time.Now().UnixMilli(),
+		}
+		if len(dRows) > 0 {
+			ev.NameOpen = strings.TrimSpace(dRows[0].Ad + " " + dRows[0].Soyad)
+		}
+		if len(qRows) > 0 {
+			ev.NameSeen = strings.TrimSpace(qRows[0].Ad + " " + qRows[0].Soyad)
 		}
 		m.feedMu.Lock()
 		m.feed = append([]LookupEvent{ev}, m.feed...)
@@ -422,17 +447,24 @@ func (m *Manager) worker(stop <-chan struct{}) {
 	}
 }
 
-func (m *Manager) lookup(pool *sql.DB, id int) (*Row, time.Duration, error) {
+func (m *Manager) lookup(pool *sql.DB, id int) ([]Row, time.Duration, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
-	var r Row
 	start := time.Now()
-	err := scanPatient(pool.QueryRowContext(ctx, patientQuery, sql.Named("id", id)), &r)
-	return &r, time.Since(start), err
-}
-
-func scanPatient(row *sql.Row, r *Row) error {
-	return row.Scan(&r.ID, &r.Ad, &r.Soyad, &r.TCKN, &r.Telefon, &r.KanGrubu, &r.Adres, &r.Tani)
+	rows, err := pool.QueryContext(ctx, patientQuery, sql.Named("id", id))
+	if err != nil {
+		return nil, time.Since(start), err
+	}
+	defer rows.Close()
+	var out []Row
+	for rows.Next() {
+		var r Row
+		if err := rows.Scan(&r.ID, &r.Ad, &r.Soyad, &r.TCKN, &r.Telefon, &r.KanGrubu, &r.Adres, &r.Tani); err != nil {
+			return out, time.Since(start), err
+		}
+		out = append(out, r)
+	}
+	return out, time.Since(start), rows.Err()
 }
 
 func (m *Manager) sleep(stop <-chan struct{}, d time.Duration) {

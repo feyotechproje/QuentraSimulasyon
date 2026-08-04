@@ -1,25 +1,28 @@
-// main.js — boots the Hospital Shield demo: intro overlay + i18n, the SVG
-// scene, the scripted "video" story, role switching and the Demo/Canlı bridge
-// to the real HOSPITALSIM workload.
+// main.js — boots the Hospital Shield demo: intro overlay + i18n, the slim
+// topology strip, the SSMS-style SQL window, the scripted "video" story, the
+// interactive Yürüt flow (same query down both routes) and the Demo/Canlı
+// bridge to the real HOSPITALSIM workload.
 
 import { initQuentraApp, QuentraI18n } from "/shared/quentra-i18n.js";
 import { LiveController, mountLiveToggle } from "/shared/live-workload.js";
 import { HOSPITAL_INTRO, HOSPITAL_DICT } from "./i18n.js";
-import { DEMO_PATIENTS, maskRow, MASKED_FIELDS, PATIENT_SQL } from "./data.js";
+import { demoWindow, maskRow, MASKED_FIELDS, PATIENT_SQL } from "./data.js";
 import { Scene } from "./scene.js";
+import { SqlWin } from "./sqlwin.js";
 import { Story } from "./story.js";
 import { renderAll } from "./render.js";
 
 const $ = (id) => document.getElementById(id);
 const t = (key, fb) => QuentraI18n.t(key, fb);
 
-let scene, story, live;
+let strip, win, story, live;
 let currentRole = "quentra";
 let currentState = null;
 let isLive = false;
 let demoTimer = null;
 let demoIdx = 0;
 let demoFeed = [];
+let execBusy = false;
 
 initQuentraApp({
   appId: "hospital",
@@ -32,14 +35,18 @@ initQuentraApp({
 });
 
 function boot() {
-  scene = new Scene($("stageSvg"));
-  scene.setRole(currentRole);
-  scene.setMasked(true);
-  scene.startLoop(2800);
+  strip = new Scene($("stageSvg"));
+  strip.setRole(currentRole);
+  strip.setMasked(true);
+  win = new SqlWin(t);
+  win.reset();
 
   story = new Story({
-    scene,
+    win,
+    strip,
     t,
+    rows: storyRows,
+    msg: setMessage,
     onRole: (role) => applyRole(role, { fromStory: true }),
     els: {
       btnPlay: $("btnPlay"),
@@ -61,6 +68,12 @@ function boot() {
     })
   );
 
+  // The user pulls the query themselves: one press runs it on BOTH routes.
+  $("btnExecute").addEventListener("click", () => {
+    story.interrupt();
+    runExecute();
+  });
+
   live = new LiveController({
     sim: "hospital",
     workloadId: "hospital-masking-simulation",
@@ -79,6 +92,75 @@ function boot() {
   story.play();
 }
 
+// ---- the data the SQL window renders ----
+// Demo: fictional page + client-side masks (labeled Demo). Live: verbatim rows
+// from the two real routes — grid 2 is only "masked" if the gateway masked it.
+function storyRows() {
+  if (isLive && currentState && (currentState.directRows || []).length) {
+    const s = currentState;
+    return {
+      open: s.directRows || [],
+      maskedRows: s.quentraRows || [],
+      masked: !!s.masked,
+      maskedFields: s.maskedFields || [],
+      demo: false,
+      ms: s.quentraMs ? s.quentraMs + " ms" : "",
+    };
+  }
+  const open = demoWindow(demoIdx);
+  return {
+    open,
+    maskedRows: open.map(maskRow),
+    masked: true,
+    maskedFields: MASKED_FIELDS,
+    demo: true,
+    ms: "",
+  };
+}
+
+// ---- interactive execute: same query, both routes, two result sets ----
+
+function runExecute() {
+  if (execBusy) return;
+  execBusy = true;
+  const r = storyRows();
+  const user = currentRole === "dba" ? "dba" : "destek";
+
+  win.setQuery(PATIENT_SQL);
+  win.showCaret(false);
+  win.clearResults();
+  win.execFlash();
+  win.setIdentity(user, "direct");
+  win.setStatus(t("sw.stExecuting"), { tone: "run" });
+  strip.spawnRoute("direct", { dba: currentRole === "dba" });
+
+  setTimeout(() => {
+    const tone = currentRole === "dba" ? "dba" : "open";
+    win.fillGrid("direct", r.open, { tone, revealP: 1, meta: r.demo ? "" : r.ms });
+    win.setStatus(currentRole === "dba" ? t("sw.stDoneDba") : t("sw.stDoneOpen"),
+      { tone: currentRole === "dba" ? "dba" : "open", rows: r.open.length });
+
+    // leg 2: the identical query through Quentra
+    win.setIdentity(user, "quentra");
+    win.flashQueryUnchanged();
+    win.setStatus(t("sw.stExecuting"), { tone: "run" });
+    strip.spawnRoute("quentra", { masked: r.masked });
+
+    setTimeout(() => {
+      win.fillGrid("quentra", r.maskedRows, {
+        tone: r.masked ? "masked" : "plain",
+        maskedFields: r.maskedFields,
+        revealP: 1,
+        meta: r.demo ? "" : r.ms,
+      });
+      win.setStatus(r.masked ? t("sw.stDoneMasked") : t("sw.stDoneNoRule"),
+        { tone: r.masked ? "masked" : "warn", rows: r.maskedRows.length });
+      win.highlightSet("quentra", "teal");
+      execBusy = false;
+    }, 2400);
+  }, 2400);
+}
+
 // ---- role handling ----
 
 function applyRole(role, opts = {}) {
@@ -86,9 +168,8 @@ function applyRole(role, opts = {}) {
   document.querySelectorAll(".role-btn").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.role === role)
   );
-  scene.setRole(role);
+  strip.setRole(role);
   if (isLive) live.setMode(role);
-  if (!opts.fromStory && !isLive) advanceDemo(); // instant feedback on click
   if (currentState) renderAll(currentState, currentRole, t);
 }
 
@@ -107,12 +188,12 @@ function stopDemo() {
 
 function advanceDemo() {
   if (isLive) return;
-  const p = DEMO_PATIENTS[demoIdx % DEMO_PATIENTS.length];
-  demoIdx++;
-  const masked = maskRow(p);
-  const seen = currentRole === "quentra" ? masked : p;
+  demoIdx = (demoIdx + 5) % 8;
+  const open = demoWindow(demoIdx);
+  const maskedRows = open.map(maskRow);
+  const seen = currentRole === "quentra" ? maskedRows[0] : open[0];
   demoFeed.unshift({
-    id: p.id,
+    id: open[0].id,
     nameSeen: `${seen.ad} ${seen.soyad}`,
     masked: currentRole === "quentra",
     quentraMs: null,
@@ -123,14 +204,14 @@ function advanceDemo() {
     provisioned: true,
     masked: true,
     maskedFields: MASKED_FIELDS,
-    directRow: p,
-    quentraRow: masked,
+    directRows: open,
+    quentraRows: maskedRows,
     directSql: PATIENT_SQL,
     quentraSql: PATIENT_SQL,
     recent: demoFeed,
     gatewayUp: null,
   };
-  scene.setMasked(true);
+  strip.setMasked(true);
   renderAll(currentState, currentRole, t);
 }
 
@@ -152,14 +233,30 @@ function onLiveToggle(liveOn) {
 
 function onLiveState(s) {
   if (!isLive) return;
+  const wasRunning = currentState && currentState.running;
   currentState = s;
   setPill(s.running ? "live" : "starting");
-  // The scene only shows the mask where the gateway really applied one.
-  scene.setMasked(!!s.masked);
+  strip.setMasked(!!s.masked);
+  // Real traffic on the strip: each poll of a running workload is an actual
+  // pair of lookups that just happened on both routes.
+  if (s.running && !story.playing && !execBusy) {
+    strip.spawnRoute("direct");
+    setTimeout(() => strip.spawnRoute("quentra", { masked: !!s.masked }), 500);
+  }
+  if (s.running && !wasRunning) setPill("live");
   renderAll(s, currentRole, t);
 }
 
-// ---- status pill ----
+// ---- message overlay + status pill ----
+
+function setMessage(show, l1 = "", l2 = "") {
+  const ovl = $("msgOverlay");
+  ovl.hidden = !show;
+  if (show) {
+    $("msgLine1").innerHTML = l1;
+    $("msgLine2").innerHTML = l2;
+  }
+}
 
 function setPill(state) {
   const pill = $("statusPill");

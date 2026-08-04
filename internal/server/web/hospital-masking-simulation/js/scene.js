@@ -1,12 +1,14 @@
-// scene.js — the cinematic SVG stage: query/result packets travelling between
-// the vendor's monitor and the hospital DB, the Quentra shield masking the
-// returning data in flight, and a lightweight viewBox "camera".
+// scene.js — the slim network-topology strip above the SQL window: query and
+// result packets travelling between the support engineer's laptop and the
+// hospital DB, with the Quentra shield masking returning data in flight.
 
 const SVGNS = "http://www.w3.org/2000/svg";
 
-const OUT_MS = 1000;   // monitor -> DB
-const DB_PAUSE = 260;  // "executing" at the DB
-const BACK_MS = 1250;  // DB -> monitor
+const OUT_MS = 900;    // laptop -> DB
+const DB_PAUSE = 240;  // "executing" at the DB
+const BACK_MS = 1150;  // DB -> laptop
+
+const SHIELD = { x: 600, y: 62 };
 
 export class Scene {
   constructor(svg) {
@@ -21,33 +23,19 @@ export class Scene {
       quentra: this.paths.quentra.getTotalLength(),
       direct: this.paths.direct.getTotalLength(),
     };
-    this.role = "quentra";
-    this.masked = true;
-    this._loopTimer = null;
-    this._camAnim = null;
   }
 
-  setRole(role) {
-    this.role = role;
-    this.svg.dataset.role = role;
-  }
+  setRole(role) { this.svg.dataset.role = role; }
 
-  // masked: whether the CURRENT data (demo or live) is actually masked; the
-  // shield only "fires" when true, so the scene never claims a mask that the
-  // gateway did not apply.
-  setMasked(masked) {
-    this.masked = !!masked;
-    this.svg.classList.toggle("is-masked", this.masked);
-  }
+  // masked: whether current data is genuinely masked; drives the strip's glow.
+  setMasked(masked) { this.svg.classList.toggle("is-masked", !!masked); }
 
-  // ---- packet round trip ----
-
-  spawnLookup() {
-    const routeName = this.role === "quentra" ? "quentra" : "direct";
-    const path = this.paths[routeName];
-    const len = this.lens[routeName];
-    const role = this.role;
-    const masked = this.masked;
+  // One query round trip on the given route. opts: { masked, dba }
+  // The mask burst only fires when the data really is masked, so the strip
+  // never claims a mask the gateway did not apply.
+  spawnRoute(route, opts = {}) {
+    const path = this.paths[route] || this.paths.direct;
+    const len = route === "quentra" ? this.lens.quentra : this.lens.direct;
 
     const sql = this._makePacket("tplSql");
     this._animate(sql, path, len, 0, 1, OUT_MS, () => {
@@ -55,12 +43,10 @@ export class Scene {
       this._dbBlip();
       setTimeout(() => {
         const data = this._makePacket("tplData");
-        if (role === "dba") data.classList.add("dba");
+        if (opts.dba) data.classList.add("dba");
         let fired = false;
         this._animate(data, path, len, 1, 0, BACK_MS, () => data.remove(), (pt, t) => {
-          // Returning data crosses the shield at mid-path on the quentra route:
-          // that is where the mask is applied — but only when it truly is.
-          if (!fired && role === "quentra" && masked && t <= 0.55) {
+          if (!fired && route === "quentra" && opts.masked && t <= 0.55) {
             fired = true;
             data.classList.add("masked");
             this.burst();
@@ -68,19 +54,6 @@ export class Scene {
         });
       }, DB_PAUSE);
     });
-  }
-
-  startLoop(intervalMs = 2800) {
-    this.stopLoop();
-    const tick = () => {
-      if (!document.hidden) this.spawnLookup();
-      this._loopTimer = setTimeout(tick, intervalMs);
-    };
-    tick();
-  }
-
-  stopLoop() {
-    if (this._loopTimer) { clearTimeout(this._loopTimer); this._loopTimer = null; }
   }
 
   _makePacket(tplId) {
@@ -108,17 +81,17 @@ export class Scene {
     requestAnimationFrame(step);
   }
 
-  // ---- effects ----
-
   burst() {
     for (let i = 0; i < 7; i++) {
       const c = document.createElementNS(SVGNS, "circle");
       const a = (Math.PI * 2 * i) / 7;
-      c.setAttribute("cx", 600 + Math.cos(a) * 30);
-      c.setAttribute("cy", 236 + Math.sin(a) * 30);
-      c.setAttribute("r", 5);
+      const cx = SHIELD.x + Math.cos(a) * 22;
+      const cy = SHIELD.y + Math.sin(a) * 22;
+      c.setAttribute("cx", cx);
+      c.setAttribute("cy", cy);
+      c.setAttribute("r", 4);
       c.setAttribute("class", "burst");
-      c.style.transformOrigin = `${600 + Math.cos(a) * 30}px ${236 + Math.sin(a) * 30}px`;
+      c.style.transformOrigin = `${cx}px ${cy}px`;
       this.burstLayer.appendChild(c);
       requestAnimationFrame(() => c.classList.add("on"));
       setTimeout(() => c.remove(), 800);
@@ -128,30 +101,7 @@ export class Scene {
   _dbBlip() {
     const db = this.svg.querySelector("#dbCylinder");
     if (!db) return;
-    db.style.filter = "drop-shadow(0 0 12px rgba(56,189,248,.8))";
-    setTimeout(() => { db.style.filter = ""; }, 320);
-  }
-
-  // ---- camera (animated viewBox) ----
-
-  camera(box, ms = 1400) {
-    if (this._camAnim) cancelAnimationFrame(this._camAnim);
-    const cur = this.svg.getAttribute("viewBox").split(/\s+/).map(Number);
-    const t0 = performance.now();
-    const step = (now) => {
-      const p = Math.min(1, (now - t0) / ms);
-      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-      const v = cur.map((c, i) => c + (box[i] - c) * e);
-      this.svg.setAttribute("viewBox", v.join(" "));
-      if (p < 1) this._camAnim = requestAnimationFrame(step);
-    };
-    this._camAnim = requestAnimationFrame(step);
+    db.style.filter = "drop-shadow(0 0 10px rgba(56,189,248,.8))";
+    setTimeout(() => { db.style.filter = ""; }, 300);
   }
 }
-
-export const CAMERA = {
-  FULL: [0, 0, 1200, 560],
-  INTRO: [30, 120, 760, 420],
-  SHIELD: [340, 90, 520, 330],
-  WIDE: [60, 40, 1080, 520],
-};

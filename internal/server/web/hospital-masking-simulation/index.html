@@ -62,125 +62,136 @@
     <!-- ======================= Cinematic stage ======================= -->
     <section class="stage-wrap">
       <div class="stage" id="stage">
-        <svg id="stageSvg" viewBox="0 0 1200 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+
+        <!-- Slim network topology strip: engineer -> (Quentra) -> hospital DB -->
+        <svg id="stageSvg" viewBox="0 0 1200 150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           <defs>
-            <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#08101f"/>
-              <stop offset="1" stop-color="#04070d"/>
-            </linearGradient>
             <linearGradient id="gShield" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stop-color="#123049"/>
               <stop offset="1" stop-color="#0b1c2e"/>
             </linearGradient>
-            <linearGradient id="gBuilding" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="#101d33"/>
-              <stop offset="1" stop-color="#0a1322"/>
-            </linearGradient>
-            <radialGradient id="gGlow" cx=".5" cy=".5" r=".5">
-              <stop offset="0" stop-color="#2dd4bf" stop-opacity=".55"/>
-              <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
-            </radialGradient>
-
             <!-- SQL query packet template -->
             <g id="tplSql">
-              <rect x="-26" y="-15" width="52" height="30" rx="6" class="pk-body"/>
-              <text x="0" y="4.5" class="pk-text">SQL</text>
+              <rect x="-24" y="-13" width="48" height="26" rx="6" class="pk-body"/>
+              <text x="0" y="4" class="pk-text">SQL</text>
             </g>
             <!-- Result packet template: three data rows -->
             <g id="tplData">
-              <rect x="-26" y="-16" width="52" height="32" rx="6" class="pk-body pk-data"/>
-              <rect x="-18" y="-9"  width="36" height="4" rx="2" class="pk-row r1"/>
-              <rect x="-18" y="-2"  width="36" height="4" rx="2" class="pk-row r2"/>
-              <rect x="-18" y="5"   width="26" height="4" rx="2" class="pk-row r3"/>
+              <rect x="-24" y="-14" width="48" height="28" rx="6" class="pk-body pk-data"/>
+              <rect x="-16" y="-8" width="32" height="4" rx="2" class="pk-row"/>
+              <rect x="-16" y="-1" width="32" height="4" rx="2" class="pk-row"/>
+              <rect x="-16" y="6"  width="22" height="4" rx="2" class="pk-row"/>
             </g>
           </defs>
 
-          <rect x="0" y="0" width="1200" height="560" fill="url(#gSky)"/>
-          <!-- floor line -->
-          <line x1="40" y1="470" x2="1160" y2="470" class="floor"/>
-
-          <!-- ============ routes ============ -->
-          <!-- Through the Quentra shield -->
+          <!-- routes -->
           <path id="pathQn" class="route route-qn"
-                d="M 316 300 C 420 300, 470 236, 600 236 C 730 236, 780 300, 884 300"/>
-          <!-- Direct connection, bypassing the shield -->
+                d="M 214 74 C 360 74, 470 60, 600 60 C 730 60, 840 74, 986 74"/>
           <path id="pathDirect" class="route route-direct"
-                d="M 316 316 C 430 316, 480 412, 600 412 C 720 412, 770 316, 884 316"/>
-          <text x="600" y="444" class="route-label" data-i18n="scene.routeDirect">DİREKT BAĞLANTI</text>
-          <text x="600" y="206" class="route-label lbl-qn" data-i18n="scene.routeQuentra">QUENTRA ÜZERİNDEN · :14330</text>
+                d="M 214 90 C 380 90, 470 126, 600 126 C 730 126, 820 90, 986 90"/>
+          <text x="600" y="26" class="route-label lbl-qn" data-i18n="scene.routeQuentra">QUENTRA ÜZERİNDEN · :14330</text>
+          <text x="600" y="146" class="route-label" data-i18n="scene.routeDirect">DİREKT BAĞLANTI</text>
 
-          <!-- ============ left: software firm ============ -->
-          <g id="office">
-            <rect x="60" y="180" width="256" height="290" rx="12" class="bld"/>
-            <rect x="60" y="180" width="256" height="44" rx="12" class="bld-top"/>
-            <text x="188" y="208" class="bld-title" data-i18n="scene.firm">YAZILIM FİRMASI</text>
-            <text x="188" y="246" class="bld-sub" data-i18n="scene.firmSub">Uzak Destek Merkezi</text>
-
-            <!-- desk + engineer -->
-            <rect x="96" y="392" width="184" height="10" rx="4" class="desk"/>
-            <rect x="118" y="402" width="10" height="52" class="desk-leg"/>
-            <rect x="248" y="402" width="10" height="52" class="desk-leg"/>
-            <!-- engineer -->
-            <g id="engineer">
-              <circle cx="136" cy="330" r="16" class="person-head"/>
-              <path d="M 112 392 C 112 358 160 358 160 392 Z" class="person-body"/>
-            </g>
-            <!-- monitor with mini patient screen -->
-            <g id="monitor">
-              <rect x="176" y="288" width="120" height="86" rx="6" class="mon-frame"/>
-              <rect x="182" y="294" width="108" height="74" rx="3" class="mon-screen"/>
-              <rect x="220" y="374" width="30" height="10" class="mon-neck"/>
-              <rect x="204" y="384" width="62" height="6" rx="3" class="mon-foot"/>
-              <g id="monRows">
-                <rect x="188" y="300" width="42" height="5" rx="2" class="m-label"/><rect x="234" y="300" width="50" height="5" rx="2" class="m-val" data-f="ad"/>
-                <rect x="188" y="310" width="34" height="5" rx="2" class="m-label"/><rect x="234" y="310" width="50" height="5" rx="2" class="m-val" data-f="tckn"/>
-                <rect x="188" y="320" width="40" height="5" rx="2" class="m-label"/><rect x="234" y="320" width="44" height="5" rx="2" class="m-val" data-f="telefon"/>
-                <rect x="188" y="330" width="30" height="5" rx="2" class="m-label"/><rect x="234" y="330" width="24" height="5" rx="2" class="m-val" data-f="kanGrubu"/>
-                <rect x="188" y="340" width="38" height="5" rx="2" class="m-label"/><rect x="234" y="340" width="52" height="5" rx="2" class="m-val" data-f="adres"/>
-                <rect x="188" y="350" width="28" height="5" rx="2" class="m-label"/><rect x="234" y="350" width="46" height="5" rx="2" class="m-val ok" data-f="tani"/>
-              </g>
-              <circle id="monGlow" cx="236" cy="331" r="70" fill="url(#gGlow)" opacity="0"/>
-            </g>
+          <!-- left node: support engineer's laptop -->
+          <g id="nodeSupport">
+            <rect x="96" y="34" width="102" height="64" rx="6" class="mon-frame"/>
+            <rect x="102" y="40" width="90" height="52" rx="3" class="mon-screen"/>
+            <rect x="132" y="98" width="30" height="7" class="mon-neck"/>
+            <rect x="118" y="105" width="58" height="5" rx="2.5" class="mon-foot"/>
+            <rect x="108" y="46" width="52" height="5" rx="2" class="m-label"/>
+            <rect x="108" y="56" width="72" height="5" rx="2" class="m-line"/>
+            <rect x="108" y="66" width="64" height="5" rx="2" class="m-line"/>
+            <rect x="108" y="76" width="70" height="5" rx="2" class="m-line"/>
+            <text x="147" y="128" class="node-title" data-i18n="scene.firm">DESTEK MÜHENDİSİ</text>
+            <text x="147" y="141" class="node-sub" data-i18n="scene.firmSub">yazılım firması · uzak bağlantı</text>
           </g>
 
-          <!-- ============ center: Quentra gateway ============ -->
+          <!-- center: Quentra shield -->
           <g id="shieldNode">
-            <circle id="shieldRing" cx="600" cy="236" r="52" class="shield-ring"/>
-            <path d="M 600 190 L 640 206 L 640 240 C 640 268 622 286 600 296 C 578 286 560 268 560 240 L 560 206 Z" class="shield-body"/>
-            <path d="M 583 238 L 596 251 L 620 222" class="shield-check"/>
-            <text x="600" y="322" class="shield-label">QUENTRA</text>
+            <circle id="shieldRing" cx="600" cy="62" r="34" class="shield-ring"/>
+            <path d="M 600 34 L 626 44 L 626 66 C 626 84 614 96 600 102 C 586 96 574 84 574 66 L 574 44 Z" class="shield-body"/>
+            <path d="M 589 64 L 597 72 L 613 52" class="shield-check"/>
+            <text x="600" y="120" class="shield-label">QUENTRA</text>
             <g id="burstLayer"></g>
           </g>
 
-          <!-- ============ right: hospital + database ============ -->
-          <g id="hospital">
-            <rect x="884" y="150" width="256" height="320" rx="12" class="bld"/>
-            <rect x="884" y="150" width="256" height="44" rx="12" class="bld-top"/>
-            <text x="1012" y="178" class="bld-title" data-i18n="scene.hospital">HASTANE</text>
-            <text x="1012" y="216" class="bld-sub" data-i18n="scene.hospitalSub">Hastane Yönetim Sistemi · Canlı DB</text>
-            <!-- cross -->
-            <g class="cross">
-              <rect x="1084" y="236" width="12" height="36" rx="3"/>
-              <rect x="1072" y="248" width="36" height="12" rx="3"/>
-            </g>
-            <!-- windows -->
-            <g class="windows">
-              <rect x="912" y="240" width="26" height="20" rx="3"/><rect x="948" y="240" width="26" height="20" rx="3"/>
-              <rect x="912" y="272" width="26" height="20" rx="3"/><rect x="948" y="272" width="26" height="20" rx="3"/>
-              <rect x="912" y="304" width="26" height="20" rx="3"/><rect x="948" y="304" width="26" height="20" rx="3"/>
-            </g>
-            <!-- database cylinder -->
+          <!-- right node: hospital database -->
+          <g id="hospitalNode">
             <g id="dbCylinder">
-              <ellipse cx="1012" cy="356" rx="54" ry="16" class="db-top"/>
-              <path d="M 958 356 L 958 424 C 958 433 982 440 1012 440 C 1042 440 1066 433 1066 424 L 1066 356" class="db-body"/>
-              <ellipse cx="1012" cy="390" rx="54" ry="16" class="db-line"/>
-              <text x="1012" y="466" class="db-label">HOSPITALSIM</text>
+              <ellipse cx="1058" cy="40" rx="46" ry="12" class="db-top"/>
+              <path d="M 1012 40 L 1012 92 C 1012 99 1032 104 1058 104 C 1084 104 1104 99 1104 92 L 1104 40" class="db-body"/>
+              <ellipse cx="1058" cy="66" rx="46" ry="12" class="db-line"/>
             </g>
+            <g class="cross"><rect x="1002" y="30" width="7" height="21" rx="2"/><rect x="995" y="37" width="21" height="7" rx="2"/></g>
+            <text x="1058" y="128" class="node-title" data-i18n="scene.hospital">HASTANE HIS</text>
+            <text x="1058" y="141" class="node-sub">HOSPITALSIM · dbo.HASTA</text>
           </g>
 
           <!-- moving packets live here -->
           <g id="packetLayer"></g>
         </svg>
+
+        <!-- ============ SSMS-style SQL client window ============ -->
+        <div class="sqlwin" id="sqlwin">
+          <div class="sw-title">
+            <i></i><i></i><i></i>
+            <span class="sw-app" data-i18n="sw.title">SQL İstemcisi — HIS Uzak Destek Oturumu</span>
+            <span class="sw-conn" id="connChip">destek @ HOSPITAL-SQL01</span>
+          </div>
+          <div class="sw-toolbar">
+            <span class="sw-db"><svg viewBox="0 0 24 24" width="13" height="13"><ellipse cx="12" cy="5" rx="8" ry="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" fill="none" stroke="currentColor" stroke-width="2"/></svg> HOSPITALSIM</span>
+            <button class="sw-exec" id="btnExecute" type="button">
+              <svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+              <span data-i18n="sw.exec">Yürüt</span>
+            </button>
+            <span class="sw-hint" data-i18n="sw.execHint">sorguyu iki rotadan da çalıştırır — direkt + Quentra</span>
+          </div>
+          <div class="sw-body">
+            <aside class="sw-tree" id="swTree">
+              <div class="tr-root"><b>▦</b> HOSPITAL-SQL01</div>
+              <div class="tr-item tr-db" data-tr="1"><b>🗀</b> HOSPITALSIM</div>
+              <div class="tr-item lvl2" data-tr="2"><b>▸</b> <span data-i18n="sw.tables">Tablolar</span></div>
+              <div class="tr-item lvl3 tr-tbl" data-tr="3"><b>▤</b> dbo.HASTA</div>
+              <div class="tr-item lvl2 dim" data-tr="4"><b>▸</b> <span data-i18n="sw.views">Görünümler</span></div>
+              <div class="tr-item lvl2 dim" data-tr="5"><b>▸</b> <span data-i18n="sw.programmability">Programlanabilirlik</span></div>
+              <div class="tr-item lvl2 dim" data-tr="6"><b>▸</b> <span data-i18n="sw.security">Güvenlik</span></div>
+            </aside>
+            <div class="sw-main">
+              <div class="sw-editor" id="swEditor">
+                <pre id="swQuery"></pre><span class="sw-caret" id="swCaret" hidden></span>
+              </div>
+              <div class="sw-tabs">
+                <span class="is-active" data-i18n="sw.results">Sonuçlar</span>
+                <span data-i18n="sw.messages">Mesajlar</span>
+              </div>
+              <div class="sw-results" id="swResults">
+                <div class="rs" id="rsDirect" hidden>
+                  <div class="rs-h"><b class="rs-no dr">1</b> <span data-i18n="sw.rsDirect">Direkt bağlantı — Quentrasız görünüm</span><span class="rs-meta" id="rsDirectMeta"></span></div>
+                  <div class="rs-scroll"><table class="rs-grid" id="gridDirect"></table></div>
+                </div>
+                <div class="rs" id="rsQuentra" hidden>
+                  <div class="rs-h"><b class="rs-no qn">2</b> <span data-i18n="sw.rsQuentra">Quentra :14330 — destek görünümü</span><span class="rs-meta" id="rsQuentraMeta"></span></div>
+                  <div class="rs-scroll"><table class="rs-grid" id="gridQuentra"></table></div>
+                </div>
+                <p class="rs-empty" id="rsEmpty" data-i18n="sw.rsEmpty">Sonuç yok — sorguyu Yürüt ile çalıştırın.</p>
+              </div>
+              <div class="sw-status" id="swStatus" data-tone="idle">
+                <span class="st-msg" id="stMsg" data-i18n="sw.stReady">Hazır</span>
+                <span class="st-right">
+                  <span id="stServer">HOSPITAL-SQL01</span>
+                  <span id="stUser">destek (58)</span>
+                  <span id="stDb">HOSPITALSIM</span>
+                  <span id="stRows">0 satır</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- fake mouse cursor used by the story when it presses Yürüt -->
+        <div class="fake-cursor" id="fakeCursor" hidden>
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" stroke="#000" stroke-width="1.2" d="M5 2l14 12h-8l-3 8z"/></svg>
+        </div>
 
         <!-- HTML overlays on the stage -->
         <div class="ovl-badge ovl-kvkk" id="kvkkBadge" hidden>
@@ -194,6 +205,12 @@
         <div class="ovl-badge ovl-dba" id="dbaBadge" hidden>
           <b data-i18n="ovl.dba">TAM ERİŞİM</b>
           <span data-i18n="ovl.dbaSub">Yetkili rol · veri açık</span>
+        </div>
+
+        <!-- closing message overlay -->
+        <div class="msg-overlay" id="msgOverlay" hidden>
+          <p id="msgLine1"></p>
+          <p id="msgLine2"></p>
         </div>
 
         <!-- Subtitle / caption band -->
@@ -215,11 +232,12 @@
           <div class="pl-progress" id="plProgress"></div>
         </div>
         <div class="pl-scenes" id="plScenes">
-          <button class="pl-chip" data-scene="0" data-i18n="scene.chip1">Kuruluş</button>
-          <button class="pl-chip" data-scene="1" data-i18n="scene.chip2">Sorun</button>
-          <button class="pl-chip" data-scene="2" data-i18n="scene.chip3">Quentra</button>
-          <button class="pl-chip" data-scene="3" data-i18n="scene.chip4">DBA</button>
-          <button class="pl-chip" data-scene="4" data-i18n="scene.chip5">Mesaj</button>
+          <button class="pl-chip" data-scene="0" data-i18n="scene.chip1">Bağlantı</button>
+          <button class="pl-chip" data-scene="1" data-i18n="scene.chip2">Sorgu</button>
+          <button class="pl-chip" data-scene="2" data-i18n="scene.chip3">Açık Veri</button>
+          <button class="pl-chip" data-scene="3" data-i18n="scene.chip4">Quentra</button>
+          <button class="pl-chip" data-scene="4" data-i18n="scene.chip5">DBA</button>
+          <button class="pl-chip" data-scene="5" data-i18n="scene.chip6">Mesaj</button>
         </div>
       </div>
     </section>
@@ -234,7 +252,7 @@
           <span class="route-badge" id="routeBadge">QUENTRA :14330</span>
         </div>
         <div class="term">
-          <div class="term-bar"><i></i><i></i><i></i><span id="termWho" data-i18n="term.who.quentra">destek@uzak-destek — canlı veritabanı</span></div>
+          <div class="term-bar"><i></i><i></i><i></i><span id="termWho" data-i18n="term.who.quentra">destek@quentra:14330 — maskeli oturum</span></div>
           <div class="term-body" id="patientCard">
             <!-- rows injected by JS -->
           </div>

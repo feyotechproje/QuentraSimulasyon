@@ -41,8 +41,9 @@ function renderKpis(state, role, t) {
 
 function renderScreen(state, role, t) {
   // The support engineer's session travels the Quentra route; every other role
-  // sees the direct route's row.
-  const row = role === "quentra" ? state.quentraRow : state.directRow;
+  // sees the direct route's result. The HIS card details the first row.
+  const resultSet = role === "quentra" ? state.quentraRows : state.directRows;
+  const row = (resultSet || [])[0];
   const maskedFields = state.demo ? MASKED_FIELDS : state.maskedFields || [];
   const isMasked = (f) => role === "quentra" && maskedFields.includes(f);
 

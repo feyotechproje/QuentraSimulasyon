@@ -19,10 +19,11 @@ const (
 
 // patientQuery is THE query of the demo — the support screen's patient lookup.
 // Both routes run exactly this text as a parameterized statement; a Quentra
-// masking rule should match it regardless of the @id value.
+// masking rule should match it regardless of the @id value. It returns a small
+// page of rows so the demo's result grid looks like a real SSMS result set.
 const patientQuery = `SELECT HASTA_ID, AD, SOYAD, TCKN, TELEFON, KAN_GRUBU, ADRES, TANI
 FROM dbo.HASTA
-WHERE HASTA_ID = @id`
+WHERE HASTA_ID BETWEEN @id AND @id + 4`
 
 // countSQL verifies the seed.
 const countSQL = `SELECT COUNT_BIG(*) FROM dbo.HASTA`

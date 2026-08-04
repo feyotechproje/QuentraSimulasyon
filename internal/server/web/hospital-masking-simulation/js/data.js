@@ -61,8 +61,15 @@ export function maskRow(r) {
 export const MASKED_FIELDS = ["ad", "soyad", "tckn", "telefon", "kanGrubu", "adres"];
 
 // The exact statement the backend sends down both routes (mirrors
-// internal/hospital/sql.go). Shown while idle / in demo mode; live mode
-// replaces it with the DMV-captured text.
+// internal/hospital/sql.go). Typed into the SQL window and shown while idle /
+// in demo mode; live mode's SQL panel replaces it with the DMV-captured text.
 export const PATIENT_SQL = `SELECT HASTA_ID, AD, SOYAD, TCKN, TELEFON, KAN_GRUBU, ADRES, TANI
 FROM dbo.HASTA
-WHERE HASTA_ID = @id`;
+WHERE HASTA_ID BETWEEN @id AND @id + 4;`;
+
+// A 5-row demo "result page" starting at idx (wraps around the demo set).
+export function demoWindow(idx) {
+  const out = [];
+  for (let i = 0; i < 5; i++) out.push(DEMO_PATIENTS[(idx + i) % DEMO_PATIENTS.length]);
+  return out;
+}
