@@ -1,0 +1,505 @@
+// story-tour.js
+// Shared cinematic "story mode" for the Quentra simulation pages.
+//
+// Two pieces, both reusable by every simulation:
+//
+//   1. Scenario intro — a blurred-backdrop popup shown over the (already
+//      running) page that tells the scenario in a few short paragraphs, with
+//      a "start the story" and a "skip / free watch" button.
+//   2. Guided tour — a sequence of steps. Each step points the "camera" at one
+//      element: the page root is smoothly translate+scale'd so the target
+//      fills the viewport, a spotlight ring dims everything else, and a
+//      caption card narrates what the audience is looking at. Steps advance
+//      automatically (progress bar), or manually with Back / Next / Esc.
+//
+// The engine is i18n-agnostic: the host passes a `translate(step)` function
+// (and label strings) and may re-render on the shared "quentra:langchange"
+// event, which the tour listens to on its own.
+//
+// Usage:
+//   import { StoryTour } from "/shared/story-tour.js";
+//   const tour = new StoryTour({
+//     root: ".app",
+//     steps: [
+//       { target: null,          key: "tour.s1" },            // wide shot
+//       { target: "#somePanel",  key: "tour.s2", zoom: 2.2, hold: 12 },
+//     ],
+//     translate: (step) => ({ title: t(step.key + ".t"), text: t(step.key + ".x") }),
+//     labels: () => ({ back: t("tour.back"), next: t("tour.next"), done: t("tour.done") }),
+//     onDone: () => { ... },
+//   });
+//   tour.intro({ ... }).then((go) => { if (go) tour.start(); });
+
+const CAM_MS = 1150;              // camera glide duration (matches CSS)
+
+export class StoryTour {
+  constructor(opts) {
+    this.rootSel = (opts && opts.root) || ".app";
+    this.steps = (opts && opts.steps) || [];
+    this.translate = (opts && opts.translate) || ((s) => ({ title: s.title || "", text: s.text || "" }));
+    this.labels = (opts && opts.labels) || (() => ({ back: "Back", next: "Next", done: "Done" }));
+    this.onDone = (opts && opts.onDone) || (() => {});
+    this.active = false;
+    this.index = -1;
+
+    this._cam = { s: 1, tx: 0, ty: 0 };
+    this._trackRaf = null;
+    this._offLang = null;
+    this._reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+    this._onKey = (e) => {
+      if (!this.active) return;
+      if (e.key === "Escape") this.stop();
+      else if (e.key === "ArrowRight") { e.preventDefault(); this.next(); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); this.prev(); }
+    };
+    this._onResize = () => { if (this.active) this._applyStep(); };
+  }
+
+  get root() { return document.querySelector(this.rootSel); }
+
+  // ------------------------------------------------------------ intro popup ---
+  /**
+   * Show the blurred scenario popup. `content` holds already-translated
+   * strings: { eyebrow, title, paragraphs: [..], start, skip }.
+   * Resolves true when the user starts the story, false when they skip.
+   */
+  intro(content) {
+    return new Promise((resolve) => {
+      const wrap = mk("div", "st-intro");
+      const card = mk("div", "st-intro-card");
+      const c = content || {};
+
+      const render = (cc) => {
+        card.innerHTML = "";
+        if (cc.eyebrow) card.appendChild(mk("span", "st-eyebrow", esc(cc.eyebrow)));
+        card.appendChild(mk("h2", "st-intro-title", esc(cc.title || "")));
+        (cc.paragraphs || []).forEach((p) => card.appendChild(mk("p", "st-intro-p", esc(p))));
+        const actions = mk("div", "st-intro-actions");
+        const bStart = mk("button", "st-btn st-btn-primary", esc(cc.start || "Start"));
+        const bSkip = mk("button", "st-btn st-btn-ghost", esc(cc.skip || "Skip"));
+        bStart.type = "button"; bSkip.type = "button";
+        bStart.addEventListener("click", () => finish(true));
+        bSkip.addEventListener("click", () => finish(false));
+        actions.appendChild(bStart);
+        actions.appendChild(bSkip);
+        card.appendChild(actions);
+      };
+
+      const onKey = (e) => { if (e.key === "Escape") finish(false); };
+      const offLang = subLang(() => { if (typeof content === "function") render(content()); });
+      const finish = (go) => {
+        document.removeEventListener("keydown", onKey);
+        if (offLang) offLang();
+        wrap.classList.add("st-hide");
+        setTimeout(() => wrap.remove(), 420);
+        resolve(go);
+      };
+
+      render(typeof content === "function" ? content() : c);
+      document.addEventListener("keydown", onKey);
+      wrap.appendChild(card);
+      document.body.appendChild(wrap);
+    });
+  }
+
+  // ------------------------------------------------------------------- tour ---
+  start() {
+    if (this.active || !this.root || !this.steps.length) return;
+    this.active = true;
+    document.documentElement.classList.add("st-lock");
+    this.root.style.willChange = "transform";
+    this.root.style.transformOrigin = "0 0";
+    this.root.classList.add("st-cam");
+
+    // Four veil panels frame the spotlight hole: box-shadow cannot blur what
+    // is behind it, so the blur outside the highlighted area comes from four
+    // backdrop-filter strips (top/bottom/left/right of the target).
+    this._veils = [0, 1, 2, 3].map(() => {
+      const v = mk("div", "st-veil");
+      document.body.appendChild(v);
+      return v;
+    });
+    // Spotlight ring: just the glowing border around the sharp area.
+    this._spot = mk("div", "st-spot");
+    // Caption card: the only interactive piece (pointer-events on), so the
+    // presenter can still click the page itself mid-tour.
+    this._cap = mk("div", "st-cap");
+    this._cap.innerHTML =
+      '<div class="st-cap-head"><span class="st-step"></span><b class="st-title"></b>' +
+      '<button class="st-x" type="button" aria-label="close">✕</button></div>' +
+      '<p class="st-text"></p>' +
+      '<div class="st-nav"><button class="st-btn st-btn-ghost st-prev" type="button"></button>' +
+      '<button class="st-btn st-btn-primary st-next" type="button"></button></div>';
+    this._cap.querySelector(".st-x").addEventListener("click", () => this.stop());
+    this._cap.querySelector(".st-prev").addEventListener("click", () => this.prev());
+    this._cap.querySelector(".st-next").addEventListener("click", () => this.next());
+    document.body.appendChild(this._spot);
+    document.body.appendChild(this._cap);
+
+    document.addEventListener("keydown", this._onKey);
+    window.addEventListener("resize", this._onResize);
+    this._offLang = subLang(() => {
+      if (!this.active) return;
+      this._renderCaption();
+      this._placeCaption(this._frame);   // translated text changes card height
+    });
+
+    this.index = -1;
+    this.next();
+  }
+
+  stop() {
+    if (!this.active) return;
+    this.active = false;
+    if (this._trackRaf) cancelAnimationFrame(this._trackRaf);
+    document.removeEventListener("keydown", this._onKey);
+    window.removeEventListener("resize", this._onResize);
+    if (this._offLang) { this._offLang(); this._offLang = null; }
+    clearTimeout(this._sharpTimer);
+    this._unsharpen();
+    this._target = null;
+    if (this._veils) { this._veils.forEach((v) => v.remove()); this._veils = null; }
+    if (this._spot) { this._spot.remove(); this._spot = null; }
+    if (this._cap) { this._cap.remove(); this._cap = null; }
+    document.documentElement.classList.remove("st-lock");
+
+    // Glide the camera home, then drop the transform entirely. The settle
+    // timer in _setCam fires with scale 1 and restores the canvas renderers.
+    this._setCam(1, 0, 0);
+    const root = this.root;
+    setTimeout(() => {
+      if (!this.active && root) {
+        root.classList.remove("st-cam");
+        root.style.transform = "";
+      }
+    }, CAM_MS + 60);
+    this.onDone();
+  }
+
+  next() {
+    if (!this.active) return;
+    if (this.index >= this.steps.length - 1) { this.stop(); return; }
+    this.index += 1;
+    this._applyStep();
+  }
+
+  prev() {
+    if (!this.active || this.index <= 0) return;
+    this.index -= 1;
+    this._applyStep();
+  }
+
+  // ------------------------------------------------------------- internals ---
+  // Steps only advance on user input (Next/Back/arrow keys) — no auto-play.
+  _applyStep() {
+    const step = this.steps[this.index];
+    if (!step) return;
+
+    let target = step.target ? document.querySelector(step.target) : null;
+    // A hidden target (responsive layout dropped it) degrades to a wide shot.
+    if (target) {
+      const r = target.getBoundingClientRect();
+      if (!r.width || !r.height) target = null;
+    }
+    clearTimeout(this._sharpTimer);
+    this._unsharpen();
+    this._target = target;
+
+    // Frame the shot first, then drop the caption card into the largest free
+    // area around the target's final on-screen rect (dead centre on wide
+    // shots) so the card floats like a popup instead of docking to an edge.
+    this._frame = this._camera(target, step.zoom || 2.2);
+    this._renderCaption();
+    this._placeCaption(this._frame);
+    this._trackSpot(target);
+  }
+
+  _renderCaption() {
+    if (!this._cap) return;
+    const step = this.steps[this.index];
+    const { title, text } = this.translate(step) || {};
+    const L = this.labels() || {};
+    this._cap.querySelector(".st-step").textContent = `${this.index + 1}/${this.steps.length}`;
+    this._cap.querySelector(".st-title").textContent = title || "";
+    this._cap.querySelector(".st-text").textContent = text || "";
+    const prev = this._cap.querySelector(".st-prev");
+    prev.textContent = L.back || "Back";
+    prev.disabled = this.index === 0;
+    this._cap.querySelector(".st-next").textContent =
+      this.index >= this.steps.length - 1 ? (L.done || "Done") : (L.next || "Next");
+    // Replay the caption entrance.
+    this._cap.classList.remove("st-in");
+    void this._cap.offsetWidth;
+    this._cap.classList.add("st-in");
+  }
+
+  /**
+   * Point the camera. The root carries `translate(tx,ty) scale(s)` with origin
+   * 0 0; we invert the current transform to recover natural (untransformed)
+   * geometry, then solve for the transform that centers the target in the
+   * viewport. Returns the target's FINAL on-screen rect (where it will sit
+   * once the glide settles) so the caption can be placed around it, or null
+   * for wide shots.
+   */
+  _camera(targetEl, zoomMax) {
+    const root = this.root;
+    if (!root) return null;
+    if (!targetEl) { this._setCam(1, 0, 0); return null; }
+    if (this._reduced) {
+      // No camera motion: the target stays where it is, so its live rect IS
+      // the final frame for caption placement.
+      this._setCam(1, 0, 0);
+      const r = targetEl.getBoundingClientRect();
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    }
+
+    const vw = window.innerWidth, vh = window.innerHeight;
+    // Read the LIVE transform (mid-glide it is the interpolated value, which is
+    // what the rects below reflect) — this._cam only holds the glide's end
+    // state, so inverting with it would misplace the camera on a quick Next.
+    const cur = liveTransform(root);
+    const r0 = root.getBoundingClientRect();
+    const rootNat = {
+      left: r0.left - cur.tx, top: r0.top - cur.ty,
+      w: r0.width / cur.s, h: r0.height / cur.s,
+    };
+    const tr = targetEl.getBoundingClientRect();
+    const nat = {
+      x: (tr.left - r0.left) / cur.s, y: (tr.top - r0.top) / cur.s,
+      w: tr.width / cur.s, h: tr.height / cur.s,
+    };
+    if (!nat.w || !nat.h) { this._setCam(1, 0, 0); return null; }
+
+    // Leave breathing room around the shot so the caption has a free region.
+    const availW = vw * 0.82, availH = vh * 0.82;
+    let s = Math.min(zoomMax || 2.2, availW / nat.w, availH / nat.h);
+    s = Math.max(1, s);
+
+    const cx = nat.x + nat.w / 2, cy = nat.y + nat.h / 2;
+    let tx = vw / 2 - rootNat.left - s * cx;
+    let ty = vh / 2 - rootNat.top - s * cy;
+
+    // Never pull a scaled-up root's edge inside the viewport (no void showing).
+    const rw = rootNat.w * s, rh = rootNat.h * s;
+    tx = rw >= vw ? clamp(tx, vw - (rootNat.left + rw), -rootNat.left) : 0;
+    ty = rh >= vh ? clamp(ty, vh - (rootNat.top + rh), -rootNat.top) : 0;
+    this._setCam(s, tx, ty);
+
+    const left = rootNat.left + tx + s * nat.x;
+    const top = rootNat.top + ty + s * nat.y;
+    return { left, top, right: left + s * nat.w, bottom: top + s * nat.h };
+  }
+
+  /**
+   * Float the caption card in the largest free viewport region around the
+   * target's final rect — beside it when a side is roomy (the card narrows to
+   * fit), otherwise centered in the space above/below. Wide shots get the
+   * card dead centre. Never docked to a screen edge.
+   */
+  _placeCaption(rect) {
+    const cap = this._cap;
+    if (!cap) return;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const M = 28;                       // margin to the viewport edges
+    cap.style.width = "";               // back to the CSS default before measuring
+    let w = cap.offsetWidth, h = cap.offsetHeight;
+    let x, y;
+
+    if (rect) {
+      const pad = 22;                   // clearance from the spotlight ring
+      const regions = [
+        { side: "left",   x0: rect.right + pad, x1: vw, y0: 0, y1: vh },   // card right of target → tail on its left
+        { side: "right",  x0: 0, x1: rect.left - pad, y0: 0, y1: vh },     // card left of target → tail right
+        { side: "top",    x0: 0, x1: vw, y0: rect.bottom + pad, y1: vh },  // card below → tail top
+        { side: "bottom", x0: 0, x1: vw, y0: 0, y1: rect.top - pad },      // card above → tail bottom
+      ];
+      let best = null;
+      for (const r of regions) {
+        const rw = r.x1 - r.x0 - M * 2, rh = r.y1 - r.y0 - M * 2;
+        if (rw < 340 || rh < 110) continue;
+        const useW = Math.min(w, rw);   // narrow side regions rewrap the text
+        cap.style.width = useW + "px";
+        const useH = cap.offsetHeight;
+        cap.style.width = "";
+        if (useH > rh) continue;
+        const area = (r.x1 - r.x0) * (r.y1 - r.y0);
+        if (!best || area > best.area) best = { ...r, area, useW };
+      }
+      if (best) {
+        cap.style.width = best.useW + "px";
+        w = best.useW;
+        h = cap.offsetHeight;
+        x = (best.x0 + best.x1) / 2 - w / 2;
+        y = (best.y0 + best.y1) / 2 - h / 2;
+        this._tail = best.side;
+      } else {
+        // Nothing fits cleanly: float over the lower part of the shot.
+        x = (vw - w) / 2;
+        y = vh - h - M * 2;
+        this._tail = null;
+      }
+    } else {
+      x = (vw - w) / 2;
+      y = (vh - h) / 2;
+      this._tail = null;
+    }
+
+    x = clamp(x, M, Math.max(M, vw - w - M));
+    y = clamp(y, M, Math.max(M, vh - h - M));
+    cap.style.left = x + "px";
+    cap.style.top = y + "px";
+
+    // Speech-bubble tail: aim it at the spotlighted panel's centre so the
+    // card reads as the story SPEAKING about what it highlights.
+    if (this._tail && rect) {
+      cap.dataset.tail = this._tail;
+      if (this._tail === "left" || this._tail === "right") {
+        cap.style.setProperty("--tail-y", clamp((rect.top + rect.bottom) / 2 - y, 26, h - 26) + "px");
+      } else {
+        cap.style.setProperty("--tail-x", clamp((rect.left + rect.right) / 2 - x, 26, w - 26) + "px");
+      }
+    } else {
+      cap.removeAttribute("data-tail");
+    }
+  }
+
+  /**
+   * Give the spotlighted element its own composited layer that rasters at the
+   * REAL accumulated scale, so its text stays crisp under the camera zoom.
+   * Measured recipe: a layer born via plain translateZ keeps its initial 1x
+   * raster forever, but REMOVING a `will-change: transform` (while a
+   * translateZ keeps the layer alive) makes the compositor re-evaluate and
+   * re-raster at the accumulated scale. So: will-change first, swap a beat
+   * later.
+   */
+  _sharpen(el) {
+    this._sharpEl = el;
+    this._sharpPrev = el.style.transform;
+    el.style.willChange = "transform";           // the layer is born (1x raster)
+    clearTimeout(this._sharpSwap);
+    this._sharpSwap = setTimeout(() => {
+      if (this._sharpEl !== el) return;
+      el.style.transform = "translateZ(0)";       // keep the layer alive...
+      el.style.willChange = "";                    // ...re-raster at true scale
+    }, 500);
+  }
+
+  _unsharpen() {
+    clearTimeout(this._sharpSwap);
+    if (!this._sharpEl) return;
+    this._sharpEl.style.willChange = "";
+    this._sharpEl.style.transform = this._sharpPrev || "";
+    this._sharpEl = null;
+  }
+
+  _setCam(s, tx, ty) {
+    this._cam = { s, tx, ty };
+    const root = this.root;
+    if (!root) return;
+    // Composite only WHILE gliding. Both `will-change` and the transition
+    // property pin the layer's raster scale at 1x (blurry when scaled up), so
+    // once the glide settles drop both, sharpen the spotlighted target (see
+    // below) and announce the settled scale so canvas renderers re-render
+    // their backing stores at zoom resolution.
+    root.classList.add("st-cam");
+    void root.offsetWidth;              // transition must be active before the change
+    root.style.willChange = "transform";
+    root.style.transform = (s === 1 && !tx && !ty) ? "translate(0px, 0px) scale(1)" : `translate(${tx}px, ${ty}px) scale(${s})`;
+    clearTimeout(this._settleTimer);
+    this._settleTimer = setTimeout(() => {
+      root.classList.remove("st-cam");
+      root.style.willChange = "auto";
+      if (this.active) {
+        // The huge scaled root stays at its 1x raster (Chrome caps raster
+        // scale on large layers), which is invisible under the blur veils —
+        // but the spotlighted panel must be sharp. Promoting IT to its own
+        // small composited layer makes it raster at the accumulated scale.
+        clearTimeout(this._sharpTimer);
+        this._sharpTimer = setTimeout(() => {
+          if (this.active && this._target && s !== 1) this._sharpen(this._target);
+        }, 400);
+      } else {
+        // After stop() the camera is home — leave no inline style behind.
+        root.style.transform = "";
+        root.style.willChange = "";
+      }
+      window.__quentraStoryScale = s;
+      window.dispatchEvent(new CustomEvent("quentra:storycam", { detail: { scale: s } }));
+    }, CAM_MS + 80);
+  }
+
+  /**
+   * Follow the target with the spotlight ring and the four blur veils while
+   * the camera glides. The veils tile the viewport around the ring's hole, so
+   * everything except the highlighted area is blurred.
+   */
+  _trackSpot(targetEl) {
+    if (this._trackRaf) cancelAnimationFrame(this._trackRaf);
+    const spot = this._spot, veils = this._veils;
+    if (!spot || !veils) return;
+    const box = (el, x, y, w, h) => {
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      el.style.width = Math.max(0, w) + "px";
+      el.style.height = Math.max(0, h) + "px";
+    };
+    if (!targetEl) {
+      // Wide shot: nothing to keep sharp, so one veil blurs the whole page
+      // behind the centered card — the same reading as the intro popup.
+      spot.style.display = "none";
+      veils.forEach((v, i) => { v.style.display = i === 0 ? "block" : "none"; });
+      box(veils[0], 0, 0, window.innerWidth, window.innerHeight);
+      return;
+    }
+    spot.style.display = "block";
+    veils.forEach((v) => { v.style.display = "block"; });
+    const t0 = performance.now();
+    const pad = 10;
+    const tick = () => {
+      if (!this.active || !this._spot) return;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const r = targetEl.getBoundingClientRect();
+      const L = r.left - pad, T = r.top - pad, R = r.right + pad, B = r.bottom + pad;
+      box(spot, L, T, R - L, B - T);
+      box(veils[0], 0, 0, vw, T);            // above the hole
+      box(veils[1], 0, B, vw, vh - B);       // below
+      box(veils[2], 0, T, L, B - T);         // left strip
+      box(veils[3], R, T, vw - R, B - T);    // right strip
+      if (performance.now() - t0 < CAM_MS + 200) this._trackRaf = requestAnimationFrame(tick);
+      else this._trackRaf = null;
+    };
+    tick();
+  }
+}
+
+// -------------------------------------------------------------- helpers ---
+function mk(tag, cls, html) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (html != null) n.innerHTML = html;
+  return n;
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+
+/** Current translate+scale of el, read from the computed matrix. */
+function liveTransform(el) {
+  const t = getComputedStyle(el).transform;
+  if (!t || t === "none") return { s: 1, tx: 0, ty: 0 };
+  const m = t.match(/matrix\(([^)]+)\)/);
+  if (!m) return { s: 1, tx: 0, ty: 0 };
+  const p = m[1].split(",").map(Number);
+  return { s: p[0] || 1, tx: p[4] || 0, ty: p[5] || 0 };
+}
+
+/** Re-render on the shared language switch; returns an unsubscribe fn. */
+function subLang(fn) {
+  const h = () => fn();
+  window.addEventListener("quentra:langchange", h);
+  return () => window.removeEventListener("quentra:langchange", h);
+}

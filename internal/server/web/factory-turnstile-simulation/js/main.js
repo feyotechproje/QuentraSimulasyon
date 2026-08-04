@@ -10,7 +10,8 @@ import { Renderer } from "./renderer.js";
 import { Engine } from "./engine.js";
 import { UI } from "./ui.js";
 import { BANK_GATE_COUNT } from "./world.js";
-import { initQuentraApp } from "/shared/quentra-i18n.js";
+import { initQuentraApp, QuentraI18n } from "/shared/quentra-i18n.js";
+import { StoryTour } from "/shared/story-tour.js";
 import { FACTORY_TURNSTILE_INTRO, FACTORY_TURNSTILE_DICT } from "./i18n.js";
 import { initAccessLive } from "/shared/access-live.js";
 
@@ -46,6 +47,55 @@ function boot() {
   ro.observe(canvasQn.parentElement);
 
   engine.start();
+
+  // ---- cinematic story mode ----------------------------------------------
+  // Blurred scenario popup at boot, then a guided tour: wide shot → baseline
+  // queue → pipeline (slow stage) → baseline SQL → Quentra rewrite (the diff)
+  // → Quentra bank → KPI strip. The toolbar Story button replays it.
+  const t = (k, fb) => QuentraI18n.t(k, fb);
+  const tour = new StoryTour({
+    root: ".app",
+    steps: [
+      { target: null,              key: "tour.s1" },
+      { target: ".bank-baseline",  key: "tour.s2", zoom: 1.6 },
+      { target: ".pipeline-panel", key: "tour.s3", zoom: 2.0 },
+      { target: "#rwBefore",       key: "tour.s4", zoom: 2.2 },
+      { target: "#rwAfter",        key: "tour.s5", zoom: 2.2 },
+      { target: ".bank-quentra",   key: "tour.s6", zoom: 1.6 },
+      { target: "#kpiStrip",       key: "tour.s7", zoom: 1.3 },
+    ],
+    translate: (step) => ({ title: t(step.key + ".t"), text: t(step.key + ".x") }),
+    labels: () => ({ back: t("tour.back"), next: t("tour.next"), done: t("tour.done") }),
+  });
+  // The shift-start overlay covers (and blurs) both floors while the banks
+  // are idle — the story must play over a RUNNING demo, so starting the tour
+  // first starts the shift with the selected/default worker count.
+  const startStory = () => {
+    if (tour.active) return;
+    const overlay = document.getElementById("shiftStart");
+    if (overlay && !overlay.hidden) {
+      const b = document.getElementById("btnShiftStart");
+      if (b) b.click();
+    }
+    tour.start();
+  };
+  const btnStory = document.getElementById("btnStory");
+  if (btnStory) btnStory.addEventListener("click", startStory);
+  // When the story camera settles, re-render both floors at the zoomed
+  // resolution (and back at 1x when the tour releases the camera).
+  window.addEventListener("quentra:storycam", () => {
+    for (const v of engine.views) v.renderer.resize();
+  });
+
+  // Scenario popup over the already-animating demo; the tour only takes over
+  // if the presenter opts in.
+  tour.intro(() => ({
+    eyebrow: t("tour.intro.eyebrow"),
+    title: t("tour.intro.title"),
+    paragraphs: [t("tour.intro.p1"), t("tour.intro.p2"), t("tour.intro.p3")],
+    start: t("tour.intro.start"),
+    skip: t("tour.intro.skip"),
+  })).then((go) => { if (go) startStory(); });
 
   // Expose for quick debugging in the console (harmless, demo only).
   window.__factory = { simBase, simQn, engine, ui };

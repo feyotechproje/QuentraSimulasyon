@@ -98,10 +98,15 @@ export class Renderer {
 
   resize() {
     const WORLD_BOUNDS = this.world.WORLD_BOUNDS;
+    // The story tour zooms the page root with a CSS transform: undo that scale
+    // for the layout math (the rect below is measured transformed) and fold it
+    // into the backing-store DPR instead, so the zoomed shot renders at native
+    // sharpness without disturbing the layout.
+    const camS = window.__quentraStoryScale || 1;
     const rect = this.canvas.getBoundingClientRect();
-    const cssW = Math.max(320, rect.width);
-    const cssH = Math.max(320, rect.height);
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const cssW = Math.max(320, rect.width / camS);
+    const cssH = Math.max(320, rect.height / camS);
+    this.dpr = Math.min((window.devicePixelRatio || 1) * camS, 3);
     this.canvas.width = Math.round(cssW * this.dpr);
     this.canvas.height = Math.round(cssH * this.dpr);
     this.cssW = cssW;

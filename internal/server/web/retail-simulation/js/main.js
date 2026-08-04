@@ -18,7 +18,8 @@ import { ScenarioController, RUN_MODE } from "./scenario.js";
 import { Renderer } from "./renderer.js";
 import { UI } from "./ui.js";
 import { Engine, ENGINE_STATE } from "./engine.js";
-import { initQuentraApp } from "/shared/quentra-i18n.js";
+import { initQuentraApp, QuentraI18n } from "/shared/quentra-i18n.js";
+import { StoryTour } from "/shared/story-tour.js";
 import { RETAIL_INTRO, RETAIL_DICT } from "./i18n.js";
 
 const LIVE_REGISTER_COUNT = 10;               // 5 direct + 5 quentra
@@ -190,8 +191,52 @@ async function boot() {
     },
   };
 
+  // ---- cinematic story mode ----------------------------------------------
+  // Blurred scenario popup at boot, then a guided tour: the camera zooms from
+  // the struggling direct bank onto the outgoing SQL, then onto the Quentra
+  // rewrite, then onto the drained right bank. The Story button replays it.
+  const t = (k, fb) => QuentraI18n.t(k, fb);
+  const tour = new StoryTour({
+    root: ".app",
+    steps: [
+      { target: null,            key: "tour.s1" },
+      { target: ".bank-direct",  key: "tour.s2", zoom: 1.6 },
+      { target: "#rwDirect",     key: "tour.s3", zoom: 2.4 },
+      { target: "#rwQuentra",    key: "tour.s4", zoom: 2.4 },
+      { target: ".bank-quentra", key: "tour.s5", zoom: 1.6 },
+      { target: "#kpiRow",       key: "tour.s6", zoom: 1.3 },
+    ],
+    translate: (step) => ({ title: t(step.key + ".t"), text: t(step.key + ".x") }),
+    labels: () => ({ back: t("tour.back"), next: t("tour.next"), done: t("tour.done") }),
+    // Hand narration back to the ambient caption band when the tour ends.
+    onDone: () => scenario.setAuto(true),
+  });
+  const startStory = () => {
+    if (tour.active) return;
+    // The story plays over whichever mode is active — demo OR live. In live
+    // mode an idle engine sits behind the start overlay (which covers the
+    // floors), so starting the tour first starts the run with the selected
+    // customer count, exactly like pressing Start yourself.
+    if (!scenario.isDemo) {
+      const overlay = document.getElementById("liveStart");
+      if (overlay && !overlay.hidden) {
+        const b = document.getElementById("btnLiveStart");
+        if (b) b.click();
+      }
+    }
+    scenario.setAuto(false);               // one narrator at a time (demo band)
+    tour.start();
+  };
+
+  // When the story camera settles, re-render both floors at the zoomed
+  // resolution (and back at 1x when the tour releases the camera).
+  window.addEventListener("quentra:storycam", () => {
+    rendererDirect.resize(engine.views[0].sim.world);
+    rendererQuentra.resize(engine.views[1].sim.world);
+  });
+
   ui.bind(engine, controls);
-  ui.bindScenario(scenario);
+  ui.bindScenario(scenario, startStory);
 
   // Pull the grounded SQL text (falls back to the built-in strings offline).
   scenario.loadSQL();
@@ -228,6 +273,17 @@ async function boot() {
   });
 
   engine.start();
+
+  // Scenario popup over the already-animating demo: the backdrop blur keeps
+  // the store visible, the card tells the story, and the tour only takes over
+  // if the presenter opts in.
+  tour.intro(() => ({
+    eyebrow: t("tour.intro.eyebrow"),
+    title: t("tour.intro.title"),
+    paragraphs: [t("tour.intro.p1"), t("tour.intro.p2"), t("tour.intro.p3")],
+    start: t("tour.intro.start"),
+    skip: t("tour.intro.skip"),
+  })).then((go) => { if (go) startStory(); });
 }
 
 initQuentraApp({

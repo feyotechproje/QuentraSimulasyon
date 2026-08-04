@@ -1,0 +1,299 @@
+/* story-tour.css
+   Shared guided story mode: scenario intro popup + tour camera (blur veils
+   around a spotlight ring, floating caption card).
+
+   Design language: the cards are built ON the application's own light-theme
+   tokens (--surface / --border / --text*, defined by /shared/light-theme.css)
+   with light fallbacks, so the popup reads as a native part of the product
+   UI rather than a separate overlay concept. Fonts are deliberately NOT set:
+   everything is appended to <body> and inherits each simulation's UI font. */
+
+/* While the tour runs the page must not scroll under the camera. */
+html.st-lock, html.st-lock body { overflow: hidden !important; }
+
+/* The camera: the page root glides between shots. */
+.st-cam { transition: transform 1.15s cubic-bezier(.22, .9, .24, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .st-cam { transition: none; }
+}
+
+/* Toolbar launcher: simulations without their own story control drop this
+   button into their header to (re)start the tour. Styled on the same app
+   tokens so it sits naturally next to native toolbar controls. */
+.st-launch {
+  appearance: none;
+  cursor: pointer;
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border-2, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--text-dim, #64748b);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.st-launch:hover {
+  color: var(--qi-accent, #7c3aed);
+  border-color: color-mix(in srgb, var(--qi-accent, #7c3aed) 40%, transparent);
+  background: color-mix(in srgb, var(--qi-accent, #7c3aed) 6%, transparent);
+}
+
+/* ------------------------------------------------- scenario intro popup --- */
+.st-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 99980;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vh 4vw;
+  background: rgba(226, 232, 244, .48);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
+  backdrop-filter: blur(12px) saturate(1.05);
+  opacity: 1;
+  transition: opacity .4s ease;
+}
+.st-intro.st-hide { opacity: 0; pointer-events: none; }
+
+.st-intro-card {
+  width: min(660px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 34px clamp(22px, 4.5vw, 46px) 30px;
+  border-radius: 16px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #dce3ee);
+  box-shadow: 0 24px 64px -22px rgba(30, 41, 59, .28), 0 2px 8px rgba(30, 41, 59, .06);
+  color: var(--text, #1e293b);
+  animation: st-card-in .5s cubic-bezier(.2, .9, .25, 1) both;
+}
+@keyframes st-card-in {
+  from { opacity: 0; transform: translateY(20px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.st-eyebrow {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--qi-accent, #7c3aed);
+  background: color-mix(in srgb, var(--qi-accent, #7c3aed) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--qi-accent, #7c3aed) 24%, transparent);
+}
+.st-intro-title {
+  margin: 0 0 12px;
+  font-size: clamp(20px, 3vw, 26px);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -.2px;
+  color: var(--text, #1e293b);
+}
+.st-intro-p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--text-soft, #475569);
+}
+.st-intro-p strong { color: var(--text, #1e293b); }
+.st-intro-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+/* Shared buttons (intro + caption nav) — mirror the app's control styling. */
+.st-btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: .1px;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease;
+}
+.st-btn:disabled { opacity: .4; cursor: default; }
+.st-btn-primary {
+  color: #fff;
+  background: var(--qi-accent, #7c3aed);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--qi-accent, #7c3aed) 60%, transparent);
+}
+.st-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--qi-accent, #7c3aed) 88%, #000);
+}
+.st-btn-ghost {
+  color: var(--text-dim, #64748b);
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border-2, #cbd5e1);
+}
+.st-btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2, #f6f8fc);
+  color: var(--text, #1e293b);
+}
+
+/* ------------------------------------------------- veils + spotlight ring --- */
+/* Four strips tile the viewport around the highlighted rect: they carry the
+   blur + light frost, so ONLY the spotlighted area stays sharp. Positioned
+   per frame by JS while the camera glides. */
+.st-veil {
+  position: fixed;
+  z-index: 99950;
+  pointer-events: none;
+  background: rgba(238, 242, 249, .45);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/* The border around the sharp hole — accent colored, restrained glow. */
+.st-spot {
+  position: fixed;
+  z-index: 99960;
+  pointer-events: none;
+  border: 2px solid var(--qi-accent, #7c3aed);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--qi-accent, #7c3aed) 12%, transparent),
+    0 14px 40px -14px color-mix(in srgb, var(--qi-accent, #7c3aed) 45%, transparent);
+}
+
+/* --------------------------------------------------------- speech bubble --- */
+/* The narration floats as a SPEECH BUBBLE: left/top are computed by JS to
+   center it in the largest free region around the spotlight (dead centre on
+   wide shots), and its tail points at the highlighted panel so each step
+   reads as the story speaking about what the audience is looking at. */
+.st-cap {
+  position: fixed;
+  z-index: 99970;
+  box-sizing: border-box;
+  width: min(640px, 94vw);
+  padding: 16px 20px 14px;
+  border-radius: 20px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #dce3ee);
+  box-shadow: 0 22px 60px -20px rgba(30, 41, 59, .30), 0 2px 8px rgba(30, 41, 59, .06);
+  color: var(--text, #1e293b);
+}
+
+/* Bubble tail: a rotated square sharing the card's surface + border; only the
+   two outward edges keep a border so it merges seamlessly with the bubble. */
+.st-cap::before {
+  content: "";
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  background: var(--surface, #ffffff);
+  border: 0 solid var(--border, #dce3ee);
+  transform: rotate(45deg);
+  display: none;
+}
+.st-cap[data-tail="left"]::before {
+  display: block;
+  left: -8px;
+  top: var(--tail-y, 50%);
+  margin-top: -8px;
+  border-left-width: 1px;
+  border-bottom-width: 1px;
+}
+.st-cap[data-tail="right"]::before {
+  display: block;
+  right: -8px;
+  top: var(--tail-y, 50%);
+  margin-top: -8px;
+  border-right-width: 1px;
+  border-top-width: 1px;
+}
+.st-cap[data-tail="top"]::before {
+  display: block;
+  top: -8px;
+  left: var(--tail-x, 50%);
+  margin-left: -8px;
+  border-left-width: 1px;
+  border-top-width: 1px;
+}
+.st-cap[data-tail="bottom"]::before {
+  display: block;
+  bottom: -8px;
+  left: var(--tail-x, 50%);
+  margin-left: -8px;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+}
+.st-cap.st-in { animation: st-cap-in .4s cubic-bezier(.2, .9, .25, 1) both; }
+@keyframes st-cap-in {
+  from { opacity: 0; transform: translateY(12px) scale(.99); }
+  to   { opacity: 1; transform: none; }
+}
+
+.st-cap-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.st-step {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: .5px;
+  color: var(--qi-accent, #7c3aed);
+  background: color-mix(in srgb, var(--qi-accent, #7c3aed) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--qi-accent, #7c3aed) 24%, transparent);
+}
+.st-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text, #1e293b);
+}
+.st-x {
+  margin-left: auto;
+  flex: none;
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--text-mute, #94a3b8);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 7px;
+}
+.st-x:hover { color: var(--text, #1e293b); background: var(--surface-3, #eef2f7); }
+
+.st-text {
+  margin: 0 0 11px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.62;
+  color: var(--text-soft, #475569);
+}
+
+.st-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.st-nav .st-btn { padding: 8px 16px; font-size: 12.5px; }
+
+@media (max-width: 640px) {
+  .st-intro-card { padding: 24px 18px 22px; }
+  .st-cap { width: 94vw; padding: 12px 13px 10px; }
+  .st-text { font-size: 12.5px; }
+}

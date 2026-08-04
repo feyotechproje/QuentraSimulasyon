@@ -74,13 +74,21 @@ export class UI {
     this._gridKey = "";
   }
 
-  /** Wire the demo/live switch and the story toggle to the scenario. */
-  bindScenario(scenario) {
+  /**
+   * Wire the demo/live switch and the story button to the scenario. When an
+   * `onStory` launcher is given, the Story button starts the cinematic guided
+   * tour instead of toggling the ambient caption band.
+   */
+  bindScenario(scenario, onStory) {
     this.scenario = scenario;
+    this._storyLauncher = onStory || null;
     const e = this.el;
     if (e.btnDemo) e.btnDemo.addEventListener("click", () => scenario.setRunMode("demo"));
     if (e.btnLive) e.btnLive.addEventListener("click", () => scenario.setRunMode("live"));
-    if (e.btnAuto) e.btnAuto.addEventListener("click", () => scenario.setAuto(!scenario.auto));
+    if (e.btnAuto) e.btnAuto.addEventListener("click", () => {
+      if (this._storyLauncher) this._storyLauncher();
+      else scenario.setAuto(!scenario.auto);
+    });
     this.renderScenario();
   }
 
@@ -130,8 +138,9 @@ export class UI {
     on(e.btnDemo, s.isDemo);
     on(e.btnLive, !s.isDemo);
     on(e.btnAuto, s.auto);
-    // Narration is a demo-only affordance; live mode is operator-driven.
-    if (e.btnAuto) e.btnAuto.disabled = !s.isDemo;
+    // The ambient band is a demo-only affordance; the cinematic tour launcher
+    // stays clickable everywhere (it switches back to demo mode itself).
+    if (e.btnAuto) e.btnAuto.disabled = !s.isDemo && !this._storyLauncher;
 
     // Both banks are always active — the comparison is standing, not switched.
     // Demo shows the scripted pretty-printed pair; live shows the app's real

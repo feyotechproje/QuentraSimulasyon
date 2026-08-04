@@ -31,8 +31,14 @@ export class Renderer {
 
   resize(world) {
     const wrap = this.canvas.parentElement;
+    // The story tour zooms the page root with a CSS transform: undo that scale
+    // for the layout math (the rect is measured transformed — feeding it back
+    // into style.height would inflate the layout) and fold it into the
+    // backing-store DPR instead, so the zoomed shot renders at native
+    // sharpness without disturbing the layout.
+    const camS = window.__quentraStoryScale || 1;
     const rect = (wrap || this.canvas).getBoundingClientRect();
-    this.cssW = Math.max(1, Math.round(rect.width));
+    this.cssW = Math.max(1, Math.round(rect.width / camS));
     // Width drives the scale; the resulting scene height becomes the canvas's
     // own height so the wrapper can scroll to it instead of squeezing the
     // queue lanes to fit a fixed viewport. Registers stay pinned near the top;
@@ -54,12 +60,12 @@ export class Renderer {
       // Letting CSS stretch a shorter bitmap changes the Y scale independently
       // and makes the live floor look vertically distorted.
       const sceneH = Math.round(worldH * this.scale + padTop + pad);
-      this.cssH = Math.max(1, Math.round(rect.height), sceneH);
+      this.cssH = Math.max(1, Math.round(rect.height / camS), sceneH);
     } else {
-      this.cssH = Math.max(1, Math.round(rect.height));
+      this.cssH = Math.max(1, Math.round(rect.height / camS));
     }
     this.canvas.style.height = this.cssH + "px";
-    this.dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2.5));
+    this.dpr = Math.max(1, Math.min((window.devicePixelRatio || 1) * camS, 3));
     this.canvas.width = Math.round(this.cssW * this.dpr);
     this.canvas.height = Math.round(this.cssH * this.dpr);
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);

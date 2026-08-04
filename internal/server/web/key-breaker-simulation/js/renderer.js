@@ -23,14 +23,21 @@ export class Renderer {
   }
 
   resize() {
+    // While the story camera holds a zoom, the rect is measured transformed —
+    // divide it back to layout size and fold the camera scale into the
+    // backing-store DPR instead, so the zoomed shot renders at native
+    // sharpness without disturbing the layout.
+    const camS = window.__quentraStoryScale || 1;
     const r = this.canvas.getBoundingClientRect();
-    this.cssW = r.width; this.cssH = r.height;
-    this.canvas.width = Math.round(r.width * this.dpr);
-    this.canvas.height = Math.round(r.height * this.dpr);
+    const w = r.width / camS, h = r.height / camS;
+    this.cssW = w; this.cssH = h;
+    this.dpr = Math.min(Math.min(window.devicePixelRatio || 1, 2) * camS, 3);
+    this.canvas.width = Math.round(w * this.dpr);
+    this.canvas.height = Math.round(h * this.dpr);
     // contain-fit VIEW into canvas
-    this.scale = Math.min(r.width / VIEW.W, r.height / VIEW.H);
-    this.offX = (r.width - VIEW.W * this.scale) / 2;
-    this.offY = (r.height - VIEW.H * this.scale) / 2;
+    this.scale = Math.min(w / VIEW.W, h / VIEW.H);
+    this.offX = (w - VIEW.W * this.scale) / 2;
+    this.offY = (h - VIEW.H * this.scale) / 2;
   }
 
   // screen (CSS px relative to canvas) -> virtual VIEW coords

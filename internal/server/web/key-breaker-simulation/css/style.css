@@ -141,6 +141,35 @@ body {
 .feed-item.f-red::before { background:var(--red); }
 .feed-item.f-green::before { background:var(--green); }
 
+/* outgoing query stream (left column, below the docked CANLI VERİ card) */
+.panel-queries { flex:1; min-height:220px; }
+.qstream { flex:1; display:flex; flex-direction:column; gap:6px; overflow:hidden; }
+.qs-item {
+  flex-shrink:0; border:1px solid var(--brd); border-radius:10px; padding:6px 8px;
+  background:var(--panel-2, rgba(255,255,255,.03));
+  animation:qs-in .3s ease;
+}
+@keyframes qs-in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+.qs-top { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+.qs-tag {
+  font-size:9px; font-weight:800; letter-spacing:.6px; line-height:1;
+  padding:3px 7px; border-radius:999px;
+}
+.qs-attack .qs-tag { color:var(--red); background:rgba(255,77,94,.10); border:1px solid rgba(255,77,94,.35); }
+.qs-safe .qs-tag { color:var(--teal); background:rgba(45,212,191,.12); border:1px solid rgba(45,212,191,.4); }
+.qs-status { margin-left:auto; font-size:9px; font-weight:700; letter-spacing:.5px; color:var(--ink-mute); }
+.qs-status[data-tone="ok"] { color:var(--green); }
+.qs-status[data-tone="bad"] { color:var(--red); }
+.qs-status[data-tone="warn"] { color:var(--orange); }
+.qs-sql {
+  display:block; font-family:"Consolas",monospace; font-size:10px; line-height:1.45;
+  color:var(--ink-dim); word-break:break-all; white-space:pre-wrap;
+}
+.qs-hot { color:var(--red); font-weight:700; }
+
+/* story-tour camera targets over canvas regions (sized by main.js) */
+.tour-anchor { position:absolute; pointer-events:none; }
+
 /* cinematic overlay */
 .cinematic { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:50; opacity:0; transition:opacity .5s; }
 .cinematic.show { opacity:1; }

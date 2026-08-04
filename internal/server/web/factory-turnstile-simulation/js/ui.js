@@ -45,8 +45,9 @@ export class UI {
       statusPill: $("statusPill"), statusLabel: $("statusLabel"),
       clock: $("simClock"), shift: $("simShift"),
       kBaseAvg: $("kBaseAvg"), kQnAvg: $("kQnAvg"), kSpeedup: $("kSpeedup"),
-      kEntered: $("kEntered"), kPerMin: $("kPerMin"), kAvgCheck: $("kAvgCheck"),
-      kUtil: $("kUtil"), kWaiting: $("kWaiting"),
+      kEntered: $("kEntered"), kPerMin: $("kPerMin"), kUtil: $("kUtil"),
+      kBaseWaiting: $("kBaseWaiting"), kBaseCheck: $("kBaseCheck"), kBaseEntered: $("kBaseEntered"),
+      kQnWaiting: $("kQnWaiting"), kQnCheck: $("kQnCheck"), kQnEntered: $("kQnEntered"),
       gateGrid: $("gateGrid"), gateSummary: $("gateSummary"),
       heatmap: $("heatmap"), bottleneck: $("bottleneck"),
       cwc: $("cwc"), feed: $("accessFeed"),
@@ -274,13 +275,19 @@ export class UI {
     e.kQnAvg.textContent = formatQueryDuration(qAvg);
     e.kSpeedup.textContent = bAvg > 0 && qAvg > 0 ? formatSpeedup(bAvg / qAvg) : "—";
 
-    // Store-wide aggregates across both banks.
-    e.kWaiting.textContent = kb.waiting + kq.waiting;
+    // Per-bank clusters, mirroring the two floors below the band.
+    e.kBaseWaiting.textContent = kb.waiting;
+    e.kQnWaiting.textContent = kq.waiting;
+    e.kBaseEntered.textContent = kb.successfulEntries;
+    e.kQnEntered.textContent = kq.successfulEntries;
+    const bCheck = base.checkSamples ? base.sumCheckTime / base.checkSamples : 0;
+    const qCheck = qn.checkSamples ? qn.sumCheckTime / qn.checkSamples : 0;
+    e.kBaseCheck.textContent = bCheck.toFixed(1) + "s";
+    e.kQnCheck.textContent = qCheck.toFixed(1) + "s";
+
+    // Facility-wide aggregates across both banks.
     e.kEntered.textContent = kb.successfulEntries + kq.successfulEntries;
     e.kPerMin.textContent = Math.round(kb.entriesPerMin + kq.entriesPerMin);
-    const checks = base.checkSamples + qn.checkSamples;
-    const avgCheck = checks ? (base.sumCheckTime + qn.sumCheckTime) / checks : 0;
-    e.kAvgCheck.textContent = avgCheck.toFixed(1) + "s";
     e.kUtil.textContent = Math.round(((kb.utilization + kq.utilization) / 2) * 100) + "%";
     if (!this._acc) this._syncControls();
 

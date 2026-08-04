@@ -111,9 +111,9 @@ html, body {
   box-shadow: 0 7px 22px rgba(30, 41, 59, .08) !important;
   backdrop-filter: none;
 }
-.sec-selected { flex: 1.65 1 0; }
-.sec-overview { flex: .75 1 0; }
-.sec-events { flex: .55 1 0; }
+.sec-selected { flex: 1.2 1 0; }
+.sec-overview { flex: .85 1 0; }
+.sec-events { flex: .6 1 0; }
 .panel-divider { background: var(--retail-line); }
 .panel-head { padding: 10px 14px; border-bottom: 1px solid #edf1f6; }
 .ph-title, .detail-title strong, .reg-name, .feed-text b { color: #172033 !important; }
@@ -211,7 +211,7 @@ html, body {
 
 @media (min-width: 1181px) and (max-height: 900px) {
   .stage { --retail-stage-height: clamp(500px, calc(100vh - 285px), 560px); }
-  .sec-selected { flex: 1.8 1 0; }
+  .sec-selected { flex: 1.35 1 0; }
   .cc-product-row { padding-block: 5px; }
 }
 
@@ -231,7 +231,7 @@ html, body {
    The store runs as two register banks side by side: direct on the left canvas,
    Quentra on the right, with the shared detail panel between them. */
 .stage.stage-dual {
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 356px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(252px, 280px) minmax(0, 1fr);
 }
 .bank { display: flex; flex-direction: column; overflow: hidden; }
 .bank canvas { flex: 1 1 auto; min-height: 0; }
@@ -286,7 +286,7 @@ html, body {
 .reg-cell[data-route="quentra"] { border-left: 3px solid #6366f1; }
 
 @media (max-width: 1500px) {
-  .stage.stage-dual { grid-template-columns: minmax(0, 1fr) minmax(270px, 310px) minmax(0, 1fr); }
+  .stage.stage-dual { grid-template-columns: minmax(0, 1fr) minmax(234px, 258px) minmax(0, 1fr); }
 }
 @media (max-width: 1180px) {
   .kpi-band { grid-template-columns: 1fr 1fr; }

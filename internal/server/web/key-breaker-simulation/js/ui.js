@@ -1,9 +1,10 @@
 // ui.js — DOM/telemetry side panels. Reads sim state; throttled by the engine.
 
-import { fmtInt, fmtMs, fmtClock } from "./models.js";
+import { fmtInt, fmtMs, fmtClock, PSTATE } from "./models.js";
 import { Assets } from "./assets.js";
 
 const t = (key, fallback) => (window.QuentraI18n ? window.QuentraI18n.t(key, fallback) : fallback);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 export class UI {
   constructor(sim, ds) {
@@ -18,13 +19,18 @@ export class UI {
       brandMark: document.getElementById("brandMark"),
       cinematic: document.getElementById("cinematic"),
       cinematicText: document.getElementById("cinematicText"),
+      qstream: document.getElementById("qstream"),
     };
     this.buildStatic();
     this._lastFeedLen = -1;
+    this._qseen = new Map();     // packet id -> { el, st } stream entry
+    this._qtime = 0;             // sim clock at last stream sync (reset detection)
 
     window.addEventListener("quentra:langchange", () => {
       this.buildStatic();
       this._lastFeedLen = -1; // force feed + dependent panels to re-render in new language
+      // Stream entries bake translated tags into their markup — rebuild them.
+      if (this.el.qstream) { this.el.qstream.innerHTML = ""; this._qseen.clear(); }
       this.update();
     });
   }
@@ -102,7 +108,66 @@ export class UI {
     set("qps", active ? fmtInt(m.queriesPerSec) : "—", "v-purple");
 
     this._updateFeed();
+    this._updateQueryStream();
     this._updateCinematic();
+  }
+
+  // ---- outgoing query stream (left column) ----
+  // One row per packet headed for the database — attack payloads (hot part
+  // highlighted) and the app's parameterised safe queries — with a status
+  // badge that tracks the packet's fate live.
+  _updateQueryStream() {
+    const host = this.el.qstream;
+    if (!host) return;
+    const s = this.sim;
+    if (s.time < this._qtime) { host.innerHTML = ""; this._qseen.clear(); } // sim reset
+    this._qtime = s.time;
+
+    const track = (p) => {
+      let ent = this._qseen.get(p.id);
+      if (!ent) {
+        const div = document.createElement("div");
+        div.className = "qs-item " + (p.kind === "attack" ? "qs-attack" : "qs-safe");
+        div.dataset.qid = p.id;
+        let sql, tag;
+        if (p.kind === "attack") {
+          tag = esc(p.tag);
+          const text = esc(p.payload.text), hot = esc(p.payload.hot || "");
+          sql = hot ? text.replace(hot, `<span class="qs-hot">${hot}</span>`) : text;
+        } else {
+          tag = esc(t("qs.safeTag", "SAFE"));
+          sql = esc(p.query);
+        }
+        div.innerHTML =
+          `<div class="qs-top"><span class="qs-tag">${tag}</span><span class="qs-status"></span></div>` +
+          `<code class="qs-sql">${sql}</code>`;
+        host.prepend(div);
+        ent = { el: div, st: div.querySelector(".qs-status") };
+        this._qseen.set(p.id, ent);
+        while (host.children.length > 14) {
+          const last = host.lastElementChild;
+          this._qseen.delete(last.dataset.qid);
+          last.remove();
+        }
+      }
+      const [txt, tone] = this._qStatus(p);
+      if (ent.st.textContent !== txt) { ent.st.textContent = txt; ent.st.dataset.tone = tone; }
+    };
+
+    for (const p of s.attackPackets) track(p);
+    for (const q of s.safePackets) track(q);
+  }
+
+  _qStatus(p) {
+    if (p.kind === "attack") {
+      if (p.reachedDB) return [t("val.reachedDb", "REACHED DB"), "bad"];
+      if (p.blocked) return [t("val.blocked", "BLOCKED"), "ok"];
+      if (p.state === PSTATE.INSPECTING || p.state === PSTATE.THREAT_CONFIRMED)
+        return [t("qs.inspecting", "INSPECTING"), "warn"];
+      return [t("qs.transit", "IN TRANSIT"), ""];
+    }
+    if (p.validated || p.reachedDB) return [t("val.allowed", "ALLOWED"), "ok"];
+    return [t("qs.transit", "IN TRANSIT"), ""];
   }
 
   _updateFeed() {

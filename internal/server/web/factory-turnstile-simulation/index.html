@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/shared/quentra-i18n.css" />
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="/shared/light-theme.css" />
+  <link rel="stylesheet" href="/shared/story-tour.css" />
 </head>
 <body>
   <div class="app">
@@ -38,6 +39,7 @@
       </div>
 
       <div class="toolbar-controls">
+        <button class="st-launch" id="btnStory" type="button" data-i18n="tour.button">Story</button>
         <div class="ctrl-group" role="group" aria-label="Simulation controls">
           <button class="ibtn ibtn-play" id="btnResume" title="Başlat / Devam Et" aria-label="Başlat / Devam Et" disabled>
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
@@ -62,16 +64,38 @@
       </div>
     </header>
 
-    <!-- Impact-first KPI strip -->
-    <section class="kpi-strip" id="kpiStrip">
-      <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.baselineAvg">Baseline Query</span><span class="kpi-value" id="kBaseAvg">—</span></div>
-      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.quentraAvg">Quentra Query</span><span class="kpi-value" id="kQnAvg">—</span></div>
-      <div class="kpi kpi-purple"><span class="kpi-label" data-i18n="kpi.speedup">Query Speedup</span><span class="kpi-value" id="kSpeedup">—</span></div>
-      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.successfulEntries">Successful Entries</span><span class="kpi-value" id="kEntered">0</span></div>
-      <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.entriesPerMin">Entries / Min</span><span class="kpi-value" id="kPerMin">0</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.avgCheckTime">Avg Check Time</span><span class="kpi-value" id="kAvgCheck">0.0s</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.turnstileUtil">Turnstile Utilization</span><span class="kpi-value" id="kUtil">0%</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.workersWaiting">Workers Waiting</span><span class="kpi-value" id="kWaiting">0</span></div>
+    <!-- KPI band: per-bank clusters on the outside (mirroring the two floors
+         below), facility-wide figures in the middle — retail-style. -->
+    <section class="kpi-strip kpi-dual" id="kpiStrip">
+      <div class="ks-side ks-side-baseline">
+        <div class="ks-head"><i></i><span data-i18n="kpi.side.baseline">Baseline · Slow Query</span></div>
+        <div class="ks-grid">
+          <div class="kpi kpi-warn"><span class="kpi-label" data-i18n="kpi.moveQuery">Last-Movement Query</span><span class="kpi-value" id="kBaseAvg">—</span></div>
+          <div class="kpi"><span class="kpi-label" data-i18n="kpi.workersWaiting">Workers Waiting</span><span class="kpi-value" id="kBaseWaiting">0</span></div>
+          <div class="kpi"><span class="kpi-label" data-i18n="kpi.avgCheckTime">Avg Check Time</span><span class="kpi-value" id="kBaseCheck">0.0s</span></div>
+          <div class="kpi"><span class="kpi-label" data-i18n="kpi.successfulEntries">Successful Entries</span><span class="kpi-value" id="kBaseEntered">0</span></div>
+        </div>
+      </div>
+
+      <div class="ks-side ks-globals">
+        <div class="ks-head"><i></i><span data-i18n="kpi.side.global">Facility Total</span></div>
+        <div class="ks-grid">
+          <div class="kpi kpi-purple"><span class="kpi-label" data-i18n="kpi.speedup">Query Speedup</span><span class="kpi-value" id="kSpeedup">—</span></div>
+          <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.totalEntries">Total Entries</span><span class="kpi-value" id="kEntered">0</span></div>
+          <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.entriesPerMin">Entries / Min</span><span class="kpi-value" id="kPerMin">0</span></div>
+          <div class="kpi"><span class="kpi-label" data-i18n="kpi.turnstileUtil">Turnstile Utilization</span><span class="kpi-value" id="kUtil">0%</span></div>
+        </div>
+      </div>
+
+      <div class="ks-side ks-side-quentra">
+        <div class="ks-head"><i></i><span data-i18n="kpi.side.quentra">Quentra · Rewritten</span></div>
+        <div class="ks-grid">
+          <div class="kpi kpi-good"><span class="kpi-label" data-i18n="kpi.moveQuery">Last-Movement Query</span><span class="kpi-value" id="kQnAvg">—</span></div>
+          <div class="kpi"><span class="kpi-label" data-i18n="kpi.workersWaiting">Workers Waiting</span><span class="kpi-value" id="kQnWaiting">0</span></div>
+          <div class="kpi"><span class="kpi-label" data-i18n="kpi.avgCheckTime">Avg Check Time</span><span class="kpi-value" id="kQnCheck">0.0s</span></div>
+          <div class="kpi"><span class="kpi-label" data-i18n="kpi.successfulEntries">Successful Entries</span><span class="kpi-value" id="kQnEntered">0</span></div>
+        </div>
+      </div>
     </section>
 
     <!-- Content: baseline bank | shared panels | Quentra bank -->

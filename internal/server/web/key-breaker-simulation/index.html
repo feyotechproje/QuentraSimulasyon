@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/shared/quentra-i18n.css" />
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="/shared/light-theme.css" />
+  <link rel="stylesheet" href="/shared/story-tour.css" />
 </head>
 <body>
   <div class="app">
@@ -40,6 +41,7 @@
       </div>
 
       <div class="toolbar-controls">
+        <button class="st-launch" id="btnStory" type="button" data-i18n="tour.button">Story</button>
         <div class="mode-group" role="group" aria-label="Mode">
           <button class="mode-btn" id="btnOff" type="button" data-i18n="mode.off">Protection Off</button>
           <button class="mode-btn is-on" id="btnActive" type="button" data-i18n="mode.active">Key Breaker Active</button>
@@ -64,12 +66,25 @@
 
     <!-- ================= MAIN GRID ================= -->
     <main class="grid">
-      <!-- LEFT: live data (the CANLI VERİ panel docks into this column) -->
-      <aside class="col col-left"></aside>
+      <!-- LEFT: live data (the CANLI VERİ panel docks into this column) +
+           the outgoing query stream (every query headed for the database) -->
+      <aside class="col col-left">
+        <section class="panel panel-queries" id="queryPanel">
+          <div class="panel-head"><span class="ph-icon">📡</span><h3 data-i18n="panel.queries">Outgoing Queries</h3></div>
+          <div class="qstream" id="qstream"></div>
+        </section>
+      </aside>
 
       <!-- CENTER: canvas stage -->
       <section class="stage">
         <canvas id="scene"></canvas>
+        <!-- Invisible tour anchors: the story camera needs DOM targets, but the
+             scene is one canvas — these divs are positioned over its regions
+             (VIEW coords -> CSS px) by placeAnchors() in main.js. -->
+        <div class="tour-anchor" id="anchorAttackers"></div>
+        <div class="tour-anchor" id="anchorHero"></div>
+        <div class="tour-anchor" id="anchorGateway"></div>
+        <div class="tour-anchor" id="anchorDb"></div>
         <div class="toggle-bar">
           <label class="tgl"><input type="checkbox" id="tglPaths" checked /> <span data-i18n="tgl.paths">Attack Paths</span></label>
           <label class="tgl"><input type="checkbox" id="tglSafe" checked /> <span data-i18n="tgl.safe">Safe Queries</span></label>
