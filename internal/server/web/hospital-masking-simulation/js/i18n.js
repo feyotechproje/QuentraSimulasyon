@@ -134,7 +134,7 @@ export const HOSPITAL_DICT = {
     "sql.hint": "Aynı SQL · Aynı uygulama · Aynı veritabanı — farkı yaratan tek şey oturumun kimliği.",
 
     "feed.title": "Canlı Sorgu Akışı",
-    "feed.empty": "Sorgu akışı bekleniyor…",
+    "feed.empty": "Yalnızca canlı veride dolar — bağlantı bekleniyor…",
     "tag.masked": "MASKELİ",
     "tag.open": "AÇIK",
 
@@ -249,7 +249,7 @@ export const HOSPITAL_DICT = {
     "sql.hint": "Same SQL · Same application · Same database — the only difference is the session's identity.",
 
     "feed.title": "Live Lookup Feed",
-    "feed.empty": "Waiting for lookups…",
+    "feed.empty": "Fills with live data only — waiting for the connection…",
     "tag.masked": "MASKED",
     "tag.open": "OPEN",
 

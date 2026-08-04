@@ -4,7 +4,7 @@
 // bridge to the real HOSPITALSIM workload.
 
 import { initQuentraApp, QuentraI18n } from "/shared/quentra-i18n.js";
-import { LiveController } from "/shared/live-workload.js";
+import { LiveController, startWorkload } from "/shared/live-workload.js";
 import { HOSPITAL_INTRO, HOSPITAL_DICT } from "./i18n.js";
 import { demoWindow, maskRow, MASKED_FIELDS, PATIENT_SQL } from "./data.js";
 import { Scene } from "./scene.js";
@@ -21,8 +21,8 @@ let currentState = null;
 let isLive = false;
 let demoTimer = null;
 let demoIdx = 0;
-let demoFeed = [];
 let execBusy = false;
+let lastRestartPost = 0;
 
 initQuentraApp({
   appId: "hospital",
@@ -67,13 +67,14 @@ function boot() {
   });
 
   // No Demo/Canlı switch: the page starts in demo visuals and silently
-  // upgrades itself to live data as soon as the real workload responds.
+  // upgrades itself to live data as soon as the real workload responds. The
+  // pill is the single source of truth: DEMO MODU until then, CANLI VERİ after.
   live = new LiveController({
     sim: "hospital",
     workloadId: "hospital-masking-simulation",
     intervalMs: 1500,
     onState: onLiveState,
-    onError: () => { if (!isLive) setPill("demo"); },
+    onError: () => {},
   });
   live.enable();
   window.addEventListener("pagehide", () => live.disable());
@@ -177,29 +178,22 @@ function stopDemo() {
   if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
 }
 
+// Demo state only feeds the story grids and the static SQL panel; the live
+// feed stays empty so demo people never masquerade as real traffic.
 function advanceDemo() {
   if (isLive) return;
   demoIdx = (demoIdx + 5) % 8;
   const open = demoWindow(demoIdx);
-  const maskedRows = open.map(maskRow);
-  const seen = currentRole === "quentra" ? maskedRows[0] : open[0];
-  demoFeed.unshift({
-    id: open[0].id,
-    nameSeen: `${seen.ad} ${seen.soyad}`,
-    masked: currentRole === "quentra",
-    quentraMs: null,
-  });
-  demoFeed = demoFeed.slice(0, 8);
   currentState = {
     demo: true,
     provisioned: true,
     masked: true,
     maskedFields: MASKED_FIELDS,
     directRows: open,
-    quentraRows: maskedRows,
+    quentraRows: open.map(maskRow),
     directSql: PATIENT_SQL,
     quentraSql: PATIENT_SQL,
-    recent: demoFeed,
+    recent: [],
     gatewayUp: null,
   };
   strip.setMasked(true);
@@ -209,20 +203,27 @@ function advanceDemo() {
 // ---- live mode: verbatim backend state, adopted automatically ----
 
 function onLiveState(s) {
+  // If the server was restarted while the page is open, the workload comes
+  // back idle: kick it again (throttled) instead of showing a dead live view.
+  if (s && s.provisioned && !s.running && Date.now() - lastRestartPost > 5000) {
+    lastRestartPost = Date.now();
+    startWorkload("hospital-masking-simulation");
+  }
+
   const usable = s && s.provisioned && s.running && (s.directRows || []).length;
   if (!isLive) {
     if (!usable) return; // stay on demo visuals until real data flows
     isLive = true;
     stopDemo();
-    demoFeed = [];
+    setPill("live");
     live.setMode(currentRole);
   }
+  if (!usable) return; // keep the last good live frame during a restart gap
   currentState = s;
-  setPill(s.running ? "live" : "starting");
   strip.setMasked(!!s.masked);
   // Real traffic on the strip: each poll of a running workload is an actual
   // pair of lookups that just happened on both routes.
-  if (s.running && !story.playing && !execBusy) {
+  if (!story.playing && !execBusy) {
     strip.spawnRoute("direct");
     setTimeout(() => strip.spawnRoute("quentra", { masked: !!s.masked }), 500);
   }
@@ -240,15 +241,14 @@ function setMessage(show, l1 = "", l2 = "") {
   }
 }
 
+// Two states only, so there is never any doubt about what the page shows:
+// amber DEMO MODU or green CANLI VERİ.
 function setPill(state) {
   const pill = $("statusPill");
   const label = $("statusLabel");
   if (state === "live") {
     pill.dataset.state = "live";
     label.textContent = t("status.live");
-  } else if (state === "starting") {
-    pill.dataset.state = "idle";
-    label.textContent = t("status.starting");
   } else {
     pill.dataset.state = "idle";
     label.textContent = t("status.demo");
