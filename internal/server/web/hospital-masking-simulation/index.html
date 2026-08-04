@@ -28,25 +28,6 @@
         </div>
       </div>
 
-      <!-- Role selector: who is looking at the SAME query's result -->
-      <div class="role-switch" id="roleSwitch" role="group" aria-label="Bağlantı rolü">
-        <button class="role-btn" data-role="baseline">
-          <i class="ri ri-warn"></i>
-          <span data-i18n="role.baseline">Quentra Yok</span>
-        </button>
-        <button class="role-btn is-active" data-role="quentra">
-          <i class="ri ri-shield"></i>
-          <span data-i18n="role.quentra">Destek · Quentra</span>
-        </button>
-        <button class="role-btn" data-role="dba">
-          <i class="ri ri-key"></i>
-          <span data-i18n="role.dba">DBA Rolü</span>
-        </button>
-      </div>
-
-      <div class="toolbar-right" id="toolbarRight">
-        <!-- Demo / Canlı toggle injected here -->
-      </div>
     </header>
 
     <!-- ======================= KPI strip ======================= -->
@@ -131,34 +112,39 @@
           <g id="packetLayer"></g>
         </svg>
 
-        <!-- ============ SSMS-style SQL client window ============ -->
+        <!-- ============ light-theme SSMS-style SQL client window ============ -->
         <div class="sqlwin" id="sqlwin">
           <div class="sw-title">
-            <i></i><i></i><i></i>
-            <span class="sw-app" data-i18n="sw.title">SQL İstemcisi — HIS Uzak Destek Oturumu</span>
-            <span class="sw-conn" id="connChip">destek @ HOSPITAL-SQL01</span>
+            <span class="sw-ico"><svg viewBox="0 0 24 24" width="14" height="14"><ellipse cx="12" cy="6" rx="8" ry="3" fill="#c9a227"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6" fill="#e3b52e"/></svg></span>
+            <span class="sw-doc" id="connChip">SQLQuery1.sql — HOSPITAL-SQL01.HOSPITALSIM (destek (58))</span>
+            <span class="sw-wbtns"><i>—</i><i>▢</i><i class="x">✕</i></span>
+          </div>
+          <div class="sw-menu">
+            <span>File</span><span>Edit</span><span>View</span><span>Query</span><span>Project</span><span>Tools</span><span>Window</span><span>Help</span>
           </div>
           <div class="sw-toolbar">
-            <span class="sw-db"><svg viewBox="0 0 24 24" width="13" height="13"><ellipse cx="12" cy="5" rx="8" ry="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" fill="none" stroke="currentColor" stroke-width="2"/></svg> HOSPITALSIM</span>
+            <span class="sw-db">HOSPITALSIM <b>▾</b></span>
             <button class="sw-exec" id="btnExecute" type="button">
-              <svg viewBox="0 0 24 24" width="13" height="13"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+              <svg viewBox="0 0 24 24" width="12" height="12"><path fill="#1c9645" d="M8 5v14l11-7z"/></svg>
               <span data-i18n="sw.exec">Yürüt</span>
             </button>
             <span class="sw-hint" data-i18n="sw.execHint">sorguyu iki rotadan da çalıştırır — direkt + Quentra</span>
           </div>
           <div class="sw-body">
             <aside class="sw-tree" id="swTree">
-              <div class="tr-root"><b>▦</b> HOSPITAL-SQL01</div>
-              <div class="tr-item tr-db" data-tr="1"><b>🗀</b> HOSPITALSIM</div>
-              <div class="tr-item lvl2" data-tr="2"><b>▸</b> <span data-i18n="sw.tables">Tablolar</span></div>
-              <div class="tr-item lvl3 tr-tbl" data-tr="3"><b>▤</b> dbo.HASTA</div>
-              <div class="tr-item lvl2 dim" data-tr="4"><b>▸</b> <span data-i18n="sw.views">Görünümler</span></div>
-              <div class="tr-item lvl2 dim" data-tr="5"><b>▸</b> <span data-i18n="sw.programmability">Programlanabilirlik</span></div>
-              <div class="tr-item lvl2 dim" data-tr="6"><b>▸</b> <span data-i18n="sw.security">Güvenlik</span></div>
+              <div class="oe-head">Object Explorer</div>
+              <div class="tr-root"><b class="ic-srv">▦</b> HOSPITAL-SQL01 (SQL Server — destek)</div>
+              <div class="tr-item tr-db" data-tr="1"><b class="ic-db">🗀</b> HOSPITALSIM</div>
+              <div class="tr-item lvl2" data-tr="2"><b class="ic-fold">🗀</b> <span data-i18n="sw.tables">Tablolar</span></div>
+              <div class="tr-item lvl3 tr-tbl" data-tr="3"><b class="ic-tbl">▤</b> dbo.HASTA</div>
+              <div class="tr-item lvl2 dim" data-tr="4"><b class="ic-fold">🗀</b> <span data-i18n="sw.views">Görünümler</span></div>
+              <div class="tr-item lvl2 dim" data-tr="5"><b class="ic-fold">🗀</b> <span data-i18n="sw.programmability">Programlanabilirlik</span></div>
+              <div class="tr-item lvl2 dim" data-tr="6"><b class="ic-fold">🗀</b> <span data-i18n="sw.security">Güvenlik</span></div>
             </aside>
             <div class="sw-main">
               <div class="sw-editor" id="swEditor">
-                <pre id="swQuery"></pre><span class="sw-caret" id="swCaret" hidden></span>
+                <div class="sw-gutter" id="swGutter">1</div>
+                <div class="sw-code"><pre id="swQuery"></pre><span class="sw-caret" id="swCaret" hidden></span></div>
               </div>
               <div class="sw-tabs">
                 <span class="is-active" data-i18n="sw.results">Sonuçlar</span>
@@ -176,11 +162,13 @@
                 <p class="rs-empty" id="rsEmpty" data-i18n="sw.rsEmpty">Sonuç yok — sorguyu Yürüt ile çalıştırın.</p>
               </div>
               <div class="sw-status" id="swStatus" data-tone="idle">
+                <span class="st-ico" id="stIcon"></span>
                 <span class="st-msg" id="stMsg" data-i18n="sw.stReady">Hazır</span>
                 <span class="st-right">
                   <span id="stServer">HOSPITAL-SQL01</span>
                   <span id="stUser">destek (58)</span>
                   <span id="stDb">HOSPITALSIM</span>
+                  <span id="stTime">00:00:00</span>
                   <span id="stRows">0 satır</span>
                 </span>
               </div>

@@ -4,7 +4,7 @@
 // bridge to the real HOSPITALSIM workload.
 
 import { initQuentraApp, QuentraI18n } from "/shared/quentra-i18n.js";
-import { LiveController, mountLiveToggle } from "/shared/live-workload.js";
+import { LiveController } from "/shared/live-workload.js";
 import { HOSPITAL_INTRO, HOSPITAL_DICT } from "./i18n.js";
 import { demoWindow, maskRow, MASKED_FIELDS, PATIENT_SQL } from "./data.js";
 import { Scene } from "./scene.js";
@@ -60,29 +60,23 @@ function boot() {
     },
   });
 
-  // Manual role selection pauses the film and takes over.
-  document.querySelectorAll(".role-btn").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      story.interrupt();
-      applyRole(btn.dataset.role);
-    })
-  );
-
   // The user pulls the query themselves: one press runs it on BOTH routes.
   $("btnExecute").addEventListener("click", () => {
     story.interrupt();
     runExecute();
   });
 
+  // No Demo/Canlı switch: the page starts in demo visuals and silently
+  // upgrades itself to live data as soon as the real workload responds.
   live = new LiveController({
     sim: "hospital",
     workloadId: "hospital-masking-simulation",
     intervalMs: 1500,
     onState: onLiveState,
-    onError: () => setPill("starting"),
+    onError: () => { if (!isLive) setPill("demo"); },
   });
-
-  mountLiveToggle($("toolbarRight"), onLiveToggle, { demo: t("lt.demo"), live: t("lt.live") });
+  live.enable();
+  window.addEventListener("pagehide", () => live.disable());
 
   window.addEventListener("quentra:langchange", () => {
     if (currentState) renderAll(currentState, currentRole, t);
@@ -161,13 +155,10 @@ function runExecute() {
   }, 2400);
 }
 
-// ---- role handling ----
+// ---- role handling (driven by the story scenes / player chips) ----
 
 function applyRole(role, opts = {}) {
   currentRole = role;
-  document.querySelectorAll(".role-btn").forEach((b) =>
-    b.classList.toggle("is-active", b.dataset.role === role)
-  );
   strip.setRole(role);
   if (isLive) live.setMode(role);
   if (currentState) renderAll(currentState, currentRole, t);
@@ -215,25 +206,17 @@ function advanceDemo() {
   renderAll(currentState, currentRole, t);
 }
 
-// ---- live mode: verbatim backend state ----
-
-function onLiveToggle(liveOn) {
-  isLive = liveOn;
-  if (liveOn) {
-    stopDemo();
-    demoFeed = [];
-    setPill("starting");
-    live.setMode(currentRole);
-    live.enable();
-  } else {
-    live.disable();
-    startDemo();
-  }
-}
+// ---- live mode: verbatim backend state, adopted automatically ----
 
 function onLiveState(s) {
-  if (!isLive) return;
-  const wasRunning = currentState && currentState.running;
+  const usable = s && s.provisioned && s.running && (s.directRows || []).length;
+  if (!isLive) {
+    if (!usable) return; // stay on demo visuals until real data flows
+    isLive = true;
+    stopDemo();
+    demoFeed = [];
+    live.setMode(currentRole);
+  }
   currentState = s;
   setPill(s.running ? "live" : "starting");
   strip.setMasked(!!s.masked);
@@ -243,7 +226,6 @@ function onLiveState(s) {
     strip.spawnRoute("direct");
     setTimeout(() => strip.spawnRoute("quentra", { masked: !!s.masked }), 500);
   }
-  if (s.running && !wasRunning) setPill("live");
   renderAll(s, currentRole, t);
 }
 

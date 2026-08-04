@@ -59,12 +59,24 @@ export class SqlWin {
 
   // ---- editor ----
 
-  setQuery(text) { this.query.textContent = text; }
+  setQuery(text) { this._renderCode(text); }
 
   typeQuery(p, text) {
     const n = Math.max(0, Math.round(p * text.length));
     const cut = text.slice(0, n);
-    if (this.query.textContent !== cut) this.query.textContent = cut;
+    if (this._lastCode !== cut) this._renderCode(cut);
+  }
+
+  // SSMS-style syntax colors + line-number gutter.
+  _renderCode(code) {
+    this._lastCode = code;
+    this.query.innerHTML = highlightSQL(code);
+    const lines = Math.max(1, code.split("\n").length);
+    const gutter = document.getElementById("swGutter");
+    if (Number(gutter.dataset.n) !== lines) {
+      gutter.dataset.n = lines;
+      gutter.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join("<br>");
+    }
   }
 
   showCaret(on) { this.caret.hidden = !on; }
@@ -163,10 +175,11 @@ export class SqlWin {
 
   // ---- identity + status ----
 
-  // route: 'direct' | 'quentra'; user: 'destek' | 'dba'
+  // route: 'direct' | 'quentra'; user: 'destek' | 'dba' — shown SSMS-style in
+  // the window title ("SQLQuery1.sql — server.db (login (spid))").
   setIdentity(user, route) {
-    const server = route === "quentra" ? "QUENTRA :14330 → HOSPITAL-SQL01" : "HOSPITAL-SQL01";
-    this.conn.textContent = `${user} @ ${server}`;
+    const server = route === "quentra" ? "quentra:14330 › HOSPITAL-SQL01" : "HOSPITAL-SQL01";
+    this.conn.textContent = `SQLQuery1.sql — ${server}.HOSPITALSIM (${user} (58))`;
     this.conn.dataset.route = route;
     this.conn.dataset.user = user;
     $("stServer").textContent = route === "quentra" ? "quentra:14330" : "HOSPITAL-SQL01";
@@ -182,4 +195,14 @@ export class SqlWin {
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Minimal SSMS palette: keywords blue, variables teal, numbers green,
+// comments green-gray. Input is escaped first, so the spans are safe.
+function highlightSQL(sql) {
+  return esc(sql)
+    .replace(/\b(SELECT|FROM|WHERE|BETWEEN|AND|OR|TOP|ORDER BY|INSERT|UPDATE|DELETE)\b/g, '<span class="k">$1</span>')
+    .replace(/(@\w+)/g, '<span class="v">$1</span>')
+    .replace(/\b(\d+)\b/g, '<span class="n">$1</span>')
+    .replace(/(--[^\n]*)/g, '<span class="c">$1</span>');
 }
