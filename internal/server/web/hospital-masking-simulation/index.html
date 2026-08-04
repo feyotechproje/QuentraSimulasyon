@@ -24,23 +24,23 @@
       <div class="toolbar-center">
         <div class="status-pill" id="statusPill" data-state="idle">
           <span class="dot"></span>
-          <span id="statusLabel" data-i18n="status.demo">DEMO MODU</span>
+          <span id="statusLabel" data-i18n="status.offline">BAĞLANTI YOK</span>
         </div>
+        <p class="how" data-i18n="how">Sorguyu düzenleyin ve <b>Yürüt</b>'e basın — aynı SQL önce direkt, sonra Quentra üzerinden çalışır.</p>
       </div>
-
     </header>
 
     <!-- ======================= KPI strip ======================= -->
     <section class="kpi-strip">
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.role">Aktif Rol</span><span class="kpi-value" id="kRole">—</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.queries">Hasta Sorgusu</span><span class="kpi-value" id="kQueries">0</span></div>
+      <div class="kpi" id="kpiConn"><span class="kpi-label" data-i18n="kpi.conn">Veritabanı</span><span class="kpi-value" id="kConn">—</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.rows">Dönen Satır</span><span class="kpi-value" id="kRows">—</span></div>
       <div class="kpi"><span class="kpi-label" data-i18n="kpi.directMs">Direkt Yanıt</span><span class="kpi-value" id="kDirectMs">—</span></div>
       <div class="kpi"><span class="kpi-label" data-i18n="kpi.quentraMs">Quentra Yanıt</span><span class="kpi-value" id="kQuentraMs">—</span></div>
       <div class="kpi" id="kpiMask"><span class="kpi-label" data-i18n="kpi.masking">Maskeleme</span><span class="kpi-value" id="kMasking">—</span></div>
       <div class="kpi" id="kpiGw"><span class="kpi-label" data-i18n="kpi.gateway">Quentra Gateway</span><span class="kpi-value" id="kGateway">—</span></div>
     </section>
 
-    <!-- ======================= Cinematic stage ======================= -->
+    <!-- ======================= Stage ======================= -->
     <section class="stage-wrap">
       <div class="stage" id="stage">
 
@@ -51,12 +51,10 @@
               <stop offset="0" stop-color="#123049"/>
               <stop offset="1" stop-color="#0b1c2e"/>
             </linearGradient>
-            <!-- SQL query packet template -->
             <g id="tplSql">
               <rect x="-24" y="-13" width="48" height="26" rx="6" class="pk-body"/>
               <text x="0" y="4" class="pk-text">SQL</text>
             </g>
-            <!-- Result packet template: three data rows -->
             <g id="tplData">
               <rect x="-24" y="-14" width="48" height="28" rx="6" class="pk-body pk-data"/>
               <rect x="-16" y="-8" width="32" height="4" rx="2" class="pk-row"/>
@@ -65,7 +63,6 @@
             </g>
           </defs>
 
-          <!-- routes -->
           <path id="pathQn" class="route route-qn"
                 d="M 214 74 C 360 74, 470 60, 600 60 C 730 60, 840 74, 986 74"/>
           <path id="pathDirect" class="route route-direct"
@@ -73,7 +70,6 @@
           <text x="600" y="26" class="route-label lbl-qn" data-i18n="scene.routeQuentra">QUENTRA ÜZERİNDEN · :14330</text>
           <text x="600" y="146" class="route-label" data-i18n="scene.routeDirect">DİREKT BAĞLANTI</text>
 
-          <!-- left node: support engineer's laptop -->
           <g id="nodeSupport">
             <rect x="96" y="34" width="102" height="64" rx="6" class="mon-frame"/>
             <rect x="102" y="40" width="90" height="52" rx="3" class="mon-screen"/>
@@ -87,7 +83,6 @@
             <text x="147" y="141" class="node-sub" data-i18n="scene.firmSub">yazılım firması · uzak bağlantı</text>
           </g>
 
-          <!-- center: Quentra shield -->
           <g id="shieldNode">
             <circle id="shieldRing" cx="600" cy="62" r="34" class="shield-ring"/>
             <path d="M 600 34 L 626 44 L 626 66 C 626 84 614 96 600 102 C 586 96 574 84 574 66 L 574 44 Z" class="shield-body"/>
@@ -96,7 +91,6 @@
             <g id="burstLayer"></g>
           </g>
 
-          <!-- right node: hospital database -->
           <g id="hospitalNode">
             <g id="dbCylinder">
               <ellipse cx="1058" cy="40" rx="46" ry="12" class="db-top"/>
@@ -108,11 +102,10 @@
             <text x="1058" y="141" class="node-sub">HOSPITALSIM · dbo.HASTA</text>
           </g>
 
-          <!-- moving packets live here -->
           <g id="packetLayer"></g>
         </svg>
 
-        <!-- ============ light-theme SSMS-style SQL client window ============ -->
+        <!-- ============ SSMS (Blue theme) SQL client window ============ -->
         <div class="sqlwin" id="sqlwin">
           <div class="sw-title">
             <span class="sw-ico"><svg viewBox="0 0 24 24" width="14" height="14"><ellipse cx="12" cy="6" rx="8" ry="3" fill="#c9a227"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6" fill="#e3b52e"/></svg></span>
@@ -134,18 +127,18 @@
             <aside class="sw-tree" id="swTree">
               <div class="oe-head">Object Explorer</div>
               <div class="tr-root"><b class="ic-srv">▦</b> HOSPITAL-SQL01 (SQL Server — destek)</div>
-              <div class="tr-item tr-db" data-tr="1"><b class="ic-db">🗀</b> HOSPITALSIM</div>
-              <div class="tr-item lvl2" data-tr="2"><b class="ic-fold">🗀</b> <span data-i18n="sw.tables">Tablolar</span></div>
-              <div class="tr-item lvl3 tr-tbl" data-tr="3"><b class="ic-tbl">▤</b> dbo.HASTA</div>
-              <div class="tr-item lvl2 dim" data-tr="4"><b class="ic-fold">🗀</b> <span data-i18n="sw.views">Görünümler</span></div>
-              <div class="tr-item lvl2 dim" data-tr="5"><b class="ic-fold">🗀</b> <span data-i18n="sw.programmability">Programlanabilirlik</span></div>
-              <div class="tr-item lvl2 dim" data-tr="6"><b class="ic-fold">🗀</b> <span data-i18n="sw.security">Güvenlik</span></div>
+              <div class="tr-item tr-db show"><b class="ic-db">🗀</b> HOSPITALSIM</div>
+              <div class="tr-item lvl2 show"><b class="ic-fold">🗀</b> <span data-i18n="sw.tables">Tablolar</span></div>
+              <div class="tr-item lvl3 tr-tbl show"><b class="ic-tbl">▤</b> dbo.HASTA</div>
+              <div class="tr-item lvl2 dim show"><b class="ic-fold">🗀</b> <span data-i18n="sw.views">Görünümler</span></div>
+              <div class="tr-item lvl2 dim show"><b class="ic-fold">🗀</b> <span data-i18n="sw.programmability">Programlanabilirlik</span></div>
+              <div class="tr-item lvl2 dim show"><b class="ic-fold">🗀</b> <span data-i18n="sw.security">Güvenlik</span></div>
             </aside>
             <div class="sw-main">
               <div class="sw-editor" id="swEditor">
                 <div class="sw-gutter" id="swGutter">1</div>
                 <div class="sw-code">
-                  <pre id="swQuery"></pre><span class="sw-caret" id="swCaret" hidden></span>
+                  <pre id="swQuery"></pre>
                   <textarea id="swInput" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="SQL sorgusu"></textarea>
                 </div>
               </div>
@@ -171,7 +164,6 @@
                   <span id="stServer">HOSPITAL-SQL01</span>
                   <span id="stUser">destek (58)</span>
                   <span id="stDb">HOSPITALSIM</span>
-                  <span id="stTime">00:00:00</span>
                   <span id="stRows">0 satır</span>
                 </span>
               </div>
@@ -179,12 +171,7 @@
           </div>
         </div>
 
-        <!-- fake mouse cursor used by the story when it presses Yürüt -->
-        <div class="fake-cursor" id="fakeCursor" hidden>
-          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="#fff" stroke="#000" stroke-width="1.2" d="M5 2l14 12h-8l-3 8z"/></svg>
-        </div>
-
-        <!-- HTML overlays on the stage -->
+        <!-- Verdict badges: shown only after a query, from the real comparison -->
         <div class="ovl-badge ovl-kvkk" id="kvkkBadge" hidden>
           <b data-i18n="ovl.kvkk">KVKK RİSKİ</b>
           <span data-i18n="ovl.kvkkSub">Kimlik verisi açıkta</span>
@@ -193,50 +180,11 @@
           <b data-i18n="ovl.masked">MASKELENDİ</b>
           <span data-i18n="ovl.maskedSub">Sorgu değişmedi · veri maskeli</span>
         </div>
-        <div class="ovl-badge ovl-dba" id="dbaBadge" hidden>
-          <b data-i18n="ovl.dba">TAM ERİŞİM</b>
-          <span data-i18n="ovl.dbaSub">Yetkili rol · veri açık</span>
-        </div>
-
-        <!-- closing message overlay -->
-        <div class="msg-overlay" id="msgOverlay" hidden>
-          <p id="msgLine1"></p>
-          <p id="msgLine2"></p>
-        </div>
-
-        <!-- Subtitle / caption band (only while the film plays) -->
-        <div class="caption" id="captionBand" hidden>
-          <p id="captionText"></p>
-        </div>
-      </div>
-
-      <!-- ============ story player ============ -->
-      <div class="player">
-        <button class="pl-btn" id="btnPlay" title="Oynat / Duraklat" aria-label="Oynat / Duraklat">
-          <svg id="icPlay" viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
-          <svg id="icPause" viewBox="0 0 24 24" width="18" height="18" hidden><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
-        </button>
-        <button class="pl-btn" id="btnReplay" title="Baştan Oynat" aria-label="Baştan Oynat">
-          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 11-5 5H5a7 7 0 107-7z"/></svg>
-        </button>
-        <div class="pl-track" id="plTrack">
-          <div class="pl-progress" id="plProgress"></div>
-        </div>
-        <div class="pl-scenes" id="plScenes">
-          <button class="pl-chip" data-scene="0" data-i18n="scene.chip1">Bağlantı</button>
-          <button class="pl-chip" data-scene="1" data-i18n="scene.chip2">Sorgu</button>
-          <button class="pl-chip" data-scene="2" data-i18n="scene.chip3">Açık Veri</button>
-          <button class="pl-chip" data-scene="3" data-i18n="scene.chip4">Quentra</button>
-          <button class="pl-chip" data-scene="4" data-i18n="scene.chip5">DBA</button>
-          <button class="pl-chip" data-scene="5" data-i18n="scene.chip6">Mesaj</button>
-        </div>
       </div>
     </section>
 
     <!-- ======================= Panels ======================= -->
     <main class="panels">
-
-      <!-- The single query sent down BOTH routes -->
       <section class="panel sql-panel">
         <div class="panel-head">
           <span class="ph-title" data-i18n="sql.title">Gönderilen Sorgu</span>
@@ -246,14 +194,13 @@
         <div class="sql-hint" id="sqlHint" data-i18n="sql.hint">Aynı SQL · Aynı uygulama · Aynı veritabanı — farkı yaratan tek şey oturumun kimliği.</div>
       </section>
 
-      <!-- Live lookup feed -->
       <section class="panel feed-panel">
         <div class="panel-head">
-          <span class="ph-title" data-i18n="feed.title">Canlı Sorgu Akışı</span>
+          <span class="ph-title" data-i18n="feed.title">Çalıştırılan Sorgular</span>
           <span class="ph-sub" id="feedStats">—</span>
         </div>
         <div class="feed" id="lookupFeed">
-          <p class="empty" data-i18n="feed.empty">Sorgu akışı bekleniyor…</p>
+          <p class="empty" data-i18n="feed.empty">Henüz sorgu çalıştırılmadı.</p>
         </div>
       </section>
     </main>

@@ -1,14 +1,19 @@
-// scene.js — the slim network-topology strip above the SQL window: query and
-// result packets travelling between the support engineer's laptop and the
-// hospital DB, with the Quentra shield masking returning data in flight.
+// scene.js — the slim network-topology strip above the SQL window. Packets are
+// driven by the REAL request/response: sendQuery() when the statement leaves,
+// returnResult() when its rows actually come back.
 
 const SVGNS = "http://www.w3.org/2000/svg";
 
-const OUT_MS = 900;    // laptop -> DB
-const DB_PAUSE = 240;  // "executing" at the DB
-const BACK_MS = 1150;  // DB -> laptop
+const OUT_MS = 850;   // laptop -> DB
+const BACK_MS = 950;  // DB -> laptop
 
 const SHIELD = { x: 600, y: 62 };
+
+// Results must appear even if the animation cannot run (hidden tab, reduced
+// motion, throttled rAF): never let the UI wait on a frame callback forever.
+function guard(p, ms) {
+  return Promise.race([p, new Promise((r) => setTimeout(r, ms + 600))]);
+}
 
 export class Scene {
   constructor(svg) {
@@ -23,37 +28,45 @@ export class Scene {
       quentra: this.paths.quentra.getTotalLength(),
       direct: this.paths.direct.getTotalLength(),
     };
+    this.setRoute(null);
   }
 
-  setRole(role) { this.svg.dataset.role = role; }
+  // Highlights the route currently in use (null = idle, both dim).
+  setRoute(route) { this.svg.dataset.route = route || "idle"; }
 
-  // masked: whether current data is genuinely masked; drives the strip's glow.
-  setMasked(masked) { this.svg.classList.toggle("is-masked", !!masked); }
-
-  // One query round trip on the given route. opts: { masked, dba }
-  // The mask burst only fires when the data really is masked, so the strip
-  // never claims a mask the gateway did not apply.
-  spawnRoute(route, opts = {}) {
+  // The statement leaving the editor. Returns a promise that settles when the
+  // packet reaches the database, so the caller can sequence its UI.
+  sendQuery(route) {
+    this.setRoute(route);
     const path = this.paths[route] || this.paths.direct;
     const len = route === "quentra" ? this.lens.quentra : this.lens.direct;
+    const pk = this._makePacket("tplSql");
+    return guard(new Promise((resolve) => {
+      this._animate(pk, path, len, 0, 1, OUT_MS, () => {
+        pk.remove();
+        this._dbBlip();
+        resolve();
+      });
+    }), OUT_MS);
+  }
 
-    const sql = this._makePacket("tplSql");
-    this._animate(sql, path, len, 0, 1, OUT_MS, () => {
-      sql.remove();
-      this._dbBlip();
-      setTimeout(() => {
-        const data = this._makePacket("tplData");
-        if (opts.dba) data.classList.add("dba");
-        let fired = false;
-        this._animate(data, path, len, 1, 0, BACK_MS, () => data.remove(), (pt, t) => {
-          if (!fired && route === "quentra" && opts.masked && t <= 0.55) {
-            fired = true;
-            data.classList.add("masked");
-            this.burst();
-          }
-        });
-      }, DB_PAUSE);
-    });
+  // The rows coming back. masked=true only when the two routes really returned
+  // different data; the caller passes the measured comparison, so the shield
+  // never fakes a mask.
+  returnResult(route, { masked = false } = {}) {
+    const path = this.paths[route] || this.paths.direct;
+    const len = route === "quentra" ? this.lens.quentra : this.lens.direct;
+    const pk = this._makePacket("tplData");
+    let fired = false;
+    return guard(new Promise((resolve) => {
+      this._animate(pk, path, len, 1, 0, BACK_MS, () => { pk.remove(); resolve(); }, (pt, t) => {
+        if (!fired && route === "quentra" && masked && t <= 0.55) {
+          fired = true;
+          pk.classList.add("masked");
+          this.burst();
+        }
+      });
+    }), BACK_MS);
   }
 
   _makePacket(tplId) {
@@ -68,7 +81,7 @@ export class Scene {
   _animate(node, path, len, from, to, ms, done, onStep) {
     const t0 = performance.now();
     const step = (now) => {
-      if (!node.isConnected) return;
+      if (!node.isConnected) { if (done) done(); return; }
       const p = Math.min(1, (now - t0) / ms);
       const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
       const t = from + (to - from) * ease;
