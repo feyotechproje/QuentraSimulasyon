@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quentra Hospital Shield · Veri Maskeleme Simülasyonu</title>
+  <link rel="stylesheet" href="/shared/quentra-i18n.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="/shared/light-theme.css" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- ======================= Toolbar ======================= -->
+    <header class="toolbar">
+      <div class="brand">
+        <img class="brand-mark" src="/assets/quentra-logo.png" alt="Quentra" />
+        <div class="brand-txt">
+          <span class="brand-name" data-i18n="brand.title">Hospital Shield</span>
+          <span class="brand-sub" data-i18n="brand.sub">Uzak Destek · Veri Maskeleme</span>
+        </div>
+      </div>
+
+      <div class="toolbar-center">
+        <div class="status-pill" id="statusPill" data-state="idle">
+          <span class="dot"></span>
+          <span id="statusLabel" data-i18n="status.demo">DEMO MODU</span>
+        </div>
+      </div>
+
+      <!-- Role selector: who is looking at the SAME query's result -->
+      <div class="role-switch" id="roleSwitch" role="group" aria-label="Bağlantı rolü">
+        <button class="role-btn" data-role="baseline">
+          <i class="ri ri-warn"></i>
+          <span data-i18n="role.baseline">Quentra Yok</span>
+        </button>
+        <button class="role-btn is-active" data-role="quentra">
+          <i class="ri ri-shield"></i>
+          <span data-i18n="role.quentra">Destek · Quentra</span>
+        </button>
+        <button class="role-btn" data-role="dba">
+          <i class="ri ri-key"></i>
+          <span data-i18n="role.dba">DBA Rolü</span>
+        </button>
+      </div>
+
+      <div class="toolbar-right" id="toolbarRight">
+        <!-- Demo / Canlı toggle injected here -->
+      </div>
+    </header>
+
+    <!-- ======================= KPI strip ======================= -->
+    <section class="kpi-strip">
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.role">Aktif Rol</span><span class="kpi-value" id="kRole">—</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.queries">Hasta Sorgusu</span><span class="kpi-value" id="kQueries">0</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.directMs">Direkt Yanıt</span><span class="kpi-value" id="kDirectMs">—</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.quentraMs">Quentra Yanıt</span><span class="kpi-value" id="kQuentraMs">—</span></div>
+      <div class="kpi" id="kpiMask"><span class="kpi-label" data-i18n="kpi.masking">Maskeleme</span><span class="kpi-value" id="kMasking">—</span></div>
+      <div class="kpi" id="kpiGw"><span class="kpi-label" data-i18n="kpi.gateway">Quentra Gateway</span><span class="kpi-value" id="kGateway">—</span></div>
+    </section>
+
+    <!-- ======================= Cinematic stage ======================= -->
+    <section class="stage-wrap">
+      <div class="stage" id="stage">
+        <svg id="stageSvg" viewBox="0 0 1200 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <defs>
+            <linearGradient id="gSky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#08101f"/>
+              <stop offset="1" stop-color="#04070d"/>
+            </linearGradient>
+            <linearGradient id="gShield" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#123049"/>
+              <stop offset="1" stop-color="#0b1c2e"/>
+            </linearGradient>
+            <linearGradient id="gBuilding" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#101d33"/>
+              <stop offset="1" stop-color="#0a1322"/>
+            </linearGradient>
+            <radialGradient id="gGlow" cx=".5" cy=".5" r=".5">
+              <stop offset="0" stop-color="#2dd4bf" stop-opacity=".55"/>
+              <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+            </radialGradient>
+
+            <!-- SQL query packet template -->
+            <g id="tplSql">
+              <rect x="-26" y="-15" width="52" height="30" rx="6" class="pk-body"/>
+              <text x="0" y="4.5" class="pk-text">SQL</text>
+            </g>
+            <!-- Result packet template: three data rows -->
+            <g id="tplData">
+              <rect x="-26" y="-16" width="52" height="32" rx="6" class="pk-body pk-data"/>
+              <rect x="-18" y="-9"  width="36" height="4" rx="2" class="pk-row r1"/>
+              <rect x="-18" y="-2"  width="36" height="4" rx="2" class="pk-row r2"/>
+              <rect x="-18" y="5"   width="26" height="4" rx="2" class="pk-row r3"/>
+            </g>
+          </defs>
+
+          <rect x="0" y="0" width="1200" height="560" fill="url(#gSky)"/>
+          <!-- floor line -->
+          <line x1="40" y1="470" x2="1160" y2="470" class="floor"/>
+
+          <!-- ============ routes ============ -->
+          <!-- Through the Quentra shield -->
+          <path id="pathQn" class="route route-qn"
+                d="M 316 300 C 420 300, 470 236, 600 236 C 730 236, 780 300, 884 300"/>
+          <!-- Direct connection, bypassing the shield -->
+          <path id="pathDirect" class="route route-direct"
+                d="M 316 316 C 430 316, 480 412, 600 412 C 720 412, 770 316, 884 316"/>
+          <text x="600" y="444" class="route-label" data-i18n="scene.routeDirect">DİREKT BAĞLANTI</text>
+          <text x="600" y="206" class="route-label lbl-qn" data-i18n="scene.routeQuentra">QUENTRA ÜZERİNDEN · :14330</text>
+
+          <!-- ============ left: software firm ============ -->
+          <g id="office">
+            <rect x="60" y="180" width="256" height="290" rx="12" class="bld"/>
+            <rect x="60" y="180" width="256" height="44" rx="12" class="bld-top"/>
+            <text x="188" y="208" class="bld-title" data-i18n="scene.firm">YAZILIM FİRMASI</text>
+            <text x="188" y="246" class="bld-sub" data-i18n="scene.firmSub">Uzak Destek Merkezi</text>
+
+            <!-- desk + engineer -->
+            <rect x="96" y="392" width="184" height="10" rx="4" class="desk"/>
+            <rect x="118" y="402" width="10" height="52" class="desk-leg"/>
+            <rect x="248" y="402" width="10" height="52" class="desk-leg"/>
+            <!-- engineer -->
+            <g id="engineer">
+              <circle cx="136" cy="330" r="16" class="person-head"/>
+              <path d="M 112 392 C 112 358 160 358 160 392 Z" class="person-body"/>
+            </g>
+            <!-- monitor with mini patient screen -->
+            <g id="monitor">
+              <rect x="176" y="288" width="120" height="86" rx="6" class="mon-frame"/>
+              <rect x="182" y="294" width="108" height="74" rx="3" class="mon-screen"/>
+              <rect x="220" y="374" width="30" height="10" class="mon-neck"/>
+              <rect x="204" y="384" width="62" height="6" rx="3" class="mon-foot"/>
+              <g id="monRows">
+                <rect x="188" y="300" width="42" height="5" rx="2" class="m-label"/><rect x="234" y="300" width="50" height="5" rx="2" class="m-val" data-f="ad"/>
+                <rect x="188" y="310" width="34" height="5" rx="2" class="m-label"/><rect x="234" y="310" width="50" height="5" rx="2" class="m-val" data-f="tckn"/>
+                <rect x="188" y="320" width="40" height="5" rx="2" class="m-label"/><rect x="234" y="320" width="44" height="5" rx="2" class="m-val" data-f="telefon"/>
+                <rect x="188" y="330" width="30" height="5" rx="2" class="m-label"/><rect x="234" y="330" width="24" height="5" rx="2" class="m-val" data-f="kanGrubu"/>
+                <rect x="188" y="340" width="38" height="5" rx="2" class="m-label"/><rect x="234" y="340" width="52" height="5" rx="2" class="m-val" data-f="adres"/>
+                <rect x="188" y="350" width="28" height="5" rx="2" class="m-label"/><rect x="234" y="350" width="46" height="5" rx="2" class="m-val ok" data-f="tani"/>
+              </g>
+              <circle id="monGlow" cx="236" cy="331" r="70" fill="url(#gGlow)" opacity="0"/>
+            </g>
+          </g>
+
+          <!-- ============ center: Quentra gateway ============ -->
+          <g id="shieldNode">
+            <circle id="shieldRing" cx="600" cy="236" r="52" class="shield-ring"/>
+            <path d="M 600 190 L 640 206 L 640 240 C 640 268 622 286 600 296 C 578 286 560 268 560 240 L 560 206 Z" class="shield-body"/>
+            <path d="M 583 238 L 596 251 L 620 222" class="shield-check"/>
+            <text x="600" y="322" class="shield-label">QUENTRA</text>
+            <g id="burstLayer"></g>
+          </g>
+
+          <!-- ============ right: hospital + database ============ -->
+          <g id="hospital">
+            <rect x="884" y="150" width="256" height="320" rx="12" class="bld"/>
+            <rect x="884" y="150" width="256" height="44" rx="12" class="bld-top"/>
+            <text x="1012" y="178" class="bld-title" data-i18n="scene.hospital">HASTANE</text>
+            <text x="1012" y="216" class="bld-sub" data-i18n="scene.hospitalSub">Hastane Yönetim Sistemi · Canlı DB</text>
+            <!-- cross -->
+            <g class="cross">
+              <rect x="1084" y="236" width="12" height="36" rx="3"/>
+              <rect x="1072" y="248" width="36" height="12" rx="3"/>
+            </g>
+            <!-- windows -->
+            <g class="windows">
+              <rect x="912" y="240" width="26" height="20" rx="3"/><rect x="948" y="240" width="26" height="20" rx="3"/>
+              <rect x="912" y="272" width="26" height="20" rx="3"/><rect x="948" y="272" width="26" height="20" rx="3"/>
+              <rect x="912" y="304" width="26" height="20" rx="3"/><rect x="948" y="304" width="26" height="20" rx="3"/>
+            </g>
+            <!-- database cylinder -->
+            <g id="dbCylinder">
+              <ellipse cx="1012" cy="356" rx="54" ry="16" class="db-top"/>
+              <path d="M 958 356 L 958 424 C 958 433 982 440 1012 440 C 1042 440 1066 433 1066 424 L 1066 356" class="db-body"/>
+              <ellipse cx="1012" cy="390" rx="54" ry="16" class="db-line"/>
+              <text x="1012" y="466" class="db-label">HOSPITALSIM</text>
+            </g>
+          </g>
+
+          <!-- moving packets live here -->
+          <g id="packetLayer"></g>
+        </svg>
+
+        <!-- HTML overlays on the stage -->
+        <div class="ovl-badge ovl-kvkk" id="kvkkBadge" hidden>
+          <b data-i18n="ovl.kvkk">KVKK RİSKİ</b>
+          <span data-i18n="ovl.kvkkSub">Kimlik verisi açıkta</span>
+        </div>
+        <div class="ovl-badge ovl-masked" id="maskedBadge" hidden>
+          <b data-i18n="ovl.masked">MASKELENDİ</b>
+          <span data-i18n="ovl.maskedSub">Sorgu değişmedi · veri maskeli</span>
+        </div>
+        <div class="ovl-badge ovl-dba" id="dbaBadge" hidden>
+          <b data-i18n="ovl.dba">TAM ERİŞİM</b>
+          <span data-i18n="ovl.dbaSub">Yetkili rol · veri açık</span>
+        </div>
+
+        <!-- Subtitle / caption band -->
+        <div class="caption" id="captionBand">
+          <p id="captionText"></p>
+        </div>
+      </div>
+
+      <!-- ============ story player ============ -->
+      <div class="player">
+        <button class="pl-btn" id="btnPlay" title="Oynat / Duraklat" aria-label="Oynat / Duraklat">
+          <svg id="icPlay" viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          <svg id="icPause" viewBox="0 0 24 24" width="18" height="18" hidden><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+        </button>
+        <button class="pl-btn" id="btnReplay" title="Baştan Oynat" aria-label="Baştan Oynat">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 5V2L8 6l4 4V7a5 5 0 11-5 5H5a7 7 0 107-7z"/></svg>
+        </button>
+        <div class="pl-track" id="plTrack">
+          <div class="pl-progress" id="plProgress"></div>
+        </div>
+        <div class="pl-scenes" id="plScenes">
+          <button class="pl-chip" data-scene="0" data-i18n="scene.chip1">Kuruluş</button>
+          <button class="pl-chip" data-scene="1" data-i18n="scene.chip2">Sorun</button>
+          <button class="pl-chip" data-scene="2" data-i18n="scene.chip3">Quentra</button>
+          <button class="pl-chip" data-scene="3" data-i18n="scene.chip4">DBA</button>
+          <button class="pl-chip" data-scene="4" data-i18n="scene.chip5">Mesaj</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= Panels ======================= -->
+    <main class="panels">
+
+      <!-- HIS terminal: what the ACTIVE role sees -->
+      <section class="panel term-panel">
+        <div class="panel-head">
+          <span class="ph-title" data-i18n="term.title">HIS Terminali · Hasta Kartı</span>
+          <span class="route-badge" id="routeBadge">QUENTRA :14330</span>
+        </div>
+        <div class="term">
+          <div class="term-bar"><i></i><i></i><i></i><span id="termWho" data-i18n="term.who.quentra">destek@uzak-destek — canlı veritabanı</span></div>
+          <div class="term-body" id="patientCard">
+            <!-- rows injected by JS -->
+          </div>
+          <div class="term-note" id="termNote" hidden></div>
+        </div>
+      </section>
+
+      <!-- The single query sent down BOTH routes -->
+      <section class="panel sql-panel">
+        <div class="panel-head">
+          <span class="ph-title" data-i18n="sql.title">Gönderilen Sorgu</span>
+          <span class="sql-badge" id="sqlBadge" data-i18n="sql.same">İKİ ROTADA BYTE-BYTE AYNI</span>
+        </div>
+        <div class="sql-blocks" id="sqlBlocks"></div>
+        <div class="sql-hint" id="sqlHint" data-i18n="sql.hint">Aynı SQL · Aynı uygulama · Aynı veritabanı — farkı yaratan tek şey oturumun kimliği.</div>
+      </section>
+
+      <!-- Live lookup feed -->
+      <section class="panel feed-panel">
+        <div class="panel-head">
+          <span class="ph-title" data-i18n="feed.title">Canlı Sorgu Akışı</span>
+          <span class="ph-sub" id="feedStats">—</span>
+        </div>
+        <div class="feed" id="lookupFeed">
+          <p class="empty" data-i18n="feed.empty">Sorgu akışı bekleniyor…</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

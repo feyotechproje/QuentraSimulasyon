@@ -16,6 +16,7 @@ import (
 	"supermarketsim/internal/dashboard"
 	"supermarketsim/internal/db"
 	"supermarketsim/internal/fulltext"
+	"supermarketsim/internal/hospital"
 	"supermarketsim/internal/keybreaker"
 	"supermarketsim/internal/production"
 	"supermarketsim/internal/reportcache"
@@ -37,13 +38,14 @@ type Server struct {
 	fulltext    *fulltext.Manager
 	keyBreaker  *keybreaker.Manager
 	access      *access.Manager
+	hospital    *hospital.Manager
 	cfg         *config.Config
 	log         *slog.Logger
 }
 
 // New creates the HTTP server.
-func New(engine *sim.Engine, hub *sim.Hub, store *db.Store, veh *vehicle.Manager, prod *production.Manager, rc *reportcache.Manager, ft *fulltext.Manager, kb *keybreaker.Manager, acc *access.Manager, cfg *config.Config, log *slog.Logger) *Server {
-	return &Server{engine: engine, hub: hub, store: store, vehicle: veh, production: prod, reportCache: rc, fulltext: ft, keyBreaker: kb, access: acc, cfg: cfg, log: log}
+func New(engine *sim.Engine, hub *sim.Hub, store *db.Store, veh *vehicle.Manager, prod *production.Manager, rc *reportcache.Manager, ft *fulltext.Manager, kb *keybreaker.Manager, acc *access.Manager, hosp *hospital.Manager, cfg *config.Config, log *slog.Logger) *Server {
+	return &Server{engine: engine, hub: hub, store: store, vehicle: veh, production: prod, reportCache: rc, fulltext: ft, keyBreaker: kb, access: acc, hospital: hosp, cfg: cfg, log: log}
 }
 
 // Handler builds the router.
@@ -121,6 +123,10 @@ func (s *Server) Handler() http.Handler {
 	// Turnstile / factory access "last movement" real-DB workload endpoints.
 	mux.HandleFunc("GET /api/access/state", s.handleLiveState(func() any { return s.accessState() }))
 	mux.HandleFunc("POST /api/access/mode", s.handleAccessMode)
+
+	// Hospital remote-support data-masking real-DB workload endpoints.
+	mux.HandleFunc("GET /api/hospital/state", s.handleLiveState(func() any { return s.hospitalState() }))
+	mux.HandleFunc("POST /api/hospital/mode", s.handleHospitalMode)
 
 	return withCORS(mux)
 }

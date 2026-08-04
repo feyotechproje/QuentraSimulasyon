@@ -63,6 +63,7 @@ const (
 	AppKeyBreaker  = "QuentraSim-KeyBreaker"     // SQL-injection defense demo
 	AppAccess      = "QuentraSim-Access"         // turnstile last-movement query
 	AppDashboard   = "QuentraSim-Dashboard"      // SALES50M master-filter dashboard
+	AppHospital    = "QuentraSim-Hospital"       // hospital remote-support masking demo
 	AppSetup       = "QuentraSim-Setup"          // provisioning against master
 
 	// quentraSuffix marks a connection that travels through the gateway rather

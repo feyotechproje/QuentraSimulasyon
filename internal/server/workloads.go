@@ -19,6 +19,7 @@ const (
 	WorkloadKeyBreaker   = "key-breaker-simulation"
 	WorkloadFactory      = "factory-turnstile-simulation"
 	WorkloadTurnstile    = "turnstile"
+	WorkloadHospital     = "hospital-masking-simulation"
 )
 
 // workloadStatus is the per-workload snapshot served to the portal.
@@ -138,6 +139,17 @@ func (s *Server) workloads() []workload {
 			stop:    func() error { s.access.Pause(); return nil },
 			status: func() workloadStatus {
 				st := s.access.State()
+				return workloadStatus{Running: st.Running, Provisioned: st.Provisioned}
+			},
+		},
+		{
+			id:      WorkloadHospital,
+			title:   "Hastane Veri Maskeleme",
+			present: s.hospital != nil,
+			start:   func() error { return startProvisioned(s.hospital.State().Provisioned, s.hospital.Start) },
+			stop:    func() error { s.hospital.Pause(); return nil },
+			status: func() workloadStatus {
+				st := s.hospital.State()
 				return workloadStatus{Running: st.Running, Provisioned: st.Provisioned}
 			},
 		},

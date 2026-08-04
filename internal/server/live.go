@@ -75,3 +75,20 @@ func (s *Server) handleAccessMode(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode})
 }
+
+// ---- Hospital remote-support data masking ----
+
+func (s *Server) hospitalState() any {
+	if s.hospital == nil {
+		return notProvisioned
+	}
+	return s.hospital.State()
+}
+
+func (s *Server) handleHospitalMode(w http.ResponseWriter, r *http.Request) {
+	mode := decodeMode(r)
+	if s.hospital != nil {
+		s.hospital.SetMode(mode)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode})
+}

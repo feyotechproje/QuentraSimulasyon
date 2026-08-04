@@ -14,6 +14,7 @@ import (
 	"supermarketsim/internal/config"
 	"supermarketsim/internal/db"
 	"supermarketsim/internal/fulltext"
+	"supermarketsim/internal/hospital"
 	"supermarketsim/internal/keybreaker"
 	"supermarketsim/internal/production"
 	"supermarketsim/internal/reportcache"
@@ -138,7 +139,21 @@ func main() {
 		log.Info("access workload ready", "db", access.DBName, "state", "idle")
 	}()
 
-	srv := server.New(engine, hub, store, vehMgr, prodMgr, rcMgr, ftMgr, kbMgr, accMgr, cfg, log)
+	// Hospital remote-support data-masking workload against a disposable
+	// database. The same parameterized patient lookup is sent both direct and
+	// through the Quentra gateway; a masking rule on the gateway shows up live.
+	hospMgr := hospital.NewManager(cfg, log)
+	go func() {
+		pctx, pcancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer pcancel()
+		if err := hospMgr.Provision(pctx); err != nil {
+			log.Error("hospital workload provisioning failed", "error", err.Error())
+			return
+		}
+		log.Info("hospital workload ready", "db", hospital.DBName, "patients", hospital.PatientCount, "state", "idle")
+	}()
+
+	srv := server.New(engine, hub, store, vehMgr, prodMgr, rcMgr, ftMgr, kbMgr, accMgr, hospMgr, cfg, log)
 
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -167,6 +182,7 @@ func main() {
 	ftMgr.Stop()
 	kbMgr.Stop()
 	accMgr.Stop()
+	hospMgr.Stop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
