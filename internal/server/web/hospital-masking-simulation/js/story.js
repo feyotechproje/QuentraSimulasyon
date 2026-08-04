@@ -7,7 +7,7 @@
 import { PATIENT_SQL } from "./data.js";
 
 // Scene factory: ctx = { win, strip, rows(), t }
-//   rows() -> { open:[], masked:[], maskedFields:[], masked:boolean, demo:boolean }
+//   rows() -> { columns:[], open:[][], maskedRows:[][], masked:boolean, demo:boolean }
 function makeScenes(ctx) {
   const { win, strip, t } = ctx;
   const rows = () => ctx.rows();
@@ -50,7 +50,8 @@ function makeScenes(ctx) {
       spans: [
         { from: 2400, to: 4600, render: (p) => {
           const r = rows();
-          win.fillGrid("direct", r.open, { tone: "open", revealP: p, meta: metaMs(r) });
+          win.fillGrid("direct", { columns: r.columns, rows: r.open },
+            { compareTo: r.maskedRows, tone: "open", revealP: p, meta: metaMs(r) });
         } },
       ],
     },
@@ -60,7 +61,8 @@ function makeScenes(ctx) {
         { at: 0, run: () => {
           const r = rows();
           win.treeReveal(1); win.setQuery(PATIENT_SQL);
-          win.fillGrid("direct", r.open, { tone: "open", revealP: 1 });
+          win.fillGrid("direct", { columns: r.columns, rows: r.open },
+            { compareTo: r.maskedRows, tone: "open", revealP: 1 });
           win.setIdentity("destek", "quentra");
           win.flashQueryUnchanged();
           win.setStatus(t("sw.stExecuting"), { tone: "run" });
@@ -75,10 +77,8 @@ function makeScenes(ctx) {
       spans: [
         { from: 3200, to: 5400, render: (p) => {
           const r = rows();
-          win.fillGrid("quentra", r.maskedRows, {
-            tone: r.masked ? "masked" : "plain",
-            maskedFields: r.maskedFields, revealP: p, meta: metaMs(r),
-          });
+          win.fillGrid("quentra", { columns: r.columns, rows: r.maskedRows },
+            { compareTo: r.open, tone: r.masked ? "masked" : "plain", revealP: p, meta: metaMs(r) });
         } },
       ],
     },
@@ -88,14 +88,16 @@ function makeScenes(ctx) {
         { at: 0, run: () => {
           const r = rows();
           win.treeReveal(1); win.setQuery(PATIENT_SQL);
-          win.fillGrid("quentra", r.maskedRows, { tone: r.masked ? "masked" : "plain", maskedFields: r.maskedFields, revealP: 1 });
+          win.fillGrid("quentra", { columns: r.columns, rows: r.maskedRows },
+            { compareTo: r.open, tone: r.masked ? "masked" : "plain", revealP: 1 });
           win.setIdentity("dba", "direct");
           win.setStatus(t("sw.stExecuting"), { tone: "run" });
         } },
         { at: 400, run: () => strip.spawnRoute("direct", { dba: true }) },
         { at: 2600, run: () => {
           const r = rows();
-          win.fillGrid("direct", r.open, { tone: "dba", revealP: 1 });
+          win.fillGrid("direct", { columns: r.columns, rows: r.open },
+            { compareTo: r.maskedRows, tone: "dba", revealP: 1 });
           win.highlightSet("direct", "dba");
           win.setStatus(t("sw.stDoneDba"), { tone: "dba", rows: r.open.length });
         } },
@@ -155,6 +157,7 @@ export class Story {
   play() {
     if (this.playing) return;
     this.playing = true;
+    this.ctx.win.setEditable(false); // the film owns the editor while playing
     this._last = performance.now();
     this._updatePlayIcon();
     this._raf = requestAnimationFrame((n) => this._tick(n));
@@ -162,6 +165,7 @@ export class Story {
 
   pause() {
     this.playing = false;
+    this.ctx.win.setEditable(true);
     if (this._raf) cancelAnimationFrame(this._raf);
     this._updatePlayIcon();
   }

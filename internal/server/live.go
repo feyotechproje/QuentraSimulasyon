@@ -92,3 +92,20 @@ func (s *Server) handleHospitalMode(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode})
 }
+
+// handleHospitalQuery runs the SQL editor's user-authored SELECT on both
+// routes (direct + Quentra) and returns the two result sets verbatim.
+func (s *Server) handleHospitalQuery(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		SQL string `json:"sql"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if s.hospital == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"error": "workload kullanılamıyor"})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.hospital.RunQuery(r.Context(), body.SQL))
+}

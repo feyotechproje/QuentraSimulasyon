@@ -1,21 +1,8 @@
-// sqlwin.js — controller for the SSMS-style SQL client window: typing the
-// query, pressing Yürüt, filling the two result sets (direct vs Quentra),
-// identity/status chips. Purely presentational; the DATA it renders comes from
-// the demo set or, in live mode, verbatim from the backend's two routes.
-
-const COLUMNS = [
-  { col: "HASTA_ID", key: "id" },
-  { col: "AD", key: "ad" },
-  { col: "SOYAD", key: "soyad" },
-  { col: "TCKN", key: "tckn" },
-  { col: "TELEFON", key: "telefon" },
-  { col: "KAN_GRUBU", key: "kanGrubu" },
-  { col: "ADRES", key: "adres" },
-  { col: "TANI", key: "tani" },
-];
-
-// Identity columns that light up red when they come back unprotected.
-const SENSITIVE = new Set(["ad", "soyad", "tckn", "telefon", "kanGrubu", "adres"]);
+// sqlwin.js — controller for the SSMS-style SQL client window. The editor is a
+// real, user-editable textarea (with a syntax-highlight layer underneath); the
+// result grids render whatever columns/rows the executed query returned. The
+// window only ever displays data it was handed — in live mode that is the
+// verbatim output of the two routes.
 
 const $ = (id) => document.getElementById(id);
 
@@ -25,12 +12,15 @@ export class SqlWin {
     this.el = $("sqlwin");
     this.query = $("swQuery");
     this.caret = $("swCaret");
+    this.input = $("swInput");
     this.execBtn = $("btnExecute");
     this.conn = $("connChip");
     this.status = $("swStatus");
     this.cursorEl = $("fakeCursor");
     this._lastReveal = { direct: -1, quentra: -1 };
     this._treeShown = -1;
+    this._lastCode = null;
+    this.input.addEventListener("input", () => this._renderCode(this.input.value));
   }
 
   // ---- window lifecycle ----
@@ -41,11 +31,21 @@ export class SqlWin {
     this.clearResults();
     this.treeReveal(0);
     this.setIdentity("destek", "direct");
-    this.setStatus(this.t("sw.stReady"), { tone: "idle", rows: null });
+    this.setStatus(this.t("sw.stReady"), { tone: "idle", rows: 0 });
     this.dim(false);
   }
 
+  // The page's resting state: tree open, query prefilled, ready to edit/run.
+  idle(queryText) {
+    this.reset();
+    this.treeReveal(1);
+    this.setQuery(queryText);
+    this.setEditable(true);
+  }
+
   dim(on) { this.el.classList.toggle("dimmed", !!on); }
+
+  setEditable(on) { this.input.readOnly = !on; }
 
   // ---- object explorer ----
 
@@ -59,20 +59,27 @@ export class SqlWin {
 
   // ---- editor ----
 
-  setQuery(text) { this._renderCode(text); }
+  getQuery() { return this.input.value; }
+
+  setQuery(text) {
+    this.input.value = text;
+    this._renderCode(text);
+  }
 
   typeQuery(p, text) {
     const n = Math.max(0, Math.round(p * text.length));
     const cut = text.slice(0, n);
-    if (this._lastCode !== cut) this._renderCode(cut);
+    if (this._lastCode !== cut) {
+      this.input.value = cut;
+      this._renderCode(cut);
+    }
   }
 
-  // SSMS-style syntax colors + line-number gutter.
   _renderCode(code) {
     this._lastCode = code;
     this.query.innerHTML = highlightSQL(code);
     const lines = Math.max(1, code.split("\n").length);
-    const gutter = document.getElementById("swGutter");
+    const gutter = $("swGutter");
     if (Number(gutter.dataset.n) !== lines) {
       gutter.dataset.n = lines;
       gutter.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join("<br>");
@@ -123,34 +130,37 @@ export class SqlWin {
     $("rsEmpty").hidden = false;
     $("gridDirect").innerHTML = "";
     $("gridQuentra").innerHTML = "";
+    $("gridDirect").dataset.sig = "";
+    $("gridQuentra").dataset.sig = "";
     this._lastReveal = { direct: -1, quentra: -1 };
   }
 
-  // fillGrid('direct'|'quentra', rows, {tone:'open'|'masked'|'dba'|'plain',
-  //   maskedFields:[], revealP:0..1, meta:''})
-  fillGrid(which, rows, opts = {}) {
-    const { tone = "plain", maskedFields = [], revealP = 1, meta = "" } = opts;
+  // fillGrid('direct'|'quentra', {columns:[], rows:[][]}, opts)
+  //   opts.compareTo: the OTHER route's rows — any differing cell gets the
+  //                   tone's highlight, so a mask only ever shows where the
+  //                   two routes really returned different values.
+  //   opts.tone: 'open' | 'masked' | 'dba' | 'plain'
+  fillGrid(which, data, opts = {}) {
+    const { compareTo = null, tone = "plain", revealP = 1, meta = "" } = opts;
     const wrap = which === "direct" ? $("rsDirect") : $("rsQuentra");
     const table = which === "direct" ? $("gridDirect") : $("gridQuentra");
     wrap.hidden = false;
     $("rsEmpty").hidden = true;
 
-    const sig = tone + ":" + rows.length + ":" + rows.map((r) => r.id).join(",");
+    const cols = data.columns || [];
+    const rows = data.rows || [];
+    const sig = tone + "|" + cols.join(",") + "|" + JSON.stringify(rows);
     if (table.dataset.sig !== sig) {
       table.dataset.sig = sig;
       this._lastReveal[which] = -1;
-      const maskSet = new Set(maskedFields);
-      const head = "<tr><th></th>" + COLUMNS.map((c) => `<th>${c.col}</th>`).join("") + "</tr>";
+      const toneCls = tone === "masked" ? "c-masked" : tone === "dba" ? "c-dba" : tone === "open" ? "c-open" : "";
+      const head = "<tr><th></th>" + cols.map((c) => `<th>${esc(c)}</th>`).join("") + "</tr>";
       const body = rows.map((r, i) => {
-        const cells = COLUMNS.map((c) => {
-          const v = r[c.key];
+        const cells = r.map((cell, j) => {
           let cls = "";
-          if (c.key !== "id") {
-            if (tone === "masked" && maskSet.has(c.key)) cls = "c-masked";
-            else if (tone === "open" && SENSITIVE.has(c.key)) cls = "c-open";
-            else if (tone === "dba" && SENSITIVE.has(c.key)) cls = "c-dba";
-          }
-          return `<td class="${cls}">${esc(v)}</td>`;
+          const other = compareTo && compareTo[i] ? compareTo[i][j] : undefined;
+          if (toneCls && other !== undefined && String(other).trim() !== String(cell).trim()) cls = toneCls;
+          return `<td class="${cls}">${esc(cell)}</td>`;
         }).join("");
         return `<tr class="rrow"><td class="rn">${i + 1}</td>${cells}</tr>`;
       }).join("");
@@ -198,11 +208,12 @@ function esc(s) {
 }
 
 // Minimal SSMS palette: keywords blue, variables teal, numbers green,
-// comments green-gray. Input is escaped first, so the spans are safe.
+// comments green. Input is escaped first, so the spans are safe.
 function highlightSQL(sql) {
   return esc(sql)
-    .replace(/\b(SELECT|FROM|WHERE|BETWEEN|AND|OR|TOP|ORDER BY|INSERT|UPDATE|DELETE)\b/g, '<span class="k">$1</span>')
+    .replace(/\b(SELECT|FROM|WHERE|BETWEEN|AND|OR|TOP|ORDER|GROUP|BY|LIKE|IN|AS|JOIN|ON|INNER|LEFT|RIGHT|DISTINCT|COUNT|SUM|AVG|MIN|MAX)\b/gi, '<span class="k">$1</span>')
     .replace(/(@\w+)/g, '<span class="v">$1</span>')
-    .replace(/\b(\d+)\b/g, '<span class="n">$1</span>')
+    .replace(/('[^']*')/g, '<span class="s">$1</span>')
+    .replace(/\b(\d+)\b(?![^<]*>)/g, '<span class="n">$1</span>')
     .replace(/(--[^\n]*)/g, '<span class="c">$1</span>');
 }

@@ -127,6 +127,7 @@ func (s *Server) Handler() http.Handler {
 	// Hospital remote-support data-masking real-DB workload endpoints.
 	mux.HandleFunc("GET /api/hospital/state", s.handleLiveState(func() any { return s.hospitalState() }))
 	mux.HandleFunc("POST /api/hospital/mode", s.handleHospitalMode)
+	mux.HandleFunc("POST /api/hospital/query", s.handleHospitalQuery)
 
 	return withCORS(mux)
 }

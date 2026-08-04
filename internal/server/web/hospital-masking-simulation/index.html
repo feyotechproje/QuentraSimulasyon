@@ -144,7 +144,10 @@
             <div class="sw-main">
               <div class="sw-editor" id="swEditor">
                 <div class="sw-gutter" id="swGutter">1</div>
-                <div class="sw-code"><pre id="swQuery"></pre><span class="sw-caret" id="swCaret" hidden></span></div>
+                <div class="sw-code">
+                  <pre id="swQuery"></pre><span class="sw-caret" id="swCaret" hidden></span>
+                  <textarea id="swInput" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="SQL sorgusu"></textarea>
+                </div>
               </div>
               <div class="sw-tabs">
                 <span class="is-active" data-i18n="sw.results">Sonuçlar</span>
@@ -201,8 +204,8 @@
           <p id="msgLine2"></p>
         </div>
 
-        <!-- Subtitle / caption band -->
-        <div class="caption" id="captionBand">
+        <!-- Subtitle / caption band (only while the film plays) -->
+        <div class="caption" id="captionBand" hidden>
           <p id="captionText"></p>
         </div>
       </div>

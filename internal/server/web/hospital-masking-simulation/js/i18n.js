@@ -101,6 +101,8 @@ export const HOSPITAL_DICT = {
     "sw.stDoneMasked": "Sorgu tamamlandı — veri geçitte maskelendi",
     "sw.stDoneNoRule": "Sorgu tamamlandı — maskeleme kuralı yok, veri aynı",
     "sw.stDoneDba": "Sorgu tamamlandı — yetkili oturum, veri açık",
+    "sw.stDone": "Sorgu başarıyla yürütüldü",
+    "sw.stNoLive": "Canlı bağlantı yok — yalnızca örnek hasta sorgusu gösterilebilir",
     "sw.rowsWord": "satır",
 
     "term.title": "HIS Terminali · Hasta Kartı",
@@ -216,6 +218,8 @@ export const HOSPITAL_DICT = {
     "sw.stDoneMasked": "Query completed — data masked at the gateway",
     "sw.stDoneNoRule": "Query completed — no masking rule, data identical",
     "sw.stDoneDba": "Query completed — privileged session, data open",
+    "sw.stDone": "Query executed successfully",
+    "sw.stNoLive": "No live connection — only the sample patient query can be shown",
     "sw.rowsWord": "rows",
 
     "term.title": "HIS Terminal · Patient Card",

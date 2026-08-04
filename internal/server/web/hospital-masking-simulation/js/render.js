@@ -6,25 +6,29 @@ import { fmt } from "/shared/live-workload.js";
 
 const $ = (id) => document.getElementById(id);
 
-export function renderAll(state, role, t) {
+export function renderAll(state, role, t, playing) {
   if (!state) return;
   renderKpis(state, role, t);
   renderSql(state, t);
   renderFeed(state, t);
-  renderBadges(state, role);
+  renderBadges(state, role, playing);
 }
 
 function roleName(role, t) { return t("roleName." + role, role); }
 
 function renderKpis(state, role, t) {
+  // Worker counters only mean something while the background workload runs;
+  // otherwise they would show stale zeros and read as "live but dead".
+  const active = !state.demo && state.running;
   $("kRole").textContent = roleName(role, t);
-  $("kQueries").textContent = state.demo ? "—" : fmt.int(state.queriesTotal);
-  $("kDirectMs").textContent = state.demo ? "—" : fmt.ms(state.directMs);
-  $("kQuentraMs").textContent = state.demo ? "—" : fmt.ms(state.quentraMs);
+  $("kQueries").textContent = active ? fmt.int(state.queriesTotal) : "—";
+  $("kDirectMs").textContent = active ? fmt.ms(state.directMs) : "—";
+  $("kQuentraMs").textContent = active ? fmt.ms(state.quentraMs) : "—";
 
   const km = $("kpiMask"), kv = $("kMasking");
   km.className = "kpi";
   if (state.demo) { kv.textContent = t("mask.demo"); km.classList.add("k-teal"); }
+  else if (!active) { kv.textContent = "—"; }
   else if (state.masked) { kv.textContent = t("mask.on"); km.classList.add("k-ok"); }
   else { kv.textContent = t("mask.off"); km.classList.add("k-warn"); }
 
@@ -74,11 +78,13 @@ function renderFeed(state, t) {
   }).join("");
 }
 
-function renderBadges(state, role) {
+// The stage badges belong to the film's narration; outside playback they stay
+// hidden so an idle page never claims KVKK risk or an applied mask.
+function renderBadges(state, role, playing) {
   const masked = state.demo ? true : !!state.masked;
-  document.getElementById("kvkkBadge").hidden = role !== "baseline";
-  document.getElementById("maskedBadge").hidden = !(role === "quentra" && masked);
-  document.getElementById("dbaBadge").hidden = role !== "dba";
+  document.getElementById("kvkkBadge").hidden = !playing || role !== "baseline";
+  document.getElementById("maskedBadge").hidden = !playing || !(role === "quentra" && masked);
+  document.getElementById("dbaBadge").hidden = !playing || role !== "dba";
 }
 
 function esc(s) {
