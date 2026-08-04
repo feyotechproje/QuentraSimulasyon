@@ -103,7 +103,11 @@ body {
   box-shadow:inset 0 0 60px rgba(0,0,0,.5), var(--glow-teal);
   display:flex; flex-direction:column;
 }
-.stage svg { display:block; width:100%; height:auto; flex:0 0 auto; }
+/* Only the topology strip itself — NOT the icon svgs inside the SQL window. */
+.stage > svg { display:block; width:100%; height:auto; flex:0 0 auto; }
+
+/* Author display values (flex etc.) must never defeat the hidden attribute. */
+[hidden] { display:none !important; }
 
 /* ---- topology strip primitives ---- */
 .node-title { fill:#dff2f7; font:700 11.5px "Segoe UI",sans-serif; letter-spacing:1.8px; text-anchor:middle; }
