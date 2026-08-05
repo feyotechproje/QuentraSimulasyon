@@ -304,13 +304,18 @@ svg[data-route="quentra"] .shield-ring { animation:ring 2.2s infinite; }
 .rs-meta { margin-left:auto; font:600 10.5px Consolas,monospace; color:#7a8290; }
 .rs-scroll { overflow-x:auto; position:relative; }
 
-/* Story choreography: the dark rectangle sweeping over the exposed fields
-   of the first result row while the narration names them. */
+/* Story choreography: the rectangle sweeping over the fields of the first
+   result row while the narration names them — dark on the exposed grid,
+   teal ("protected") on the masked one. */
 .story-mark {
   position:absolute; z-index:5; pointer-events:none; opacity:0;
   border:2.5px solid #0f172a; border-radius:5px;
   box-shadow:0 0 0 3px rgba(255,255,255,.55), 0 6px 18px -6px rgba(15,23,42,.45);
   transition:opacity .25s ease;
+}
+.story-mark.mask-ok {
+  border-color:#0e7a66;
+  box-shadow:0 0 0 3px rgba(45,212,191,.4), 0 6px 18px -6px rgba(14,122,102,.5);
 }
 
 .rs-grid { border-collapse:collapse; width:100%; font:12px Consolas,"Cascadia Mono",monospace; }

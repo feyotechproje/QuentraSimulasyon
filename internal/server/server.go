@@ -136,8 +136,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/aiguard/mode", s.handleAIGuardMode)
 	mux.HandleFunc("POST /api/aiguard/ask", s.handleAIGuardAsk)
 
-	// Story-mode narration: disk-cached ElevenLabs TTS proxy.
+	// Story-mode narration: disk-cached ElevenLabs TTS proxy + word timings.
 	mux.HandleFunc("POST /api/tts", s.handleTTS)
+	mux.HandleFunc("POST /api/tts/align", s.handleTTSAlign)
 
 	return withCORS(mux)
 }

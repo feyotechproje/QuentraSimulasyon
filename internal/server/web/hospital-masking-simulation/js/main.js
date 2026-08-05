@@ -64,6 +64,24 @@ const narrator = {
     texts.forEach((tx) => { if (tx) this.fetchClip(tx).catch(() => {}); });
   },
 
+  // Word timings for a narration line (character start seconds). null when
+  // the cache has none yet — callers fall back to proportional pacing, and a
+  // miss is not cached so the timings are picked up on the next attempt.
+  alignCache: new Map(),
+  fetchAlign(text) {
+    const k = this.lang() + "|" + text;
+    if (!this.alignCache.has(k)) {
+      const p = fetch("/api/tts/align", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, lang: this.lang() }),
+      }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        .then((v) => { if (!v) this.alignCache.delete(k); return v; });
+      this.alignCache.set(k, p);
+    }
+    return this.alignCache.get(k);
+  },
+
   async play(text) {
     const my = ++this.seq;
     this.paused = false; // navigating (manual or auto) resumes the flow
@@ -112,26 +130,35 @@ const narrator = {
 
 let preloadNarration = () => {};
 
-// ---- "Veriler Açıkta" choreography: while the narration lists the exposed
-// fields, a dark rectangle marks each one on the FIRST result row and the
-// camera does a short zoom onto it — AD+SOYAD, TCKN, TELEFON, ADRES, TANI.
-// Beats are driven by the narration clip's own currentTime, so pausing the
-// story freezes the sweep too; with no audio it falls back to a wall clock.
+// ---- field-sweep choreography: while the narration lists the fields of the
+// first result row, a rectangle marks each one and the camera does a short
+// zoom onto it; when the narration moves on ("Mühendis…"), the camera pulls
+// back to the whole grid. Beat times come from the clip's REAL word timings
+// (/api/tts/align — character start seconds), so each frame appears exactly
+// when its word is spoken; without timings a proportional estimate is used.
+// The clock is the audio's currentTime: pausing the story freezes the sweep.
 
-const choreo = { timer: null, mark: null };
+const choreo = { timer: null, mark: null, token: 0 };
 
 function stopChoreo() {
+  choreo.token++;
   if (choreo.timer) { clearInterval(choreo.timer); choreo.timer = null; }
   if (choreo.mark) { choreo.mark.remove(); choreo.mark = null; }
 }
 
-function startDirectChoreo() {
+// The five sensitive-field groups, in the order BOTH the sweep and the
+// narration texts enumerate them.
+const SWEEP_GROUPS = [["AD", "SOYAD"], ["TCKN"], ["TELEFON"], ["ADRES"], ["TANI"]];
+const SWEEP_WORDS = ["ad soyad", "kimlik numarası", "telefon", "adres", "tanı"];
+
+async function startFieldSweep(cfg) {
   stopChoreo();
-  const table = document.getElementById("gridDirect");
+  const myToken = choreo.token;
+  const table = document.getElementById(cfg.table);
   if (!table || !table.rows || table.rows.length < 2) return;
   const heads = [...table.rows[0].cells].map((c) => c.textContent.trim().toUpperCase());
   const row = table.rows[1];
-  const rects = [["AD", "SOYAD"], ["TCKN"], ["TELEFON"], ["ADRES"], ["TANI"]]
+  const rects = SWEEP_GROUPS
     .map((group) => {
       const cells = group.map((h) => row.cells[heads.indexOf(h)]).filter(Boolean);
       if (!cells.length) return null;
@@ -142,11 +169,32 @@ function startDirectChoreo() {
       return { left, top, w: right - left, h: bottom - top };
     })
     .filter(Boolean);
-  if (!rects.length) return;
+  if (rects.length !== SWEEP_GROUPS.length) return;
+
+  // Real word timings for THIS narration text, if the cache has them.
+  let sched = null, wideAt = null;
+  const align = await narrator.fetchAlign(cfg.voiceText);
+  if (choreo.token !== myToken) return; // the story moved on meanwhile
+  if (align && align.chars && align.starts && align.chars.length === align.starts.length) {
+    const text = align.chars.join("");
+    const times = [];
+    let from = 0;
+    for (const word of SWEEP_WORDS) {
+      const i = text.indexOf(word, from);
+      if (i < 0) { times.length = 0; break; }
+      times.push(Math.max(0, align.starts[i] - 0.15)); // shade early: frame lands with the word
+      from = i + word.length;
+    }
+    if (times.length === SWEEP_WORDS.length) {
+      sched = times;
+      const wi = text.indexOf("Mühendis", from);
+      wideAt = wi >= 0 ? Math.max(0, align.starts[wi] - 0.15) : null;
+    }
+  }
 
   const scroll = table.closest(".rs-scroll") || table.parentElement;
   const mark = document.createElement("div");
-  mark.className = "story-mark";
+  mark.className = "story-mark" + (cfg.markClass ? " " + cfg.markClass : "");
   mark.id = "storyMark";
   scroll.appendChild(mark);
   choreo.mark = mark;
@@ -160,24 +208,41 @@ function startDirectChoreo() {
     scroll.scrollLeft = Math.max(0, table.offsetLeft + r.left + r.w / 2 - scroll.clientWidth / 2);
   };
 
-  const LEAD = 2.2; // opening beat: the whole grid, as the step framed it
-  let idx = -1;
+  let idx = -1, wide = false;
   const t0 = performance.now();
   choreo.timer = setInterval(() => {
     if (!tour || !tour.active) { stopChoreo(); return; }
     const a = narrator.audio;
     const voiced = a && a.src && isFinite(a.duration) && a.duration > 0;
     const tsec = voiced ? a.currentTime : (performance.now() - t0) / 1000;
-    const total = voiced ? a.duration : LEAD + rects.length * 2.2;
-    const seg = Math.max(1.4, (total - LEAD - 0.6) / rects.length);
-    const want = Math.min(rects.length - 1, Math.floor((tsec - LEAD) / seg));
+
+    let want = -1, wideNow = false;
+    if (sched) {
+      for (let i = 0; i < sched.length; i++) if (tsec >= sched[i]) want = i;
+      wideNow = wideAt != null && tsec >= wideAt;
+    } else {
+      // No timings: spread the beats proportionally over the clip.
+      const total = voiced ? a.duration : 16;
+      const frac = tsec / total;
+      for (let i = 0; i < cfg.fracSched.length; i++) if (frac >= cfg.fracSched[i]) want = i;
+      wideNow = frac >= cfg.fracWide;
+    }
+
+    if (wideNow) {
+      if (!wide) {
+        wide = true;
+        mark.style.opacity = "0";
+        tour.focus(cfg.wideTarget, cfg.wideZoom);
+      }
+      return;
+    }
     if (want >= 0 && want !== idx) {
       idx = want;
       place(rects[idx]);
       mark.style.opacity = "1";
       tour.focus("#storyMark", 2.6);
     }
-  }, 200);
+  }, 150);
 }
 
 initQuentraApp({
@@ -274,7 +339,19 @@ function setupTour() {
     onStep: (step) => {
       stopChoreo();
       narrator.play(narrationText(step));
-      if (step.key === "tour.s6") startDirectChoreo();
+      if (step.key === "tour.s6") {
+        startFieldSweep({
+          table: "gridDirect", voiceText: narrationText(step),
+          wideTarget: "#rsDirect", wideZoom: 1.7,
+          fracSched: [0.11, 0.18, 0.26, 0.33, 0.41], fracWide: 0.53,
+        });
+      } else if (step.key === "tour.s8") {
+        startFieldSweep({
+          table: "gridQuentra", markClass: "mask-ok", voiceText: narrationText(step),
+          wideTarget: "#rsQuentra", wideZoom: 1.7,
+          fracSched: [0.24, 0.31, 0.38, 0.45, 0.57], fracWide: 0.70,
+        });
+      }
     },
     onDone: () => { stopChoreo(); narrator.stop(); storyReveal(); },
     pauseControl: {
