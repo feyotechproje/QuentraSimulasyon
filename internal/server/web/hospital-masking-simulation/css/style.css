@@ -302,7 +302,16 @@ svg[data-route="quentra"] .shield-ring { animation:ring 2.2s infinite; }
 .rs-no.dr { background:#e3efff; color:#1c5aa8; border:1px solid #a9c9ec; }
 .rs-no.qn { background:#e0f5f1; color:#0f6e60; border:1px solid #9fd8cc; }
 .rs-meta { margin-left:auto; font:600 10.5px Consolas,monospace; color:#7a8290; }
-.rs-scroll { overflow-x:auto; }
+.rs-scroll { overflow-x:auto; position:relative; }
+
+/* Story choreography: the dark rectangle sweeping over the exposed fields
+   of the first result row while the narration names them. */
+.story-mark {
+  position:absolute; z-index:5; pointer-events:none; opacity:0;
+  border:2.5px solid #0f172a; border-radius:5px;
+  box-shadow:0 0 0 3px rgba(255,255,255,.55), 0 6px 18px -6px rgba(15,23,42,.45);
+  transition:opacity .25s ease;
+}
 
 .rs-grid { border-collapse:collapse; width:100%; font:12px Consolas,"Cascadia Mono",monospace; }
 .rs-grid th {

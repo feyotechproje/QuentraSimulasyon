@@ -112,6 +112,74 @@ const narrator = {
 
 let preloadNarration = () => {};
 
+// ---- "Veriler Açıkta" choreography: while the narration lists the exposed
+// fields, a dark rectangle marks each one on the FIRST result row and the
+// camera does a short zoom onto it — AD+SOYAD, TCKN, TELEFON, ADRES, TANI.
+// Beats are driven by the narration clip's own currentTime, so pausing the
+// story freezes the sweep too; with no audio it falls back to a wall clock.
+
+const choreo = { timer: null, mark: null };
+
+function stopChoreo() {
+  if (choreo.timer) { clearInterval(choreo.timer); choreo.timer = null; }
+  if (choreo.mark) { choreo.mark.remove(); choreo.mark = null; }
+}
+
+function startDirectChoreo() {
+  stopChoreo();
+  const table = document.getElementById("gridDirect");
+  if (!table || !table.rows || table.rows.length < 2) return;
+  const heads = [...table.rows[0].cells].map((c) => c.textContent.trim().toUpperCase());
+  const row = table.rows[1];
+  const rects = [["AD", "SOYAD"], ["TCKN"], ["TELEFON"], ["ADRES"], ["TANI"]]
+    .map((group) => {
+      const cells = group.map((h) => row.cells[heads.indexOf(h)]).filter(Boolean);
+      if (!cells.length) return null;
+      const left = Math.min(...cells.map((c) => c.offsetLeft));
+      const right = Math.max(...cells.map((c) => c.offsetLeft + c.offsetWidth));
+      const top = Math.min(...cells.map((c) => c.offsetTop));
+      const bottom = Math.max(...cells.map((c) => c.offsetTop + c.offsetHeight));
+      return { left, top, w: right - left, h: bottom - top };
+    })
+    .filter(Boolean);
+  if (!rects.length) return;
+
+  const scroll = table.closest(".rs-scroll") || table.parentElement;
+  const mark = document.createElement("div");
+  mark.className = "story-mark";
+  mark.id = "storyMark";
+  scroll.appendChild(mark);
+  choreo.mark = mark;
+
+  const place = (r) => {
+    mark.style.left = table.offsetLeft + r.left - 4 + "px";
+    mark.style.top = table.offsetTop + r.top - 3 + "px";
+    mark.style.width = r.w + 8 + "px";
+    mark.style.height = r.h + 6 + "px";
+    // Keep the marked field inside the grid's own horizontal scroll window.
+    scroll.scrollLeft = Math.max(0, table.offsetLeft + r.left + r.w / 2 - scroll.clientWidth / 2);
+  };
+
+  const LEAD = 2.2; // opening beat: the whole grid, as the step framed it
+  let idx = -1;
+  const t0 = performance.now();
+  choreo.timer = setInterval(() => {
+    if (!tour || !tour.active) { stopChoreo(); return; }
+    const a = narrator.audio;
+    const voiced = a && a.src && isFinite(a.duration) && a.duration > 0;
+    const tsec = voiced ? a.currentTime : (performance.now() - t0) / 1000;
+    const total = voiced ? a.duration : LEAD + rects.length * 2.2;
+    const seg = Math.max(1.4, (total - LEAD - 0.6) / rects.length);
+    const want = Math.min(rects.length - 1, Math.floor((tsec - LEAD) / seg));
+    if (want >= 0 && want !== idx) {
+      idx = want;
+      place(rects[idx]);
+      mark.style.opacity = "1";
+      tour.focus("#storyMark", 2.6);
+    }
+  }, 200);
+}
+
 initQuentraApp({
   appId: "hospital",
   accent: "#2dd4bf",
@@ -203,8 +271,12 @@ function setupTour() {
       back: t("tour.back"), next: t("tour.next"), done: t("tour.done"),
       pause: t("tour.pause"), resume: t("tour.resume"),
     }),
-    onStep: (step) => narrator.play(narrationText(step)),
-    onDone: () => { narrator.stop(); storyReveal(); },
+    onStep: (step) => {
+      stopChoreo();
+      narrator.play(narrationText(step));
+      if (step.key === "tour.s6") startDirectChoreo();
+    },
+    onDone: () => { stopChoreo(); narrator.stop(); storyReveal(); },
     pauseControl: {
       isPaused: () => narrator.paused,
       toggle: () => narrator.togglePause(),

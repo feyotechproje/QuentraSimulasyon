@@ -345,6 +345,27 @@ export class StoryTour {
   }
 
   /**
+   * Point the camera at a SUB-target of the current step without changing the
+   * step itself — choreography inside one beat (e.g. sweeping over the cells
+   * of a result row while the narration lists them). Keeps the caption text,
+   * moves the shot + spotlight; selector null returns to a wide shot.
+   */
+  focus(selector, zoom) {
+    if (!this.active) return;
+    let el = selector ? document.querySelector(selector) : null;
+    if (el) {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) el = null;
+    }
+    clearTimeout(this._sharpTimer);
+    this._unsharpen();
+    this._target = el;
+    this._frame = this._camera(el, zoom || 2.2);
+    this._placeCaption(this._frame);
+    this._trackSpot(el);
+  }
+
+  /**
    * Stretch the ambient clip over the narration: the host reports how long
    * the voice clip runs (seconds), and the video slows down (never below
    * half speed, never sped up) so it finishes WITH the voice instead of
