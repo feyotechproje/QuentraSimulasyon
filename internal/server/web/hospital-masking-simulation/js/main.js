@@ -76,6 +76,13 @@ const narrator = {
       this.audio.onended = () => {
         if (my === this.seq && !this.paused && this.autoNext) this.autoNext();
       };
+      // Tell the story engine how long this narration runs, so an ambient
+      // video on the slide can slow down and finish with the voice.
+      this.audio.onloadedmetadata = () => {
+        if (my === this.seq && tour && tour.active && isFinite(this.audio.duration)) {
+          tour.cineMatchDuration(this.audio.duration);
+        }
+      };
       this.audio.src = url;
       this.audio.play().catch(() => {});
     } catch { /* no key / offline: silent story, manual advance */ }
@@ -175,18 +182,21 @@ function setupTour() {
 
   tour = new StoryTour({
     root: ".app",
+    // Cine steps: `video` is the ambient mp4 that fades in over the still.
+    // Until the file exists (user delivers them) the Ken Burns still plays —
+    // dropping an mp4 with this exact name into img/ + rebuild is all it takes.
     steps: [
-      { img: "img/01-hastane.jpg", key: "tour.s1" },
-      { img: "img/02-ariza.jpg", key: "tour.s2" },
-      { img: "img/03-destek.jpg", key: "tour.s3" },
-      { img: "img/04-vpn.jpg", key: "tour.s4" },
+      { img: "img/01-hastane.jpg", video: "img/01-hastane.mp4", key: "tour.s1" },
+      { img: "img/02-ariza.jpg", video: "img/02-ariza.mp4", key: "tour.s2" },
+      { img: "img/03-destek.jpg", video: "img/03-destek.mp4", key: "tour.s3" },
+      { img: "img/04-vpn.png", video: "img/04-vpn.mp4", key: "tour.s4" },
       { target: "#sqlwin", key: "tour.s5", zoom: 1.35, onEnter: storyRun },
       { target: "#rsDirect", key: "tour.s6", zoom: 1.7 },
-      { img: "img/05-quentra.jpg", key: "tour.s7", onEnter: storyReveal },
-      { img: "img/07-sentinel.png", key: "tour.hero", cineClass: "st-cine-hero" },
+      { img: "img/05-quentra.jpg", video: "img/05-quentra.mp4", key: "tour.s7", onEnter: storyReveal },
+      { img: "img/07-sentinel.png", video: "img/07-sentinel.mp4", key: "tour.hero", cineClass: "st-cine-hero" },
       { target: "#rsQuentra", key: "tour.s8", zoom: 1.7, onEnter: storyReveal },
       { target: "#sqlPanel", key: "tour.s9", zoom: 1.45 },
-      { img: "img/06-final.jpg", key: "tour.s10" },
+      { img: "img/06-final.jpg", video: "img/06-final.mp4", key: "tour.s10" },
     ],
     translate: (step) => ({ title: t(step.key + ".t"), text: t(step.key + ".x") }),
     labels: () => ({
@@ -202,7 +212,12 @@ function setupTour() {
   });
 
   narrator.autoNext = () => { if (tour && tour.active) tour.next(); };
-  preloadNarration = () => narrator.preload(tour.steps.map(narrationText));
+  preloadNarration = () => {
+    narrator.preload(tour.steps.map(narrationText));
+    // Warm the HTTP cache for the ambient clips too, so a cold server start
+    // can never leave a slide black while its video is still streaming in.
+    tour.steps.forEach((s) => { if (s.video) fetch(s.video).catch(() => {}); });
+  };
 
   tour.intro(() => ({
     eyebrow: t("tour.intro.eyebrow"),

@@ -208,6 +208,23 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
   object-fit: contain;
   will-change: transform;
 }
+/* Ambient video: fades in over the Ken Burns still once it can play (muted —
+   the narration remains the only soundtrack). `cover` fills the whole frame
+   so no blur seam shows at the edges; on a 16:9 screen the crop is ~zero.
+   A missing file keeps the still visible, so declaring a video path ahead of
+   the file is safe. */
+.st-cine-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .6s ease;
+}
+.st-cine.st-video-on .st-cine-video { opacity: 1; }
+
 .st-cine-vignette {
   position: absolute;
   inset: 0;

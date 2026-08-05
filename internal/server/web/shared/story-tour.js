@@ -152,6 +152,7 @@ export class StoryTour {
       this._cap.querySelector(".st-pause").addEventListener("click", () => {
         this.pauseCtl.toggle();
         this._renderPause(); // reflect the new ⏸/▶ state without replaying the card
+        this._syncCineVideo(); // freeze/resume the ambient clip with the voice
       });
     }
     document.body.appendChild(this._spot);
@@ -276,6 +277,12 @@ export class StoryTour {
    * Full-screen still: a blurred cover copy fills the screen, the sharp image
    * letterboxes on top with a slow Ken Burns drift (direction alternates per
    * step so consecutive slides don't feel copy-pasted).
+   *
+   * A step may also carry `video` (mp4 path): the clip fades in OVER the still
+   * as soon as it can play — muted, looping, ambient; the narration stays the
+   * only soundtrack and keeps driving the auto-advance. A missing or broken
+   * file simply leaves the Ken Burns still on screen, so hosts can declare
+   * video paths before the files exist.
    */
   _showCine(step) {
     if (!this._cine) {
@@ -283,11 +290,25 @@ export class StoryTour {
       this._cine.innerHTML =
         '<img class="st-cine-bg" alt="" aria-hidden="true" />' +
         '<img class="st-cine-img" alt="" />' +
+        '<video class="st-cine-video" muted playsinline preload="auto"></video>' +
         '<div class="st-cine-vignette"></div>';
       document.body.appendChild(this._cine);
+      const v = this._cine.querySelector(".st-cine-video");
+      v.muted = true; // the narration is the soundtrack; video sound is ignored
+      v.addEventListener("canplay", () => {
+        if (this._cineWant && v.getAttribute("src") === this._cineWant) {
+          this._cine.classList.add("st-video-on");
+          this._applyCineRate();
+          this._syncCineVideo();
+        }
+      });
+      v.addEventListener("error", () => this._cine.classList.remove("st-video-on"));
+      // No loop: a clip that finishes before the narration HOLDS its last
+      // frame instead of jarringly restarting.
     }
     const bg = this._cine.querySelector(".st-cine-bg");
     const im = this._cine.querySelector(".st-cine-img");
+    const vid = this._cine.querySelector(".st-cine-video");
     // Per-slide styling hook (e.g. "st-cine-hero" for transparent character art).
     this._cine.className = "st-cine" + (step.cineClass ? " " + step.cineClass : "");
     bg.src = step.img;
@@ -298,13 +319,67 @@ export class StoryTour {
     im.classList.add(this.index % 2 ? "st-kb-b" : "st-kb-a");
     this._cine.classList.add("st-cine-in");
     this._cine.style.display = "block";
+
+    // Ambient video layer for this slide (if declared).
+    this._cineWant = step.video || null;
+    this._cineTargetDur = null; // narration duration arrives async (host call)
+    vid.pause();
+    vid.playbackRate = 1;
+    if (this._cineWant) {
+      if (vid.getAttribute("src") !== this._cineWant) {
+        vid.setAttribute("src", this._cineWant);
+        vid.load(); // canplay listener fades it in
+      } else {
+        // Same slide revisited: canplay will not re-fire, resume directly.
+        vid.currentTime = 0;
+        if (vid.readyState >= 3) { this._cine.classList.add("st-video-on"); this._syncCineVideo(); }
+      }
+    } else {
+      vid.removeAttribute("src");
+      vid.load();
+    }
+
     // The frost veils and the spotlight ring belong to camera shots only.
     if (this._veils) this._veils.forEach((v) => { v.style.display = "none"; });
     if (this._spot) this._spot.style.display = "none";
   }
 
+  /**
+   * Stretch the ambient clip over the narration: the host reports how long
+   * the voice clip runs (seconds), and the video slows down (never below
+   * half speed, never sped up) so it finishes WITH the voice instead of
+   * looping mid-sentence. Slow motion reads as intentional cinema; whatever
+   * still ends early simply holds its last frame.
+   */
+  cineMatchDuration(sec) {
+    this._cineTargetDur = sec > 0 && isFinite(sec) ? sec : null;
+    this._applyCineRate();
+  }
+
+  _applyCineRate() {
+    const v = this._cine && this._cine.querySelector(".st-cine-video");
+    if (!v || !this._cineActive) return;
+    let rate = 1;
+    if (this._cineTargetDur && v.duration && isFinite(v.duration)) {
+      rate = Math.min(1, Math.max(0.5, v.duration / this._cineTargetDur));
+    }
+    v.playbackRate = rate;
+  }
+
+  // Play/pause the ambient clip in lockstep with the story's pause state.
+  _syncCineVideo() {
+    const v = this._cine && this._cine.querySelector(".st-cine-video");
+    if (!v || !this._cineActive || !this._cine.classList.contains("st-video-on")) return;
+    if (this.pauseCtl && this.pauseCtl.isPaused()) v.pause();
+    else v.play().catch(() => {});
+  }
+
   _hideCine() {
-    if (this._cine) this._cine.style.display = "none";
+    if (this._cine) {
+      this._cine.style.display = "none";
+      const v = this._cine.querySelector(".st-cine-video");
+      if (v) v.pause();
+    }
   }
 
   _renderCaption() {
