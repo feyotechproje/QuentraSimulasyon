@@ -146,19 +146,22 @@ function stopChoreo() {
   if (choreo.mark) { choreo.mark.remove(); choreo.mark = null; }
 }
 
-// The five sensitive-field groups, in the order BOTH the sweep and the
-// narration texts enumerate them.
+// The sensitive-field groups, in the order BOTH the sweep and the narration
+// texts enumerate them. A step may pass a subset via cfg.groups/cfg.words
+// (the masked grid skips TANI — it stays readable there by design).
 const SWEEP_GROUPS = [["AD", "SOYAD"], ["TCKN"], ["TELEFON"], ["ADRES"], ["TANI"]];
 const SWEEP_WORDS = ["ad soyad", "kimlik numarası", "telefon", "adres", "tanı"];
 
 async function startFieldSweep(cfg) {
   stopChoreo();
   const myToken = choreo.token;
+  const groups = cfg.groups || SWEEP_GROUPS;
+  const words = cfg.words || SWEEP_WORDS;
   const table = document.getElementById(cfg.table);
   if (!table || !table.rows || table.rows.length < 2) return;
   const heads = [...table.rows[0].cells].map((c) => c.textContent.trim().toUpperCase());
   const row = table.rows[1];
-  const rects = SWEEP_GROUPS
+  const rects = groups
     .map((group) => {
       const cells = group.map((h) => row.cells[heads.indexOf(h)]).filter(Boolean);
       if (!cells.length) return null;
@@ -169,7 +172,7 @@ async function startFieldSweep(cfg) {
       return { left, top, w: right - left, h: bottom - top };
     })
     .filter(Boolean);
-  if (rects.length !== SWEEP_GROUPS.length) return;
+  if (rects.length !== groups.length) return;
 
   // Real word timings for THIS narration text, if the cache has them.
   let sched = null, wideAt = null;
@@ -179,13 +182,13 @@ async function startFieldSweep(cfg) {
     const text = align.chars.join("");
     const times = [];
     let from = 0;
-    for (const word of SWEEP_WORDS) {
+    for (const word of words) {
       const i = text.indexOf(word, from);
       if (i < 0) { times.length = 0; break; }
       times.push(Math.max(0, align.starts[i] - 0.15)); // shade early: frame lands with the word
       from = i + word.length;
     }
-    if (times.length === SWEEP_WORDS.length) {
+    if (times.length === words.length) {
       sched = times;
       const wi = text.indexOf("Mühendis", from);
       wideAt = wi >= 0 ? Math.max(0, align.starts[wi] - 0.15) : null;
@@ -348,8 +351,9 @@ function setupTour() {
       } else if (step.key === "tour.s8") {
         startFieldSweep({
           table: "gridQuentra", markClass: "mask-ok", voiceText: narrationText(step),
+          groups: SWEEP_GROUPS.slice(0, 4), words: SWEEP_WORDS.slice(0, 4),
           wideTarget: "#rsQuentra", wideZoom: 1.7,
-          fracSched: [0.24, 0.31, 0.38, 0.45, 0.57], fracWide: 0.70,
+          fracSched: [0.24, 0.32, 0.40, 0.48], fracWide: 0.62,
         });
       }
     },
