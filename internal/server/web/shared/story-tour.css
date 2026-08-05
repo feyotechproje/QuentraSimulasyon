@@ -8,6 +8,42 @@
    UI rather than a separate overlay concept. Fonts are deliberately NOT set:
    everything is appended to <body> and inherits each simulation's UI font. */
 
+/* Story typography: comic-style caps for bubble titles, a hand-printed face
+   for the narration. Bundled locally (OFL) — no CDN, everything is embedded
+   into the exe. Both subsets are declared so Turkish glyphs (ğ ş İ ı) resolve. */
+@font-face {
+  font-family: "Bangers";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/assets/fonts/bangers-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02AF, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Bangers";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/assets/fonts/bangers-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Patrick Hand";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/assets/fonts/patrickhand-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02AF, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Patrick Hand";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/assets/fonts/patrickhand-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* While the tour runs the page must not scroll under the camera. */
 html.st-lock, html.st-lock body { overflow: hidden !important; }
 
@@ -145,6 +181,78 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
   color: var(--text, #1e293b);
 }
 
+/* --------------------------------------------------------- cinema slides --- */
+/* Full-screen story stills between camera shots: a blurred cover copy fills
+   the frame, the sharp image letterboxes over it and drifts slowly (Ken
+   Burns). Sits UNDER the caption bubble, so the narration floats on top. */
+.st-cine {
+  position: fixed;
+  inset: 0;
+  z-index: 99940;
+  overflow: hidden;
+  background: #060a12;
+}
+.st-cine-bg {
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  object-fit: cover;
+  filter: blur(26px) brightness(.42) saturate(1.05);
+}
+.st-cine-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  will-change: transform;
+}
+.st-cine-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 42%, transparent 58%, rgba(3, 6, 12, .55) 100%),
+    linear-gradient(to top, rgba(3, 6, 12, .58) 0%, transparent 26%);
+}
+.st-cine-in { animation: st-cine-fade .7s ease both; }
+@keyframes st-cine-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+/* Two drift directions so consecutive slides read as distinct shots. */
+.st-kb-a { animation: st-kb-a 26s ease-out both; }
+.st-kb-b { animation: st-kb-b 26s ease-out both; }
+@keyframes st-kb-a {
+  from { transform: scale(1.02) translate(0.6%, 0.8%); }
+  to   { transform: scale(1.10) translate(-0.8%, -0.6%); }
+}
+@keyframes st-kb-b {
+  from { transform: scale(1.02) translate(-0.7%, 0.5%); }
+  to   { transform: scale(1.10) translate(0.8%, -0.8%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-kb-a, .st-kb-b, .st-cine-in { animation: none; }
+}
+
+/* Hero slide: transparent character art on a stage-lit dark backdrop —
+   the blurred cover copy would just be noise here, so it is dropped. */
+.st-cine.st-cine-hero {
+  background:
+    radial-gradient(70% 55% at 50% 40%, #182a48 0%, #0c1526 58%, #060a12 100%);
+}
+.st-cine.st-cine-hero .st-cine-bg { display: none; }
+.st-cine.st-cine-hero .st-cine-img {
+  padding: 3vh 0 8vh;
+  box-sizing: border-box;
+  filter: drop-shadow(0 22px 70px rgba(88, 140, 255, .38));
+}
+.st-cine.st-cine-hero .st-cine-vignette {
+  background:
+    radial-gradient(120% 90% at 50% 42%, transparent 55%, rgba(3, 6, 12, .5) 100%);
+}
+
 /* ------------------------------------------------- veils + spotlight ring --- */
 /* Four strips tile the viewport around the highlighted rect: they carry the
    blur + light frost, so ONLY the spotlighted area stays sharp. Positioned
@@ -179,22 +287,24 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
   position: fixed;
   z-index: 99970;
   box-sizing: border-box;
-  width: min(640px, 94vw);
-  padding: 16px 20px 14px;
-  border-radius: 20px;
+  width: min(620px, 94vw);
+  padding: 18px 22px 16px;
+  border-radius: 24px;
   background: var(--surface, #ffffff);
   border: 1px solid var(--border, #dce3ee);
   box-shadow: 0 22px 60px -20px rgba(30, 41, 59, .30), 0 2px 8px rgba(30, 41, 59, .06);
   color: var(--text, #1e293b);
+  font-family: "Patrick Hand", "Segoe Print", "Comic Sans MS", cursive;
 }
 
 /* Bubble tail: a rotated square sharing the card's surface + border; only the
-   two outward edges keep a border so it merges seamlessly with the bubble. */
+   two outward edges keep a border so it merges seamlessly with the bubble.
+   Sized generously so the bubble clearly "speaks" at the highlighted panel. */
 .st-cap::before {
   content: "";
   position: absolute;
-  width: 15px;
-  height: 15px;
+  width: 26px;
+  height: 26px;
   background: var(--surface, #ffffff);
   border: 0 solid var(--border, #dce3ee);
   transform: rotate(45deg);
@@ -202,33 +312,33 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
 }
 .st-cap[data-tail="left"]::before {
   display: block;
-  left: -8px;
+  left: -13px;
   top: var(--tail-y, 50%);
-  margin-top: -8px;
+  margin-top: -13px;
   border-left-width: 1px;
   border-bottom-width: 1px;
 }
 .st-cap[data-tail="right"]::before {
   display: block;
-  right: -8px;
+  right: -13px;
   top: var(--tail-y, 50%);
-  margin-top: -8px;
+  margin-top: -13px;
   border-right-width: 1px;
   border-top-width: 1px;
 }
 .st-cap[data-tail="top"]::before {
   display: block;
-  top: -8px;
+  top: -13px;
   left: var(--tail-x, 50%);
-  margin-left: -8px;
+  margin-left: -13px;
   border-left-width: 1px;
   border-top-width: 1px;
 }
 .st-cap[data-tail="bottom"]::before {
   display: block;
-  bottom: -8px;
+  bottom: -13px;
   left: var(--tail-x, 50%);
-  margin-left: -8px;
+  margin-left: -13px;
   border-right-width: 1px;
   border-bottom-width: 1px;
 }
@@ -246,20 +356,24 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
 }
 .st-step {
   flex: none;
-  padding: 3px 9px;
+  padding: 4px 11px 3px;
   border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 700;
+  font-family: "Bangers", "Impact", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
   line-height: 1;
-  letter-spacing: .5px;
-  color: var(--qi-accent, #7c3aed);
-  background: color-mix(in srgb, var(--qi-accent, #7c3aed) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--qi-accent, #7c3aed) 24%, transparent);
+  letter-spacing: 1px;
+  color: #fff;
+  background: var(--qi-accent, #7c3aed);
+  border: 0;
 }
 .st-title {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.3;
+  font-family: "Bangers", "Impact", sans-serif;
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: 1px;
+  text-transform: uppercase;
   color: var(--text, #1e293b);
 }
 .st-x {
@@ -270,7 +384,7 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
   background: none;
   color: var(--text-mute, #94a3b8);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 7px;
@@ -278,10 +392,10 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
 .st-x:hover { color: var(--text, #1e293b); background: var(--surface-3, #eef2f7); }
 
 .st-text {
-  margin: 0 0 11px;
-  font-size: 13px;
+  margin: 0 0 13px;
+  font-size: 17px;
   font-weight: 400;
-  line-height: 1.62;
+  line-height: 1.42;
   color: var(--text-soft, #475569);
 }
 
@@ -290,7 +404,21 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
   justify-content: space-between;
   gap: 10px;
 }
-.st-nav .st-btn { padding: 8px 16px; font-size: 12.5px; }
+.st-nav .st-btn {
+  padding: 7px 20px 6px;
+  border-radius: 999px;
+  font-family: "Bangers", "Impact", sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.st-nav .st-btn-primary {
+  border: 2px solid color-mix(in srgb, var(--text, #1e293b) 85%, transparent);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--text, #1e293b) 80%, transparent);
+}
+.st-nav .st-btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
+.st-nav .st-btn-ghost { border: 1.5px solid var(--border-2, #cbd5e1); }
 
 @media (max-width: 640px) {
   .st-intro-card { padding: 24px 18px 22px; }

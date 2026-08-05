@@ -12,6 +12,13 @@
 //      caption card narrates what the audience is looking at. Steps advance
 //      automatically (progress bar), or manually with Back / Next / Esc.
 //
+// Step kinds (mixable in one sequence):
+//   { target: "#panel", key, zoom }   — camera shot of a live UI element
+//   { img: "img/scene.jpg", key }     — full-screen cinematic still (Ken Burns
+//                                       drift, letterboxed over a blurred fill)
+// Any step may carry `onEnter(tour)` — fired when the step becomes active, so
+// the host can trigger real work (e.g. run the demo query) mid-story.
+//
 // The engine is i18n-agnostic: the host passes a `translate(step)` function
 // (and label strings) and may re-render on the shared "quentra:langchange"
 // event, which the tour listens to on its own.
@@ -39,6 +46,12 @@ export class StoryTour {
     this.translate = (opts && opts.translate) || ((s) => ({ title: s.title || "", text: s.text || "" }));
     this.labels = (opts && opts.labels) || (() => ({ back: "Back", next: "Next", done: "Done" }));
     this.onDone = (opts && opts.onDone) || (() => {});
+    // Fired once per step CHANGE (never on resize re-apply) — hosts hang
+    // narration/audio here so each beat's clip starts exactly with its card.
+    this.onStep = (opts && opts.onStep) || null;
+    // Optional { isPaused(), toggle() }: renders a Duraklat/Devam button in
+    // the caption nav so a narrated, self-advancing story can be frozen.
+    this.pauseCtl = (opts && opts.pauseControl) || null;
     this.active = false;
     this.index = -1;
 
@@ -130,10 +143,17 @@ export class StoryTour {
       '<button class="st-x" type="button" aria-label="close">✕</button></div>' +
       '<p class="st-text"></p>' +
       '<div class="st-nav"><button class="st-btn st-btn-ghost st-prev" type="button"></button>' +
+      (this.pauseCtl ? '<button class="st-btn st-btn-ghost st-pause" type="button"></button>' : '') +
       '<button class="st-btn st-btn-primary st-next" type="button"></button></div>';
     this._cap.querySelector(".st-x").addEventListener("click", () => this.stop());
     this._cap.querySelector(".st-prev").addEventListener("click", () => this.prev());
     this._cap.querySelector(".st-next").addEventListener("click", () => this.next());
+    if (this.pauseCtl) {
+      this._cap.querySelector(".st-pause").addEventListener("click", () => {
+        this.pauseCtl.toggle();
+        this._renderPause(); // reflect the new ⏸/▶ state without replaying the card
+      });
+    }
     document.body.appendChild(this._spot);
     document.body.appendChild(this._cap);
 
@@ -146,6 +166,7 @@ export class StoryTour {
     });
 
     this.index = -1;
+    this._enteredIndex = -1;
     this.next();
   }
 
@@ -159,6 +180,8 @@ export class StoryTour {
     clearTimeout(this._sharpTimer);
     this._unsharpen();
     this._target = null;
+    this._hideCine();
+    if (this._cine) { this._cine.remove(); this._cine = null; }
     if (this._veils) { this._veils.forEach((v) => v.remove()); this._veils = null; }
     if (this._spot) { this._spot.remove(); this._spot = null; }
     if (this._cap) { this._cap.remove(); this._cap = null; }
@@ -190,11 +213,44 @@ export class StoryTour {
     this._applyStep();
   }
 
+  /** Re-frame the current step — for hosts that reveal a step's target late
+   *  (onEnter kicked off real work and the panel only just appeared). */
+  refresh() {
+    if (this.active) this._applyStep();
+  }
+
   // ------------------------------------------------------------- internals ---
   // Steps only advance on user input (Next/Back/arrow keys) — no auto-play.
   _applyStep() {
     const step = this.steps[this.index];
     if (!step) return;
+    // Fire on step CHANGE only — a resize re-applies the current step and must
+    // not re-trigger host work (or restart the narration).
+    if (this._enteredIndex !== this.index) {
+      this._enteredIndex = this.index;
+      if (typeof step.onEnter === "function") {
+        try { step.onEnter(this); } catch (e) { /* story must not die on host errors */ }
+      }
+      if (this.onStep) {
+        try { this.onStep(step, this.index); } catch (e) { /* ditto */ }
+      }
+    }
+
+    // Cinematic still: no camera, no spotlight — the image IS the shot.
+    if (step.img) {
+      clearTimeout(this._sharpTimer);
+      this._unsharpen();
+      this._target = null;
+      this._frame = null;
+      this._cineActive = true;
+      this._setCam(1, 0, 0);
+      this._showCine(step);
+      this._renderCaption();
+      this._placeCaption(null);
+      return;
+    }
+    this._cineActive = false;
+    this._hideCine();
 
     let target = step.target ? document.querySelector(step.target) : null;
     // A hidden target (responsive layout dropped it) degrades to a wide shot.
@@ -215,6 +271,42 @@ export class StoryTour {
     this._trackSpot(target);
   }
 
+  // ------------------------------------------------------------ cine layer ---
+  /**
+   * Full-screen still: a blurred cover copy fills the screen, the sharp image
+   * letterboxes on top with a slow Ken Burns drift (direction alternates per
+   * step so consecutive slides don't feel copy-pasted).
+   */
+  _showCine(step) {
+    if (!this._cine) {
+      this._cine = mk("div", "st-cine");
+      this._cine.innerHTML =
+        '<img class="st-cine-bg" alt="" aria-hidden="true" />' +
+        '<img class="st-cine-img" alt="" />' +
+        '<div class="st-cine-vignette"></div>';
+      document.body.appendChild(this._cine);
+    }
+    const bg = this._cine.querySelector(".st-cine-bg");
+    const im = this._cine.querySelector(".st-cine-img");
+    // Per-slide styling hook (e.g. "st-cine-hero" for transparent character art).
+    this._cine.className = "st-cine" + (step.cineClass ? " " + step.cineClass : "");
+    bg.src = step.img;
+    im.src = step.img;
+    // Restart the entrance + drift animations on every slide change.
+    im.classList.remove("st-kb-a", "st-kb-b");
+    void this._cine.offsetWidth;
+    im.classList.add(this.index % 2 ? "st-kb-b" : "st-kb-a");
+    this._cine.classList.add("st-cine-in");
+    this._cine.style.display = "block";
+    // The frost veils and the spotlight ring belong to camera shots only.
+    if (this._veils) this._veils.forEach((v) => { v.style.display = "none"; });
+    if (this._spot) this._spot.style.display = "none";
+  }
+
+  _hideCine() {
+    if (this._cine) this._cine.style.display = "none";
+  }
+
   _renderCaption() {
     if (!this._cap) return;
     const step = this.steps[this.index];
@@ -228,10 +320,21 @@ export class StoryTour {
     prev.disabled = this.index === 0;
     this._cap.querySelector(".st-next").textContent =
       this.index >= this.steps.length - 1 ? (L.done || "Done") : (L.next || "Next");
+    this._renderPause();
     // Replay the caption entrance.
     this._cap.classList.remove("st-in");
     void this._cap.offsetWidth;
     this._cap.classList.add("st-in");
+  }
+
+  _renderPause() {
+    if (!this.pauseCtl || !this._cap) return;
+    const btn = this._cap.querySelector(".st-pause");
+    if (!btn) return;
+    const L = this.labels() || {};
+    btn.textContent = this.pauseCtl.isPaused()
+      ? "▶ " + (L.resume || "Resume")
+      : "⏸ " + (L.pause || "Pause");
   }
 
   /**
@@ -339,6 +442,11 @@ export class StoryTour {
         y = vh - h - M * 2;
         this._tail = null;
       }
+    } else if (this._cineActive) {
+      // Cinematic slide: the card floats low, leaving the picture in view.
+      x = (vw - w) / 2;
+      y = vh - h - Math.max(24, vh * 0.06);
+      this._tail = null;
     } else {
       x = (vw - w) / 2;
       y = (vh - h) / 2;

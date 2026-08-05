@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/shared/quentra-i18n.css" />
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="/shared/light-theme.css" />
+  <link rel="stylesheet" href="/shared/story-tour.css" />
 </head>
 <body>
   <div class="app">
@@ -21,24 +22,10 @@
         </div>
       </div>
 
-      <div class="toolbar-center">
-        <div class="status-pill" id="statusPill" data-state="idle">
-          <span class="dot"></span>
-          <span id="statusLabel" data-i18n="status.offline">BAĞLANTI YOK</span>
-        </div>
-        <p class="how" data-i18n="how">Sorguyu düzenleyin ve <b>Yürüt</b>'e basın — aynı SQL önce direkt, sonra Quentra üzerinden çalışır.</p>
+      <div class="toolbar-right">
+        <button type="button" class="st-launch" id="btnTour" data-i18n="tour.button">Hikâyeyi izle</button>
       </div>
     </header>
-
-    <!-- ======================= KPI strip ======================= -->
-    <section class="kpi-strip">
-      <div class="kpi" id="kpiConn"><span class="kpi-label" data-i18n="kpi.conn">Veritabanı</span><span class="kpi-value" id="kConn">—</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.rows">Dönen Satır</span><span class="kpi-value" id="kRows">—</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.directMs">Direkt Yanıt</span><span class="kpi-value" id="kDirectMs">—</span></div>
-      <div class="kpi"><span class="kpi-label" data-i18n="kpi.quentraMs">Quentra Yanıt</span><span class="kpi-value" id="kQuentraMs">—</span></div>
-      <div class="kpi" id="kpiMask"><span class="kpi-label" data-i18n="kpi.masking">Maskeleme</span><span class="kpi-value" id="kMasking">—</span></div>
-      <div class="kpi" id="kpiGw"><span class="kpi-label" data-i18n="kpi.gateway">Quentra Gateway</span><span class="kpi-value" id="kGateway">—</span></div>
-    </section>
 
     <!-- ======================= Stage ======================= -->
     <section class="stage-wrap">
@@ -61,41 +48,44 @@
               <rect x="-16" y="-1" width="32" height="4" rx="2" class="pk-row"/>
               <rect x="-16" y="6"  width="22" height="4" rx="2" class="pk-row"/>
             </g>
+            <clipPath id="clipMon"><rect x="102" y="40" width="90" height="52" rx="3"/></clipPath>
+            <clipPath id="clipHosp"><rect x="1004" y="24" width="110" height="68" rx="9"/></clipPath>
           </defs>
 
           <path id="pathQn" class="route route-qn"
                 d="M 214 74 C 360 74, 470 60, 600 60 C 730 60, 840 74, 986 74"/>
           <path id="pathDirect" class="route route-direct"
                 d="M 214 90 C 380 90, 470 126, 600 126 C 730 126, 820 90, 986 90"/>
-          <text x="600" y="26" class="route-label lbl-qn" data-i18n="scene.routeQuentra">QUENTRA ÜZERİNDEN · :14330</text>
           <text x="600" y="146" class="route-label" data-i18n="scene.routeDirect">DİREKT BAĞLANTI</text>
 
           <g id="nodeSupport">
             <rect x="96" y="34" width="102" height="64" rx="6" class="mon-frame"/>
             <rect x="102" y="40" width="90" height="52" rx="3" class="mon-screen"/>
+            <image href="img/03-destek.jpg" x="102" y="40" width="90" height="52"
+                   preserveAspectRatio="xMidYMid slice" clip-path="url(#clipMon)" class="node-photo"/>
             <rect x="132" y="98" width="30" height="7" class="mon-neck"/>
             <rect x="118" y="105" width="58" height="5" rx="2.5" class="mon-foot"/>
-            <rect x="108" y="46" width="52" height="5" rx="2" class="m-label"/>
-            <rect x="108" y="56" width="72" height="5" rx="2" class="m-line"/>
-            <rect x="108" y="66" width="64" height="5" rx="2" class="m-line"/>
-            <rect x="108" y="76" width="70" height="5" rx="2" class="m-line"/>
             <text x="147" y="128" class="node-title" data-i18n="scene.firm">DESTEK MÜHENDİSİ</text>
             <text x="147" y="141" class="node-sub" data-i18n="scene.firmSub">yazılım firması · uzak bağlantı</text>
           </g>
 
           <g id="shieldNode">
             <circle id="shieldRing" cx="600" cy="62" r="34" class="shield-ring"/>
-            <path d="M 600 34 L 626 44 L 626 66 C 626 84 614 96 600 102 C 586 96 574 84 574 66 L 574 44 Z" class="shield-body"/>
-            <path d="M 589 64 L 597 72 L 613 52" class="shield-check"/>
+            <circle cx="600" cy="62" r="27" class="shield-disc"/>
+            <image href="/assets/quentra-logo.png" x="578" y="40" width="44" height="44" class="shield-logo"/>
             <text x="600" y="120" class="shield-label">QUENTRA</text>
             <g id="burstLayer"></g>
           </g>
 
           <g id="hospitalNode">
             <g id="dbCylinder">
-              <ellipse cx="1058" cy="40" rx="46" ry="12" class="db-top"/>
-              <path d="M 1012 40 L 1012 92 C 1012 99 1032 104 1058 104 C 1084 104 1104 99 1104 92 L 1104 40" class="db-body"/>
-              <ellipse cx="1058" cy="66" rx="46" ry="12" class="db-line"/>
+              <image href="img/01-hastane.jpg" x="1004" y="24" width="110" height="68"
+                     preserveAspectRatio="xMidYMid slice" clip-path="url(#clipHosp)" class="node-photo"/>
+              <rect x="1004" y="24" width="110" height="68" rx="9" class="photo-frame"/>
+              <g class="db-badge">
+                <ellipse cx="1104" cy="84" rx="11" ry="3.6" class="db-top"/>
+                <path d="M 1093 84 L 1093 96 C 1093 98 1098 100 1104 100 C 1110 100 1115 98 1115 96 L 1115 84" class="db-body"/>
+              </g>
             </g>
             <g class="cross"><rect x="1002" y="30" width="7" height="21" rx="2"/><rect x="995" y="37" width="21" height="7" rx="2"/></g>
             <text x="1058" y="128" class="node-title" data-i18n="scene.hospital">HASTANE HIS</text>
@@ -121,7 +111,12 @@
               <svg viewBox="0 0 24 24" width="12" height="12"><path fill="#1c9645" d="M8 5v14l11-7z"/></svg>
               <span data-i18n="sw.exec">Yürüt</span>
             </button>
-            <span class="sw-hint" data-i18n="sw.execHint">sorguyu iki rotadan da çalıştırır — direkt + Quentra</span>
+            <div class="sw-routes" id="swRoutes" role="group" aria-label="Sorgu rotası">
+              <span class="sw-routes-lbl" data-i18n="sw.route">Bağlantı:</span>
+              <button type="button" data-route="direct" data-i18n="sw.rDirect">Direkt</button>
+              <button type="button" data-route="quentra" data-i18n="sw.rQuentra">Quentra</button>
+              <button type="button" class="is-on" data-route="both" data-i18n="sw.rBoth">İkisi</button>
+            </div>
           </div>
           <div class="sw-body">
             <aside class="sw-tree" id="swTree">
@@ -185,7 +180,7 @@
 
     <!-- ======================= Panels ======================= -->
     <main class="panels">
-      <section class="panel sql-panel">
+      <section class="panel sql-panel" id="sqlPanel">
         <div class="panel-head">
           <span class="ph-title" data-i18n="sql.title">Gönderilen Sorgu</span>
           <span class="sql-badge" id="sqlBadge" data-i18n="sql.same">İKİ ROTADA BYTE-BYTE AYNI</span>

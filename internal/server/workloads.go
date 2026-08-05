@@ -20,6 +20,7 @@ const (
 	WorkloadFactory      = "factory-turnstile-simulation"
 	WorkloadTurnstile    = "turnstile"
 	WorkloadHospital     = "hospital-masking-simulation"
+	WorkloadAIGuard      = "ai-guard-simulation"
 )
 
 // workloadStatus is the per-workload snapshot served to the portal.
@@ -150,6 +151,17 @@ func (s *Server) workloads() []workload {
 			stop:    func() error { s.hospital.Pause(); return nil },
 			status: func() workloadStatus {
 				st := s.hospital.State()
+				return workloadStatus{Running: st.Running, Provisioned: st.Provisioned}
+			},
+		},
+		{
+			id:      WorkloadAIGuard,
+			title:   "AI Guard · Talimat Enjeksiyonu",
+			present: s.aiGuard != nil,
+			start:   func() error { return startProvisioned(s.aiGuard.State().Provisioned, s.aiGuard.Start) },
+			stop:    func() error { s.aiGuard.Pause(); return nil },
+			status: func() workloadStatus {
+				st := s.aiGuard.State()
 				return workloadStatus{Running: st.Running, Provisioned: st.Provisioned}
 			},
 		},

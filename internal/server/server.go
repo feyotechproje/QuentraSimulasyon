@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"supermarketsim/internal/access"
+	"supermarketsim/internal/aiguard"
 	"supermarketsim/internal/config"
 	"supermarketsim/internal/dashboard"
 	"supermarketsim/internal/db"
@@ -39,13 +40,14 @@ type Server struct {
 	keyBreaker  *keybreaker.Manager
 	access      *access.Manager
 	hospital    *hospital.Manager
+	aiGuard     *aiguard.Manager
 	cfg         *config.Config
 	log         *slog.Logger
 }
 
 // New creates the HTTP server.
-func New(engine *sim.Engine, hub *sim.Hub, store *db.Store, veh *vehicle.Manager, prod *production.Manager, rc *reportcache.Manager, ft *fulltext.Manager, kb *keybreaker.Manager, acc *access.Manager, hosp *hospital.Manager, cfg *config.Config, log *slog.Logger) *Server {
-	return &Server{engine: engine, hub: hub, store: store, vehicle: veh, production: prod, reportCache: rc, fulltext: ft, keyBreaker: kb, access: acc, hospital: hosp, cfg: cfg, log: log}
+func New(engine *sim.Engine, hub *sim.Hub, store *db.Store, veh *vehicle.Manager, prod *production.Manager, rc *reportcache.Manager, ft *fulltext.Manager, kb *keybreaker.Manager, acc *access.Manager, hosp *hospital.Manager, ag *aiguard.Manager, cfg *config.Config, log *slog.Logger) *Server {
+	return &Server{engine: engine, hub: hub, store: store, vehicle: veh, production: prod, reportCache: rc, fulltext: ft, keyBreaker: kb, access: acc, hospital: hosp, aiGuard: ag, cfg: cfg, log: log}
 }
 
 // Handler builds the router.
@@ -128,6 +130,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/hospital/state", s.handleLiveState(func() any { return s.hospitalState() }))
 	mux.HandleFunc("POST /api/hospital/mode", s.handleHospitalMode)
 	mux.HandleFunc("POST /api/hospital/query", s.handleHospitalQuery)
+
+	// AI Guard prompt-injection defense real-DB workload endpoints.
+	mux.HandleFunc("GET /api/aiguard/state", s.handleLiveState(func() any { return s.aiGuardState() }))
+	mux.HandleFunc("POST /api/aiguard/mode", s.handleAIGuardMode)
+	mux.HandleFunc("POST /api/aiguard/ask", s.handleAIGuardAsk)
+
+	// Story-mode narration: disk-cached ElevenLabs TTS proxy.
+	mux.HandleFunc("POST /api/tts", s.handleTTS)
 
 	return withCORS(mux)
 }

@@ -25,6 +25,22 @@ type Config struct {
 	// Live demos connect through it to let Quentra serve cached results.
 	QuentraServer string
 	QuentraPort   string
+
+	// OpenAI credentials for the AI Guard simulation's corporate assistant.
+	// Optional: with no key the assistant falls back to a deterministic engine
+	// and the UI labels its verdict "MODELLENDİ" instead of claiming a real
+	// model call. BaseURL is configurable so an Azure OpenAI or a compatible
+	// self-hosted endpoint can be pointed at without a code change.
+	OpenAIKey     string
+	OpenAIModel   string
+	OpenAIBaseURL string
+
+	// ElevenLabs TTS — voices the story-mode narration. Optional: with no key
+	// /api/tts answers 503 and the story plays silently. Clips are cached on
+	// disk (tts_cache/), so each narration line costs one API call ever.
+	ElevenKey   string
+	ElevenVoice string
+	ElevenModel string
 }
 
 // Load reads configuration from the process environment, optionally seeded
@@ -43,9 +59,23 @@ func Load() *Config {
 		HTTPAddr:         getEnv("HTTP_ADDR", ":8080"),
 		QuentraServer:    getEnv("QUENTRA_SERVER", getEnv("DB_SERVER", "localhost")),
 		QuentraPort:      getEnv("QUENTRA_PORT", "14330"),
+		OpenAIKey:        strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
+		OpenAIModel:      getEnv("OPENAI_MODEL", "gpt-4o-mini"),
+		OpenAIBaseURL:    strings.TrimRight(getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1"), "/"),
+		ElevenKey:        strings.TrimSpace(os.Getenv("ELEVENLABS_API_KEY")),
+		ElevenVoice:      getEnv("ELEVENLABS_VOICE_ID", "zDBYcuJrpuZ6YQ7AgRUw"),
+		ElevenModel:      getEnv("ELEVENLABS_MODEL_ID", "eleven_flash_v2_5"),
 	}
 	return c
 }
+
+// HasOpenAI reports whether a real model can be called. Callers use it to pick
+// between the live provider and the deterministic fallback, and the UI uses it
+// to label which one produced a verdict.
+func (c *Config) HasOpenAI() bool { return c.OpenAIKey != "" }
+
+// HasElevenLabs reports whether story narration can be synthesized.
+func (c *Config) HasElevenLabs() bool { return c.ElevenKey != "" }
 
 // Application names reported to SQL Server, one per workload. They land in
 // sys.dm_exec_sessions.program_name, so a DBA watching the instance can tell
@@ -64,6 +94,7 @@ const (
 	AppAccess      = "QuentraSim-Access"         // turnstile last-movement query
 	AppDashboard   = "QuentraSim-Dashboard"      // SALES50M master-filter dashboard
 	AppHospital    = "QuentraSim-Hospital"       // hospital remote-support masking demo
+	AppAIGuard     = "QuentraSim-AIGuard"        // AI assistant prompt-injection defense demo
 	AppSetup       = "QuentraSim-Setup"          // provisioning against master
 
 	// quentraSuffix marks a connection that travels through the gateway rather

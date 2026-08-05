@@ -1,36 +1,12 @@
-// render.js — KPI strip and the two bottom panels. Every value comes from the
-// last real execution (or is a dash), so the page never implies activity that
-// did not happen.
+// render.js — the two bottom panels. Every value comes from the last real
+// execution (or is a dash), so the page never implies activity that did not
+// happen.
 
 const $ = (id) => document.getElementById(id);
 
 export function renderPanels(view, t) {
-  renderKpis(view, t);
   renderSql(view, t);
   renderHistory(view, t);
-}
-
-function renderKpis({ dbUp, gatewayUp, result }, t) {
-  const kc = $("kpiConn");
-  kc.className = "kpi";
-  $("kConn").textContent = dbUp ? t("db.up") : t("db.down");
-  kc.classList.add(dbUp ? "k-ok" : "k-bad");
-
-  $("kRows").textContent = result ? String((result.directRows || []).length) : "—";
-  $("kDirectMs").textContent = result && result.directMs != null ? result.directMs + " ms" : "—";
-  $("kQuentraMs").textContent = result && result.quentraMs != null ? result.quentraMs + " ms" : "—";
-
-  const km = $("kpiMask"), kv = $("kMasking");
-  km.className = "kpi";
-  if (!result) kv.textContent = "—";
-  else if (result.masked) { kv.textContent = t("mask.on"); km.classList.add("k-ok"); }
-  else { kv.textContent = t("mask.off"); km.classList.add("k-warn"); }
-
-  const kg = $("kpiGw"), gv = $("kGateway");
-  kg.className = "kpi";
-  if (gatewayUp == null) gv.textContent = "—";
-  else if (gatewayUp) { gv.textContent = t("gw.up"); kg.classList.add("k-ok"); }
-  else { gv.textContent = t("gw.down"); kg.classList.add("k-bad"); }
 }
 
 // The statement travels both routes unchanged — that IS the demo's claim, so

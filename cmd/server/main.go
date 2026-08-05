@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"supermarketsim/internal/access"
+	"supermarketsim/internal/aiguard"
 	"supermarketsim/internal/config"
 	"supermarketsim/internal/db"
 	"supermarketsim/internal/fulltext"
@@ -153,7 +154,22 @@ func main() {
 		log.Info("hospital workload ready", "db", hospital.DBName, "patients", hospital.PatientCount, "state", "idle")
 	}()
 
-	srv := server.New(engine, hub, store, vehMgr, prodMgr, rcMgr, ftMgr, kbMgr, accMgr, hospMgr, cfg, log)
+	// AI Guard prompt-injection defense workload against a disposable database.
+	// The seeded support tickets carry planted instructions aimed at whatever
+	// language model later reads them.
+	agMgr := aiguard.NewManager(cfg, log)
+	go func() {
+		pctx, pcancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer pcancel()
+		if err := agMgr.Provision(pctx); err != nil {
+			log.Error("aiguard workload provisioning failed", "error", err.Error())
+			return
+		}
+		log.Info("aiguard workload ready", "db", aiguard.DBName,
+			"llm", agMgr.State().LLMModel, "llmLive", agMgr.State().LLMLive, "state", "idle")
+	}()
+
+	srv := server.New(engine, hub, store, vehMgr, prodMgr, rcMgr, ftMgr, kbMgr, accMgr, hospMgr, agMgr, cfg, log)
 
 	httpServer := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -183,6 +199,7 @@ func main() {
 	kbMgr.Stop()
 	accMgr.Stop()
 	hospMgr.Stop()
+	agMgr.Stop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)

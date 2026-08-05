@@ -93,6 +93,41 @@ func (s *Server) handleHospitalMode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode})
 }
 
+// ---- AI Guard (prompt-injection defense) ----
+
+func (s *Server) aiGuardState() any {
+	if s.aiGuard == nil {
+		return notProvisioned
+	}
+	return s.aiGuard.State()
+}
+
+func (s *Server) handleAIGuardMode(w http.ResponseWriter, r *http.Request) {
+	mode := decodeMode(r)
+	if s.aiGuard != nil {
+		s.aiGuard.SetMode(mode)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode})
+}
+
+// handleAIGuardAsk runs one full assistant turn: the legitimate retrieval
+// query, the response-side guard, the model call, and the gate on whatever the
+// model decided to do next.
+func (s *Server) handleAIGuardAsk(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Question string `json:"question"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if s.aiGuard == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"error": "workload kullanılamıyor"})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.aiGuard.Ask(r.Context(), body.Question))
+}
+
 // handleHospitalQuery runs the SQL editor's user-authored SELECT on both
 // routes (direct + Quentra) and returns the two result sets verbatim.
 func (s *Server) handleHospitalQuery(w http.ResponseWriter, r *http.Request) {

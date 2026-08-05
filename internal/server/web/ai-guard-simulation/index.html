@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quentra AI Guard · Talimat Enjeksiyonu Simülasyonu</title>
+  <link rel="stylesheet" href="/shared/quentra-i18n.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="/shared/light-theme.css" />
+  <link rel="stylesheet" href="/shared/story-tour.css" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- ======================= Toolbar ======================= -->
+    <header class="toolbar">
+      <div class="brand">
+        <img class="brand-mark" src="/assets/quentra-logo.png" alt="Quentra" />
+        <div class="brand-txt">
+          <span class="brand-name" data-i18n="brand.title">AI Guard</span>
+          <span class="brand-sub" data-i18n="brand.sub">Kurumsal AI asistanı · talimat enjeksiyonu savunması</span>
+        </div>
+      </div>
+
+      <div class="toolbar-center">
+        <div class="ag-modebar" id="modeBar" role="group" aria-label="Koruma modu">
+          <button type="button" class="ag-mode" data-mode="baseline" data-i18n="mode.off">KORUMA KAPALI</button>
+          <button type="button" class="ag-mode is-on" data-mode="quentra" data-i18n="mode.on">QUENTRA AÇIK</button>
+        </div>
+      </div>
+
+      <div class="toolbar-right">
+        <div class="status-pill" id="statusPill" data-state="idle">
+          <span class="dot"></span>
+          <span id="statusLabel" data-i18n="status.offline">BAĞLANTI YOK</span>
+        </div>
+        <button type="button" class="ag-ghost" id="btnTour" data-i18n="tour.button">Hikâyeyi izle</button>
+      </div>
+    </header>
+
+    <!-- ======================= KPI strip ======================= -->
+    <section class="kpi-strip" id="kpiStrip">
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.poisoned">Zehirli Kayıt</span><span class="kpi-value" id="kPoisoned">—</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.quarantine">Karantina</span><span class="kpi-value" id="kQuarantine">—</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.clean">Temiz Geçen</span><span class="kpi-value" id="kClean">—</span></div>
+      <div class="kpi" id="kpiHijack"><span class="kpi-label" data-i18n="kpi.hijack">Ele Geçirme</span><span class="kpi-value" id="kHijack">—</span></div>
+      <div class="kpi" id="kpiBlocked"><span class="kpi-label" data-i18n="kpi.blocked">Engellenen Eylem</span><span class="kpi-value" id="kBlocked">—</span></div>
+      <div class="kpi" id="kpiLeak"><span class="kpi-label" data-i18n="kpi.leaked">Sızan Kayıt</span><span class="kpi-value" id="kLeak">—</span></div>
+      <div class="kpi" id="kpiPrevented"><span class="kpi-label" data-i18n="kpi.prevented">Önlenen Kayıt</span><span class="kpi-value" id="kPrevented">—</span></div>
+      <div class="kpi"><span class="kpi-label" data-i18n="kpi.model">Model</span><span class="kpi-value" id="kModel">—</span></div>
+    </section>
+
+    <!-- A live incident narrator. The topology below shows where bytes move;
+         this strip explains what those bytes mean to the people in the story. -->
+    <section class="story-console" id="storyConsole" data-tone="idle" aria-live="polite">
+      <div class="story-copy">
+        <div class="story-kicker">
+          <span class="story-pulse"></span>
+          <span id="storyKicker" data-i18n="story.idle.kicker">SALDIRI SAHNESİ HAZIR</span>
+        </div>
+        <h1 id="storyTitle" data-i18n="story.idle.title">Tehlike soruda değil, okunacak verinin içinde</h1>
+        <p id="storyText" data-i18n="story.idle.text">Bir saldırgan, destek formuna müşteri mesajı gibi görünen bir talimat bıraktı. Yalnızca bu kayıt soruyla eşleşip ATLAS'ın bağlamına girerse saldırı başlayacak.</p>
+      </div>
+      <ol class="story-steps" id="storySteps" aria-label="Saldırı zinciri">
+        <li data-phase="1"><span>1</span><b data-i18n="story.step.ask">Masum soru</b></li>
+        <li data-phase="2"><span>2</span><b data-i18n="story.step.query">Meşru sorgu</b></li>
+        <li data-phase="3"><span>3</span><b data-i18n="story.step.poison">Seçilen bağlam</b></li>
+        <li data-phase="4"><span>4</span><b data-i18n="story.step.model">Model kararı</b></li>
+        <li data-phase="5"><span>5</span><b data-i18n="story.step.outcome">Son kapı</b></li>
+      </ol>
+    </section>
+
+    <!-- ======================= Stage ======================= -->
+    <section class="stage-wrap">
+      <div class="stage" id="stage">
+        <svg id="stageSvg" viewBox="0 0 1200 190" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <defs>
+            <g id="tplQuery">
+              <rect x="-42" y="-14" width="84" height="28" rx="7" class="pk-body pk-query"/>
+              <text x="0" y="4" class="pk-text" data-i18n="scene.packet.query">MEŞRU SELECT</text>
+            </g>
+            <g id="tplRows">
+              <rect x="-43" y="-18" width="86" height="36" rx="7" class="pk-body pk-rows"/>
+              <text x="0" y="-3" class="pk-text" data-i18n="scene.packet.rows">DESTEK KAYITLARI</text>
+              <text x="0" y="11" class="pk-alert" data-i18n="scene.packet.poison">⚠ GİZLİ TALİMAT</text>
+            </g>
+            <g id="tplAction">
+              <rect x="-48" y="-14" width="96" height="28" rx="7" class="pk-body pk-action"/>
+              <text x="0" y="4" class="pk-text" data-i18n="scene.packet.followup">MODEL SQL</text>
+            </g>
+          </defs>
+
+          <!-- employee <-> assistant -->
+          <path id="pathAsk" class="route route-ask" d="M 196 96 L 322 96"/>
+          <!-- assistant <-> gateway <-> database -->
+          <path id="pathMain" class="route route-main"
+                d="M 486 96 C 580 96, 620 78, 700 78 C 780 78, 830 96, 966 96"/>
+
+          <text x="700" y="34" class="route-label" data-i18n="scene.route">QUENTRA AĞ GEÇİDİ · :14330</text>
+
+          <!-- employee -->
+          <g id="nodeEmployee">
+            <rect x="96" y="62" width="98" height="60" rx="6" class="mon-frame"/>
+            <rect x="102" y="68" width="86" height="48" rx="3" class="mon-screen"/>
+            <rect x="110" y="76" width="44" height="5" rx="2" class="m-label"/>
+            <rect x="110" y="88" width="66" height="5" rx="2" class="m-line"/>
+            <rect x="110" y="98" width="56" height="5" rx="2" class="m-line"/>
+            <rect x="128" y="122" width="34" height="7" class="mon-neck"/>
+            <rect x="114" y="129" width="62" height="5" rx="2.5" class="mon-foot"/>
+            <text x="145" y="152" class="node-title" data-i18n="scene.employee">ÇALIŞAN</text>
+            <text x="145" y="166" class="node-sub" data-i18n="scene.employeeSub">doğal dille soru sorar</text>
+          </g>
+
+          <!-- AI assistant -->
+          <g id="nodeAtlas">
+            <foreignObject x="322" y="15" width="164" height="112">
+              <div xmlns="http://www.w3.org/1999/xhtml" class="atlas-avatar">
+                <img src="assets/atlas-character.png" alt="" />
+                <span class="atlas-state"></span>
+              </div>
+            </foreignObject>
+            <text x="404" y="152" class="node-title">ATLAS</text>
+            <text x="404" y="166" class="node-sub" data-i18n="scene.atlasSub">kurumsal AI asistanı · LLM</text>
+          </g>
+
+          <!-- Quentra gateway -->
+          <g id="nodeGate">
+            <circle id="shieldRing" cx="700" cy="78" r="36" class="shield-ring"/>
+            <circle cx="700" cy="78" r="32" class="quentra-disc"/>
+            <image href="assets/quentra-q.svg" x="672" y="50" width="56" height="56" class="quentra-mark"/>
+            <text x="700" y="152" class="node-title">QUENTRA</text>
+            <text x="700" y="166" class="node-sub" data-i18n="scene.gateSub">TDS ağ geçidi · iki yönlü</text>
+            <g id="burstLayer"></g>
+          </g>
+
+          <!-- database -->
+          <g id="nodeDb">
+            <g id="dbCylinder">
+              <ellipse cx="1042" cy="62" rx="46" ry="12" class="db-top"/>
+              <path d="M 996 62 L 996 114 C 996 121 1016 126 1042 126 C 1068 126 1088 121 1088 114 L 1088 62" class="db-body"/>
+              <ellipse cx="1042" cy="88" rx="46" ry="12" class="db-line"/>
+            </g>
+            <text x="1042" y="152" class="node-title" data-i18n="scene.db">SQL SERVER</text>
+            <text x="1042" y="166" class="node-sub">AIGUARD · dbo.AG_TICKETS</text>
+          </g>
+
+          <g id="packetLayer"></g>
+        </svg>
+
+        <!-- Invisible tour anchors: the story camera needs DOM targets, but the
+             scene is a single SVG, so these boxes shadow the SVG nodes. -->
+        <div class="tour-anchor" id="anchorEmployee"></div>
+        <div class="tour-anchor" id="anchorAtlas"></div>
+        <div class="tour-anchor" id="anchorGate"></div>
+        <div class="tour-anchor" id="anchorDb"></div>
+
+        <div class="ovl-badge ovl-leak" id="leakBadge" hidden>
+          <b data-i18n="ovl.leak">VERİ SIZDI</b>
+          <span id="leakBadgeSub">—</span>
+        </div>
+        <div class="ovl-badge ovl-safe" id="safeBadge" hidden>
+          <b data-i18n="ovl.safe">SALDIRI DURDURULDU</b>
+          <span id="safeBadgeSub">—</span>
+        </div>
+
+        <!-- A literal view of the poisoned cell before and after the gate. It
+             is populated only with findings returned by the real workload. -->
+        <div class="attack-lens" id="attackLens" data-tone="idle" aria-live="polite">
+          <p class="ag-empty" data-i18n="lens.empty">Zehirli kayıt bekleniyor…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= Panels ======================= -->
+    <main class="panels">
+
+      <!-- 1) the conversation -->
+      <section class="panel" id="chatPanel">
+        <div class="panel-head">
+          <span class="ph-title" data-i18n="chat.title">Çalışan · ATLAS</span>
+          <span class="ph-sub" id="chatMeta">—</span>
+        </div>
+        <div class="ag-chat" id="chatLog">
+          <p class="ag-empty" data-i18n="chat.empty">Bir soru sorun — asistan destek taleplerini okuyup yanıtlayacak.</p>
+        </div>
+        <div class="ag-chips" id="askChips">
+          <button type="button" class="ag-chip" data-q="Bu ayki açık destek taleplerini özetle" data-i18n="chat.q1">Açık talepleri özetle</button>
+          <button type="button" class="ag-chip" data-q="En çok şikâyet alan konular neler?" data-i18n="chat.q2">En çok şikâyet edilen konular</button>
+          <button type="button" class="ag-chip" data-q="Açık talepler için öncelik önerisi ver" data-i18n="chat.q3">Öncelik önerisi ver</button>
+        </div>
+        <div class="ag-askbar">
+          <input type="text" id="askInput" class="ag-input" autocomplete="off"
+                 data-i18n-attr="placeholder:chat.placeholder" placeholder="Asistana bir soru sorun…" />
+          <button type="button" class="ag-primary" id="btnAsk" data-i18n="chat.send">Sor</button>
+        </div>
+      </section>
+
+      <!-- 2) the star: what the model actually sees -->
+      <section class="panel" id="ctxPanel">
+        <div class="panel-head">
+          <span class="ph-title" data-i18n="ctx.title">Modelin Gördüğü Bağlam</span>
+          <span class="ag-badge" id="ctxBadge" data-tone="idle" data-i18n="ctx.idle">bekleniyor</span>
+        </div>
+        <p class="ag-note" id="ctxNote" data-i18n="ctx.note">Veritabanından dönen satırlar, LLM'e verilmeden önce burada görünür.</p>
+        <div class="ag-ctx" id="ctxDiff">
+          <p class="ag-empty" data-i18n="ctx.empty">Henüz kayıt getirilmedi.</p>
+        </div>
+      </section>
+
+      <!-- 3) what the assistant then tried to do -->
+      <section class="panel" id="actionPanel">
+        <div class="panel-head">
+          <span class="ph-title" data-i18n="act.title">Asistanın Eylemi</span>
+          <span class="ag-badge" id="actBadge" data-tone="idle" data-i18n="act.idle">eylem yok</span>
+        </div>
+        <p class="ag-note" data-i18n="act.note">Modelin ürettiği ikinci sorgu — ağ geçidi kapısına gelen şey.</p>
+        <pre class="ag-sql" id="actionSql" data-i18n="act.none">—</pre>
+        <div class="ag-verdict" id="actionVerdict" hidden>
+          <div class="ag-rule" id="actionRule">—</div>
+          <ul class="ag-reasons" id="actionReasons"></ul>
+        </div>
+        <div class="ag-scoreline" id="actionScore" hidden></div>
+      </section>
+    </main>
+
+    <!-- ======================= Bottom row ======================= -->
+    <section class="lower">
+      <section class="panel" id="dbPanel">
+        <div class="panel-head">
+          <span class="ph-title" data-i18n="db.title">dbo.AG_TICKETS · Getirilen Kayıtlar</span>
+          <span class="ph-sub" id="dbMeta">—</span>
+        </div>
+        <p class="ag-note" data-i18n="db.note">Zehirli satır geçerli bir metindir — SQL enjeksiyonu değildir, bu yüzden istek tarafındaki hiçbir filtre ona itiraz etmez.</p>
+        <div class="ag-rows" id="ticketRows">
+          <p class="ag-empty" data-i18n="db.empty">İş yükü çalışmıyor.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="feedPanel">
+        <div class="panel-head">
+          <span class="ph-title" data-i18n="feed.title">Tur Geçmişi</span>
+          <span class="ph-sub" id="feedMeta">—</span>
+        </div>
+        <div class="ag-feed" id="turnFeed">
+          <p class="ag-empty" data-i18n="feed.empty">Henüz soru sorulmadı.</p>
+        </div>
+        <div class="ag-provenance" id="provenance">
+          <span class="ag-prov-dot"></span>
+          <span id="provenanceText" data-i18n="prov.idle">Kaynak durumu bekleniyor.</span>
+        </div>
+      </section>
+    </section>
+
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
