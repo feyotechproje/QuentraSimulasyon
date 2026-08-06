@@ -9,8 +9,9 @@
 //   2. Guided tour — a sequence of steps. Each step points the "camera" at one
 //      element: the page root is smoothly translate+scale'd so the target
 //      fills the viewport, a spotlight ring dims everything else, and a
-//      caption card narrates what the audience is looking at. Steps advance
-//      automatically (progress bar), or manually with Back / Next / Esc.
+//      caption card narrates what the audience is looking at. Navigation is
+//      keyboard-only (no on-screen buttons): →/D next, ←/A back, Space
+//      pauses/resumes a narrated story, Esc exits.
 //
 // Step kinds (mixable in one sequence):
 //   { target: "#panel", key, zoom }   — camera shot of a live UI element
@@ -32,7 +33,6 @@
 //       { target: "#somePanel",  key: "tour.s2", zoom: 2.2, hold: 12 },
 //     ],
 //     translate: (step) => ({ title: t(step.key + ".t"), text: t(step.key + ".x") }),
-//     labels: () => ({ back: t("tour.back"), next: t("tour.next"), done: t("tour.done") }),
 //     onDone: () => { ... },
 //   });
 //   tour.intro({ ... }).then((go) => { if (go) tour.start(); });
@@ -62,9 +62,21 @@ export class StoryTour {
 
     this._onKey = (e) => {
       if (!this.active) return;
-      if (e.key === "Escape") this.stop();
-      else if (e.key === "ArrowRight") { e.preventDefault(); this.next(); }
-      else if (e.key === "ArrowLeft") { e.preventDefault(); this.prev(); }
+      // The page stays clickable mid-tour — never hijack keys while the
+      // presenter is typing into a real input on the page.
+      const el = e.target;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      const k = e.key;
+      if (k === "Escape") this.stop();
+      else if (k === "ArrowRight" || k === "d" || k === "D") { e.preventDefault(); this.next(); }
+      else if (k === "ArrowLeft" || k === "a" || k === "A") { e.preventDefault(); this.prev(); }
+      else if (k === " " || e.code === "Space") {
+        e.preventDefault();
+        if (this.pauseCtl) {
+          this.pauseCtl.toggle();
+          this._syncCineVideo(); // freeze/resume the ambient clip with the voice
+        }
+      }
     };
     this._onResize = () => { if (this.active) this._applyStep(); };
   }
@@ -136,25 +148,14 @@ export class StoryTour {
     // Spotlight ring: just the glowing border around the sharp area.
     this._spot = mk("div", "st-spot");
     // Caption card: the only interactive piece (pointer-events on), so the
-    // presenter can still click the page itself mid-tour.
+    // presenter can still click the page itself mid-tour. No nav buttons —
+    // the story is driven from the keyboard (→/D, ←/A, Space, Esc).
     this._cap = mk("div", "st-cap");
     this._cap.innerHTML =
       '<div class="st-cap-head"><span class="st-step"></span><b class="st-title"></b>' +
       '<button class="st-x" type="button" aria-label="close">✕</button></div>' +
-      '<p class="st-text"></p>' +
-      '<div class="st-nav"><button class="st-btn st-btn-ghost st-prev" type="button"></button>' +
-      (this.pauseCtl ? '<button class="st-btn st-btn-ghost st-pause" type="button"></button>' : '') +
-      '<button class="st-btn st-btn-primary st-next" type="button"></button></div>';
+      '<p class="st-text"></p>';
     this._cap.querySelector(".st-x").addEventListener("click", () => this.stop());
-    this._cap.querySelector(".st-prev").addEventListener("click", () => this.prev());
-    this._cap.querySelector(".st-next").addEventListener("click", () => this.next());
-    if (this.pauseCtl) {
-      this._cap.querySelector(".st-pause").addEventListener("click", () => {
-        this.pauseCtl.toggle();
-        this._renderPause(); // reflect the new ⏸/▶ state without replaying the card
-        this._syncCineVideo(); // freeze/resume the ambient clip with the voice
-      });
-    }
     document.body.appendChild(this._spot);
     document.body.appendChild(this._cap);
 
@@ -221,7 +222,8 @@ export class StoryTour {
   }
 
   // ------------------------------------------------------------- internals ---
-  // Steps only advance on user input (Next/Back/arrow keys) — no auto-play.
+  // Steps only advance on user input (→/D, ←/A) or the host's narration
+  // auto-advance — no built-in auto-play.
   _applyStep() {
     const step = this.steps[this.index];
     if (!step) return;
@@ -407,30 +409,13 @@ export class StoryTour {
     if (!this._cap) return;
     const step = this.steps[this.index];
     const { title, text } = this.translate(step) || {};
-    const L = this.labels() || {};
     this._cap.querySelector(".st-step").textContent = `${this.index + 1}/${this.steps.length}`;
     this._cap.querySelector(".st-title").textContent = title || "";
     this._cap.querySelector(".st-text").textContent = text || "";
-    const prev = this._cap.querySelector(".st-prev");
-    prev.textContent = L.back || "Back";
-    prev.disabled = this.index === 0;
-    this._cap.querySelector(".st-next").textContent =
-      this.index >= this.steps.length - 1 ? (L.done || "Done") : (L.next || "Next");
-    this._renderPause();
     // Replay the caption entrance.
     this._cap.classList.remove("st-in");
     void this._cap.offsetWidth;
     this._cap.classList.add("st-in");
-  }
-
-  _renderPause() {
-    if (!this.pauseCtl || !this._cap) return;
-    const btn = this._cap.querySelector(".st-pause");
-    if (!btn) return;
-    const L = this.labels() || {};
-    btn.textContent = this.pauseCtl.isPaused()
-      ? "▶ " + (L.resume || "Resume")
-      : "⏸ " + (L.pause || "Pause");
   }
 
   /**
