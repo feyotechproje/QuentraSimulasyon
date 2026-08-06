@@ -114,8 +114,8 @@ export const HOSPITAL_DICT = {
     "tour.s1.t": "Şehir Hastanesi",
     "tour.s1.x": "Sıradan bir sabah. Klinikler dolu, acil servis yoğun — ve her şey hastane yönetim sistemine bağlı: kayıt, tahlil, reçete, faturalama...",
     "tour.s2.t": "Sistem Durdu",
-    "tour.s2.x": "Saat 10:42'de ekranlar dondu: 'Database Timeout'. Hasta kaydı yapılamıyor. BT müdürü telefona sarılıyor — yazılımı yapan firma aranacak.",
-    "tour.s2.v": "Saat on kırk ikide ekranlar dondu: veritabanı zaman aşımı. Hasta kaydı yapılamıyor. Bilgi Teknolojileri müdürü telefona sarılıyor — yazılımı yapan firma aranacak.",
+    "tour.s2.x": "Saat 10:42'de ekranlar dondu: 'Database Timeout'. Hasta kaydı yapılamıyor. BT müdürü telefona sarılıyor — yazılımı geliştiren firma aranacak.",
+    "tour.s2.v": "Saat on kırk ikide ekranlar dondu: veritabanı zaman aşımı. Hasta kaydı yapılamıyor. Bilgi Teknolojileri müdürü telefona sarılıyor — yazılımı geliştiren firma aranacak.",
     // ".d" = karakterin kendi ağzından replik (konuşma balonu + kendi sesi),
     // ".dn" = balondaki isim etiketi. İngilizce teknik terimlerden kaçınıldı —
     // TTS Türkçe akışta onları bozuk telaffuz ediyor.
