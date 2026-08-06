@@ -311,9 +311,6 @@ html,body{
   from{opacity:0;transform:translateY(-8px)}
   to{opacity:1;transform:translateY(0)}
 }
-.story-step{flex:0 0 auto;font-size:13px;font-weight:800;letter-spacing:.6px;
-  color:var(--muted);font-variant-numeric:tabular-nums;
-  padding:5px 11px;border-radius:9px;background:rgba(120,150,210,.10)}
 .story-text{font-size:25px;font-weight:750;line-height:1.25;color:#f2f6ff;
   white-space:normal;overflow-wrap:break-word;letter-spacing:.1px}
 .story-progress{position:absolute;left:18px;right:18px;bottom:8px;height:3px;
@@ -324,15 +321,12 @@ html,body{
 .story[data-tone="bad"]{border-color:rgba(251,191,36,.45);
   box-shadow:0 14px 40px rgba(0,0,0,.45),0 0 0 1px rgba(251,191,36,.12)}
 .story[data-tone="bad"] .story-progress>i{background:var(--amber)}
-.story[data-tone="bad"] .story-step{color:var(--amber);background:rgba(251,191,36,.12)}
 .story[data-tone="good"]{border-color:rgba(139,92,246,.5);
   box-shadow:0 14px 40px rgba(0,0,0,.45),0 0 0 1px rgba(139,92,246,.14)}
 .story[data-tone="good"] .story-progress>i{background:linear-gradient(90deg,var(--mint),var(--violet))}
-.story[data-tone="good"] .story-step{color:var(--mint);background:rgba(45,212,191,.12)}
 @media (max-width:760px){
   .story{padding:9px 14px 13px;gap:10px}
   .story-text{font-size:17px}
-  .story-step{font-size:11px;padding:4px 8px}
 }
 
 /* ---------- Stock lookup before/after ---------- */

@@ -37,6 +37,8 @@
 //   });
 //   tour.intro({ ... }).then((go) => { if (go) tour.start(); });
 
+import { applyBubbleArt } from "/shared/story-bubble.js";
+
 const CAM_MS = 1150;              // camera glide duration (matches CSS)
 
 export class StoryTour {
@@ -152,7 +154,8 @@ export class StoryTour {
     // the story is driven from the keyboard (→/D, ←/A, Space, Esc).
     this._cap = mk("div", "st-cap");
     this._cap.innerHTML =
-      '<div class="st-cap-head"><span class="st-step"></span><b class="st-title"></b>' +
+      '<img class="st-cap-art" alt="" aria-hidden="true">' +
+      '<div class="st-cap-head"><b class="st-title"></b>' +
       '<button class="st-x" type="button" aria-label="close">✕</button></div>' +
       '<p class="st-text"></p>';
     this._cap.querySelector(".st-x").addEventListener("click", () => this.stop());
@@ -285,6 +288,10 @@ export class StoryTour {
    * only soundtrack and keeps driving the auto-advance. A missing or broken
    * file simply leaves the Ken Burns still on screen, so hosts can declare
    * video paths before the files exist.
+   *
+   * `videoDeferred: true` holds the clip back: the still stands like a
+   * photograph until the host calls cineStartVideo() — used by dialogue
+   * slides so the character only comes alive when they start speaking.
    */
   _showCine(step) {
     if (!this._cine) {
@@ -298,7 +305,7 @@ export class StoryTour {
       const v = this._cine.querySelector(".st-cine-video");
       v.muted = true; // the narration is the soundtrack; video sound is ignored
       v.addEventListener("canplay", () => {
-        if (this._cineWant && v.getAttribute("src") === this._cineWant) {
+        if (this._cineWant && v.getAttribute("src") === this._cineWant && !this._cineDefer) {
           this._cine.classList.add("st-video-on");
           this._applyCineRate();
           this._syncCineVideo();
@@ -322,8 +329,10 @@ export class StoryTour {
     this._cine.classList.add("st-cine-in");
     this._cine.style.display = "block";
 
-    // Ambient video layer for this slide (if declared).
+    // Ambient video layer for this slide (if declared). A deferred clip stays
+    // hidden behind the still until the host releases it (cineStartVideo).
     this._cineWant = step.video || null;
+    this._cineDefer = !!(this._cineWant && step.videoDeferred);
     this._cineTargetDur = null; // narration duration arrives async (host call)
     vid.pause();
     vid.playbackRate = 1;
@@ -334,7 +343,7 @@ export class StoryTour {
       } else {
         // Same slide revisited: canplay will not re-fire, resume directly.
         vid.currentTime = 0;
-        if (vid.readyState >= 3) { this._cine.classList.add("st-video-on"); this._syncCineVideo(); }
+        if (vid.readyState >= 3 && !this._cineDefer) { this._cine.classList.add("st-video-on"); this._syncCineVideo(); }
       }
     } else {
       vid.removeAttribute("src");
@@ -389,6 +398,26 @@ export class StoryTour {
     v.playbackRate = rate;
   }
 
+  /**
+   * Release a deferred ambient clip (step.videoDeferred): the still has been
+   * standing like a photograph — the host calls this the moment the character
+   * starts SPEAKING, and the clip fades in and plays from the top.
+   */
+  cineStartVideo() {
+    if (!this._cineActive || !this._cine || !this._cineDefer) return;
+    this._cineDefer = false;
+    const v = this._cine.querySelector(".st-cine-video");
+    if (!v || !v.getAttribute("src")) return;
+    if (v.readyState >= 3) {
+      try { v.currentTime = 0; } catch { /* not seekable yet */ }
+      this._cine.classList.add("st-video-on");
+      this._applyCineRate();
+      this._syncCineVideo();
+    }
+    // Not ready yet: the canplay listener sees the cleared defer flag and
+    // fades the clip in as soon as it can play.
+  }
+
   // Play/pause the ambient clip in lockstep with the story's pause state.
   _syncCineVideo() {
     const v = this._cine && this._cine.querySelector(".st-cine-video");
@@ -409,7 +438,6 @@ export class StoryTour {
     if (!this._cap) return;
     const step = this.steps[this.index];
     const { title, text } = this.translate(step) || {};
-    this._cap.querySelector(".st-step").textContent = `${this.index + 1}/${this.steps.length}`;
     this._cap.querySelector(".st-title").textContent = title || "";
     this._cap.querySelector(".st-text").textContent = text || "";
     // Replay the caption entrance.
@@ -539,17 +567,20 @@ export class StoryTour {
     cap.style.left = x + "px";
     cap.style.top = y + "px";
 
-    // Speech-bubble tail: aim it at the spotlighted panel's centre so the
-    // card reads as the story SPEAKING about what it highlights.
-    if (this._tail && rect) {
-      cap.dataset.tail = this._tail;
-      if (this._tail === "left" || this._tail === "right") {
-        cap.style.setProperty("--tail-y", clamp((rect.top + rect.bottom) / 2 - y, 26, h - 26) + "px");
-      } else {
-        cap.style.setProperty("--tail-x", clamp((rect.left + rect.right) / 2 - x, 26, w - 26) + "px");
+    // Comic-bubble artwork (delivered PNG set): the tail variant is picked
+    // from where the spotlighted panel sits, so the card reads as the story
+    // SPEAKING about what it highlights (plain bubble on wide/cine shots).
+    const art = cap.querySelector(".st-cap-art");
+    if (art) {
+      let tip = null;
+      if (this._tail && rect) {
+        const cx = (rect.left + rect.right) / 2, cy = (rect.top + rect.bottom) / 2;
+        if (this._tail === "left") tip = { x: rect.right + 10 - x, y: clamp(cy, y - 30, y + h + 30) - y };
+        else if (this._tail === "right") tip = { x: rect.left - 10 - x, y: clamp(cy, y - 30, y + h + 30) - y };
+        else if (this._tail === "top") tip = { x: clamp(cx, x - 40, x + w + 40) - x, y: rect.bottom + 10 - y };
+        else tip = { x: clamp(cx, x - 40, x + w + 40) - x, y: rect.top - 10 - y };
       }
-    } else {
-      cap.removeAttribute("data-tail");
+      applyBubbleArt(art, w, h, tip);
     }
   }
 

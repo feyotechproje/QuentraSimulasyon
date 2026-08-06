@@ -26,41 +26,57 @@ const ttsCacheDir = "tts_cache"
 const ttsSpeed = 1.1
 
 type ttsRequest struct {
-	Text string `json:"text"`
-	Lang string `json:"lang"`
+	Text  string `json:"text"`
+	Lang  string `json:"lang"`
+	Voice string `json:"voice"` // logical role: "" (narrator), "manager", "engineer"
+}
+
+// ttsVoiceID maps a logical speaker role from the request to a configured
+// ElevenLabs voice. Unknown roles fall back to the narrator, so a stale
+// client can never make the server synthesize with an arbitrary voice id.
+func (s *Server) ttsVoiceID(role string) string {
+	switch role {
+	case "manager":
+		return s.cfg.ElevenVoiceManager
+	case "engineer":
+		return s.cfg.ElevenVoiceEngineer
+	default:
+		return s.cfg.ElevenVoice
+	}
 }
 
 // ttsPaths derives the cache locations for a narration line: the mp3 clip and
 // the word-timing sidecar (character start times from /with-timestamps, used
 // by the story choreography to sync visuals to the spoken words).
-func (s *Server) ttsPaths(text, lang string) (mp3Path, alignPath string) {
-	key := fmt.Sprintf("%s|%s|%s|%s|%.2f", text, s.cfg.ElevenVoice, s.cfg.ElevenModel, lang, ttsSpeed)
+func (s *Server) ttsPaths(text, lang, voiceID string) (mp3Path, alignPath string) {
+	key := fmt.Sprintf("%s|%s|%s|%s|%.2f", text, voiceID, s.cfg.ElevenModel, lang, ttsSpeed)
 	sum := md5.Sum([]byte(key))
 	base := filepath.Join(ttsCacheDir, hex.EncodeToString(sum[:]))
 	return base + ".mp3", base + ".align.json"
 }
 
-func decodeTTSRequest(r *http.Request) (text, lang string, ok bool) {
+func decodeTTSRequest(r *http.Request) (text, lang, voice string, ok bool) {
 	var req ttsRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
-		return "", "", false
+		return "", "", "", false
 	}
 	text = strings.TrimSpace(req.Text)
 	if text == "" || len(text) > 1500 {
-		return "", "", false
+		return "", "", "", false
 	}
-	return text, normalizeTTSLang(req.Lang), true
+	return text, normalizeTTSLang(req.Lang), strings.TrimSpace(req.Voice), true
 }
 
 func (s *Server) handleTTS(w http.ResponseWriter, r *http.Request) {
-	text, lang, ok := decodeTTSRequest(r)
+	text, lang, voice, ok := decodeTTSRequest(r)
 	if !ok {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	voiceID := s.ttsVoiceID(voice)
 
 	// Cache first — even without an API key, previously generated clips play.
-	path, alignPath := s.ttsPaths(text, lang)
+	path, alignPath := s.ttsPaths(text, lang, voiceID)
 	if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
 		serveTTSAudio(w, b)
 		return
@@ -88,7 +104,7 @@ func (s *Server) handleTTS(w http.ResponseWriter, r *http.Request) {
 	// /with-timestamps returns the audio AND per-character start times; the
 	// timings are cached next to the clip so the story can sync visuals to
 	// the exact moment a word is spoken.
-	url := fmt.Sprintf("https://api.elevenlabs.io/v1/text-to-speech/%s/with-timestamps?output_format=mp3_44100_128", s.cfg.ElevenVoice)
+	url := fmt.Sprintf("https://api.elevenlabs.io/v1/text-to-speech/%s/with-timestamps?output_format=mp3_44100_128", voiceID)
 	httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
 		http.Error(w, "request build failed", http.StatusInternalServerError)
@@ -164,12 +180,12 @@ func (s *Server) handleTTS(w http.ResponseWriter, r *http.Request) {
 // 404 simply means "no timings" (old clip or failed synth) — the client then
 // falls back to proportional pacing.
 func (s *Server) handleTTSAlign(w http.ResponseWriter, r *http.Request) {
-	text, lang, ok := decodeTTSRequest(r)
+	text, lang, voice, ok := decodeTTSRequest(r)
 	if !ok {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	_, alignPath := s.ttsPaths(text, lang)
+	_, alignPath := s.ttsPaths(text, lang, s.ttsVoiceID(voice))
 	b, err := os.ReadFile(alignPath)
 	if err != nil || len(b) == 0 {
 		http.Error(w, `{"error":"no alignment"}`, http.StatusNotFound)

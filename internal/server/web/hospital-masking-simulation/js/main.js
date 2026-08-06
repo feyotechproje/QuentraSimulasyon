@@ -5,6 +5,7 @@
 
 import { initQuentraApp, QuentraI18n } from "/shared/quentra-i18n.js";
 import { StoryTour } from "/shared/story-tour.js";
+import { StoryBubble } from "/shared/story-bubble.js";
 import { HOSPITAL_INTRO, HOSPITAL_DICT } from "./i18n.js";
 import { DEFAULT_SQL, IDENTITY_COLUMNS } from "./data.js";
 import { Scene } from "./scene.js";
@@ -36,19 +37,22 @@ const narrator = {
   seq: 0,
   paused: false,
   autoNext: null, // set by setupTour: advances the tour when a clip ends
-  cache: new Map(), // "<lang>|<text>" -> Promise<objectURL>
+  _onEnd: null, // per-clip continuation: dialogue chains here instead of autoNext
+  cache: new Map(), // "<lang>|<voice>|<text>" -> Promise<objectURL>
 
   // Narration is ALWAYS Turkish (user's call) — the UI language only affects
   // the written captions. Voice text is therefore pulled from the TR dict.
   lang() { return "tr"; },
 
-  fetchClip(text) {
-    const k = this.lang() + "|" + text;
+  // `voice` is a logical speaker role ("manager", "engineer"); empty means
+  // the narrator voice. The server maps roles to ElevenLabs voice ids.
+  fetchClip(text, voice) {
+    const k = this.lang() + "|" + (voice || "") + "|" + text;
     if (!this.cache.has(k)) {
       const p = fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, lang: this.lang() }),
+        body: JSON.stringify({ text, lang: this.lang(), voice: voice || "" }),
       }).then((r) => {
         if (!r.ok) throw new Error("tts " + r.status);
         return r.blob();
@@ -68,13 +72,13 @@ const narrator = {
   // the cache has none yet — callers fall back to proportional pacing, and a
   // miss is not cached so the timings are picked up on the next attempt.
   alignCache: new Map(),
-  fetchAlign(text) {
-    const k = this.lang() + "|" + text;
+  fetchAlign(text, voice) {
+    const k = this.lang() + "|" + (voice || "") + "|" + text;
     if (!this.alignCache.has(k)) {
       const p = fetch("/api/tts/align", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, lang: this.lang() }),
+        body: JSON.stringify({ text, lang: this.lang(), voice: voice || "" }),
       }).then((r) => (r.ok ? r.json() : null)).catch(() => null)
         .then((v) => { if (!v) this.alignCache.delete(k); return v; });
       this.alignCache.set(k, p);
@@ -82,37 +86,53 @@ const narrator = {
     return this.alignCache.get(k);
   },
 
-  async play(text) {
+  // opts: { voice, onEnd, onStart, matchCine } — onEnd replaces the default
+  // advance for THIS clip (a slide's narration hands over to its character
+  // dialogue); onStart fires the moment the voice actually starts; matchCine
+  // false keeps the clip from stretching the slide's ambient video (used by
+  // the narration on dialogue slides, where the video belongs to the SPEECH).
+  async play(text, opts) {
     const my = ++this.seq;
+    const o = opts || {};
     this.paused = false; // navigating (manual or auto) resumes the flow
+    this._onEnd = o.onEnd || null;
     if (this.audio) { this.audio.pause(); this.audio.currentTime = 0; }
     if (!text) return;
     try {
-      const url = await this.fetchClip(text);
+      const url = await this.fetchClip(text, o.voice);
       if (my !== this.seq) return; // the story already moved on
       if (!this.audio) this.audio = new Audio();
       this.audio.onended = () => {
-        if (my === this.seq && !this.paused && this.autoNext) this.autoNext();
+        if (my === this.seq && !this.paused) this._finish();
       };
-      // Tell the story engine how long this narration runs, so an ambient
-      // video on the slide can slow down and finish with the voice.
+      // Tell the story engine how long this clip runs, so an ambient video
+      // on the slide can slow down and finish with the voice.
       this.audio.onloadedmetadata = () => {
-        if (my === this.seq && tour && tour.active && isFinite(this.audio.duration)) {
+        if (o.matchCine !== false && my === this.seq && tour && tour.active && isFinite(this.audio.duration)) {
           tour.cineMatchDuration(this.audio.duration);
         }
       };
       this.audio.src = url;
+      if (o.onStart) { try { o.onStart(); } catch { /* host hook */ } }
       this.audio.play().catch(() => {});
     } catch { /* no key / offline: silent story, manual advance */ }
   },
 
-  // Duraklat/Devam: freezes the voice AND the auto-advance together.
+  // Runs the current clip's continuation (dialogue), or advances the story.
+  _finish() {
+    const f = this._onEnd;
+    this._onEnd = null;
+    if (f) f();
+    else if (this.autoNext) this.autoNext();
+  },
+
+  // Space (Duraklat/Devam): freezes the voice AND the auto-advance together.
   togglePause() {
     if (this.paused) {
       this.paused = false;
       if (this.audio && this.audio.src) {
         // Clip already over while paused → continue the flow now.
-        if (this.audio.ended) { if (this.autoNext) this.autoNext(); }
+        if (this.audio.ended) this._finish();
         else this.audio.play().catch(() => {});
       }
     } else {
@@ -124,6 +144,7 @@ const narrator = {
   stop() {
     this.seq++;
     this.paused = false;
+    this._onEnd = null;
     if (this.audio) { this.audio.pause(); this.audio.currentTime = 0; }
   },
 };
@@ -291,6 +312,54 @@ function boot() {
 
 let storyRes = null; // direct leg shown, Quentra leg still held back
 
+// Character dialogue: after a slide's narration, the character on screen
+// speaks their own line — their voice (per-role ElevenLabs voice), a comic
+// bubble above their head, letters typing in Matrix-green with the words.
+const bubble = new StoryBubble();
+
+async function playDialogue(step) {
+  const d = step.dialog;
+  const text = HOSPITAL_DICT.tr[d.textKey] || "";
+  if (!text || !tour || !tour.active) { if (narrator.autoNext) narrator.autoNext(); return; }
+
+  await bubble.show({
+    imgSrc: step.img,
+    anchor: d.anchor,
+    side: d.side,
+    tailFrac: d.tailFrac,
+    name: t(d.nameKey),
+  });
+  if (!tour || !tour.active) { bubble.hide(); return; }
+
+  narrator.play(text, {
+    voice: d.voice,
+    // The slide's ambient video was held back (videoDeferred) — the still
+    // stood like a photograph through the narration; the character comes
+    // alive exactly when their voice starts.
+    onStart: () => { if (tour && tour.active) tour.cineStartVideo(); },
+    onEnd: () => {
+      // Let the last glowing letters land before the slide moves on.
+      const settled = narrator.seq;
+      setTimeout(() => {
+        if (narrator.seq === settled && !narrator.paused && tour && tour.active && narrator.autoNext) {
+          narrator.autoNext();
+        }
+      }, 700);
+    },
+  });
+  const dseq = narrator.seq; // play() bumped it synchronously — this IS our clip
+
+  // Typing sync: real character timings when the cache has them; the clip
+  // fetch below resolves the same cached promise play() used, so the align
+  // sidecar is only asked for once the clip actually exists.
+  let clipOk = true;
+  try { await narrator.fetchClip(text, d.voice); } catch { clipOk = false; }
+  const align = clipOk ? await narrator.fetchAlign(text, d.voice) : null;
+  // Navigating away meanwhile started another clip — this line is history.
+  if (!tour || !tour.active || !bubble.el || narrator.seq !== dseq) return;
+  bubble.type(text, { audioRef: clipOk ? () => narrator.audio : null, align });
+}
+
 function setupTour() {
   const storyRun = async () => {
     if (busy) return;
@@ -323,8 +392,17 @@ function setupTour() {
     // dropping an mp4 with this exact name into img/ + rebuild is all it takes.
     steps: [
       { img: "img/01-hastane.jpg", video: "img/01-hastane.mp4", key: "tour.s1" },
-      { img: "img/02-ariza.jpg", video: "img/02-ariza.mp4", key: "tour.s2" },
-      { img: "img/03-destek.jpg", video: "img/03-destek.mp4", key: "tour.s3" },
+      // Dialogue beats: after the narration, the character speaks their own
+      // line. The bubble floats BESIDE the head (side) — over-the-head would
+      // clip at the top of the frame; anchor = fraction of the IMAGE, at the
+      // speaker's head. videoDeferred: the still stands like a photo during
+      // the narration; the clip only starts when the character speaks.
+      { img: "img/02-ariza.jpg", video: "img/02-ariza.mp4", key: "tour.s2", videoDeferred: true,
+        dialog: { voice: "manager", textKey: "tour.s2.d", nameKey: "tour.s2.dn",
+                  anchor: { x: 0.38, y: 0.28 }, side: "right" } },
+      { img: "img/03-destek.jpg", video: "img/03-destek.mp4", key: "tour.s3", videoDeferred: true,
+        dialog: { voice: "engineer", textKey: "tour.s3.d", nameKey: "tour.s3.dn",
+                  anchor: { x: 0.67, y: 0.24 }, side: "left" } },
       { img: "img/04-vpn.png", video: "img/04-vpn.mp4", key: "tour.s4" },
       { target: "#sqlwin", key: "tour.s5", zoom: 1.35, onEnter: storyRun },
       { target: "#rsDirect", key: "tour.s6", zoom: 1.7 },
@@ -341,7 +419,11 @@ function setupTour() {
     }),
     onStep: (step) => {
       stopChoreo();
-      narrator.play(narrationText(step));
+      bubble.hide();
+      // Dialogue slides: narration sets the scene (over the frozen still —
+      // matchCine off, the deferred video belongs to the speech), then the
+      // character takes over in their own voice; the story advances after.
+      narrator.play(narrationText(step), step.dialog ? { onEnd: () => playDialogue(step), matchCine: false } : undefined);
       if (step.key === "tour.s6") {
         startFieldSweep({
           table: "gridDirect", voiceText: narrationText(step),
@@ -357,7 +439,7 @@ function setupTour() {
         });
       }
     },
-    onDone: () => { stopChoreo(); narrator.stop(); storyReveal(); },
+    onDone: () => { stopChoreo(); bubble.hide(); narrator.stop(); storyReveal(); },
     pauseControl: {
       isPaused: () => narrator.paused,
       toggle: () => narrator.togglePause(),
@@ -367,6 +449,16 @@ function setupTour() {
   narrator.autoNext = () => { if (tour && tour.active) tour.next(); };
   preloadNarration = () => {
     narrator.preload(tour.steps.map(narrationText));
+    // Character dialogue clips synthesize with their own voices — prefetch
+    // them (and then their word timings) so bubbles type without a stall.
+    tour.steps.forEach((s) => {
+      if (!s.dialog) return;
+      const tx = HOSPITAL_DICT.tr[s.dialog.textKey];
+      if (!tx) return;
+      narrator.fetchClip(tx, s.dialog.voice)
+        .then(() => narrator.fetchAlign(tx, s.dialog.voice))
+        .catch(() => {});
+    });
     // Warm the HTTP cache for the ambient clips too, so a cold server start
     // can never leave a slide black while its video is still streaming in.
     tour.steps.forEach((s) => { if (s.video) fetch(s.video).catch(() => {}); });

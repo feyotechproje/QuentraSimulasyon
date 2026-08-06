@@ -58,7 +58,6 @@ export class UI {
       rwBreakdown: document.getElementById("rwBreakdown"),
       // auto-demo narration
       story: document.getElementById("story"),
-      storyStep: document.getElementById("storyStep"),
       storyText: document.getElementById("storyText"),
       storyBar: document.getElementById("storyBar"),
       rwDirect: document.getElementById("rwDirect"),
@@ -114,7 +113,6 @@ export class UI {
       this._beatShown = beat;
       e.story.dataset.tone = beat.tone || "neutral";
       e.storyText.textContent = t(beat.key, beat.fallback);
-      e.storyStep.textContent = `${(s.beatIndex || 0) + 1}/${s.beatCount}`;
       // Replay the entrance animation for the new caption.
       e.story.style.animation = "none";
       void e.story.offsetWidth;

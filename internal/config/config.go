@@ -38,9 +38,13 @@ type Config struct {
 	// ElevenLabs TTS — voices the story-mode narration. Optional: with no key
 	// /api/tts answers 503 and the story plays silently. Clips are cached on
 	// disk (tts_cache/), so each narration line costs one API call ever.
-	ElevenKey   string
-	ElevenVoice string
-	ElevenModel string
+	// Character voices speak the in-story dialogue lines (speech bubbles):
+	// the IT manager and the support engineer each get their own voice.
+	ElevenKey           string
+	ElevenVoice         string
+	ElevenModel         string
+	ElevenVoiceManager  string
+	ElevenVoiceEngineer string
 }
 
 // Load reads configuration from the process environment, optionally seeded
@@ -65,6 +69,12 @@ func Load() *Config {
 		ElevenKey:        strings.TrimSpace(os.Getenv("ELEVENLABS_API_KEY")),
 		ElevenVoice:      getEnv("ELEVENLABS_VOICE_ID", "zDBYcuJrpuZ6YQ7AgRUw"),
 		ElevenModel:      getEnv("ELEVENLABS_MODEL_ID", "eleven_flash_v2_5"),
+		// Premade ElevenLabs voices, picked to match the story art: the IT
+		// manager is a tense man in his forties (Brian — deep, middle-aged),
+		// the support engineer a calm man in his late twenties (Chris —
+		// natural, casual). Both speak Turkish under the multilingual models.
+		ElevenVoiceManager:  getEnv("ELEVENLABS_VOICE_MANAGER", "nPczCjzI2devNBz1zQrb"),
+		ElevenVoiceEngineer: getEnv("ELEVENLABS_VOICE_ENGINEER", "iP95p4xoKVk53GoZ742B"),
 	}
 	return c
 }

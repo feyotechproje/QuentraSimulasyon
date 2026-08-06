@@ -270,6 +270,88 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
     radial-gradient(120% 90% at 50% 42%, transparent 55%, rgba(3, 6, 12, .5) 100%);
 }
 
+/* ------------------------------------------------ character speech bubble --- */
+/* Dialogue bubble over a cinematic slide (story-bubble.js): comic-style
+   white bubble with a purple outline and a swooping pointed tail (drawn as
+   an inline SVG sized by JS), letters typing in with a Matrix-green glow as
+   they are spoken. Above the cine layer (99940), below the caption (99970). */
+.st-bubble {
+  position: fixed;
+  z-index: 99945;
+  box-sizing: border-box;
+  max-width: min(480px, 52vw);
+  padding: 14px 20px 15px;
+  pointer-events: none;
+  animation: st-bl-pop .38s cubic-bezier(.3, 1.4, .4, 1) both;
+}
+@keyframes st-bl-pop {
+  from { opacity: 0; transform: translateY(10px) scale(.82); }
+  to   { opacity: 1; transform: none; }
+}
+.st-bubble-out { animation: st-bl-drop .22s ease-in both; }
+@keyframes st-bl-drop {
+  to { opacity: 0; transform: translateY(8px) scale(.9); }
+}
+
+/* The bubble artwork: the delivered PNG, stretched by JS so its body region
+   covers the element while the tail reaches out of the box. */
+.st-bubble-art {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+  filter: drop-shadow(0 12px 26px rgba(0, 0, 0, .35));
+}
+.st-bubble-name, .st-bubble-text { position: relative; }
+
+/* Fallback when no directional art fits (no tail): plain comic bubble. */
+.st-bubble.st-plain, .st-cap.st-plain {
+  background: #ffffff;
+  border: 3px solid #a126a8;
+  border-radius: 22px;
+  box-shadow: 0 18px 40px rgba(30, 41, 59, .32);
+}
+
+.st-bubble-name {
+  margin-bottom: 5px;
+  font: 700 11px/1 Consolas, "Cascadia Mono", "JetBrains Mono", monospace;
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+  color: #a126a8;
+}
+
+.st-bubble-text {
+  font: 400 16.5px/1.5 Consolas, "Cascadia Mono", "JetBrains Mono", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Glyphs are laid out invisibly (stable bubble size), then flip on one by
+   one with the spoken word — the Matrix decode effect in QUENTRA PURPLE:
+   neon flash → settled brand purple (dark enough to read on white). */
+.st-bl-ch { visibility: hidden; color: #7a1f80; }
+.st-bl-ch.on {
+  visibility: visible;
+  text-shadow: 0 0 6px rgba(200, 60, 220, .40);
+  animation: st-bl-glyph .5s ease-out both;
+}
+@keyframes st-bl-glyph {
+  0%   { color: #e04bff; text-shadow: 0 0 9px #c93cf0, 0 0 22px #c93cf0; }
+  55%  { color: #a52bbe; text-shadow: 0 0 8px rgba(201, 60, 240, .75); }
+  100% { color: #7a1f80; text-shadow: 0 0 6px rgba(200, 60, 220, .40); }
+}
+
+.st-bl-cursor {
+  color: #b32ecf;
+  text-shadow: 0 0 8px rgba(201, 60, 240, .8);
+  animation: st-bl-blink .8s steps(1) infinite;
+}
+@keyframes st-bl-blink { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .st-bubble, .st-bubble-out { animation: none; }
+  .st-bl-ch.on { animation: none; }
+}
+
 /* ------------------------------------------------- veils + spotlight ring --- */
 /* Four strips tile the viewport around the highlighted rect: they carry the
    blur + light frost, so ONLY the spotlighted area stays sharp. Positioned
@@ -305,60 +387,21 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
   z-index: 99970;
   box-sizing: border-box;
   width: min(620px, 94vw);
-  padding: 18px 22px 16px;
-  border-radius: 24px;
-  background: var(--surface, #ffffff);
-  border: 1px solid var(--border, #dce3ee);
-  box-shadow: 0 22px 60px -20px rgba(30, 41, 59, .30), 0 2px 8px rgba(30, 41, 59, .06);
-  color: var(--text, #1e293b);
+  padding: 18px 24px 16px;
+  color: #1e293b;
   font-family: "Patrick Hand", "Segoe Print", "Comic Sans MS", cursive;
 }
 
-/* Bubble tail: a rotated square sharing the card's surface + border; only the
-   two outward edges keep a border so it merges seamlessly with the bubble.
-   Sized generously so the bubble clearly "speaks" at the highlighted panel. */
-.st-cap::before {
-  content: "";
+/* The bubble artwork (delivered PNG set) sized/positioned by JS; the tail
+   may reach far outside the card's box. */
+.st-cap-art {
   position: absolute;
-  width: 26px;
-  height: 26px;
-  background: var(--surface, #ffffff);
-  border: 0 solid var(--border, #dce3ee);
-  transform: rotate(45deg);
-  display: none;
+  max-width: none;
+  pointer-events: none;
+  filter: drop-shadow(0 18px 40px rgba(30, 41, 59, .35));
 }
-.st-cap[data-tail="left"]::before {
-  display: block;
-  left: -13px;
-  top: var(--tail-y, 50%);
-  margin-top: -13px;
-  border-left-width: 1px;
-  border-bottom-width: 1px;
-}
-.st-cap[data-tail="right"]::before {
-  display: block;
-  right: -13px;
-  top: var(--tail-y, 50%);
-  margin-top: -13px;
-  border-right-width: 1px;
-  border-top-width: 1px;
-}
-.st-cap[data-tail="top"]::before {
-  display: block;
-  top: -13px;
-  left: var(--tail-x, 50%);
-  margin-left: -13px;
-  border-left-width: 1px;
-  border-top-width: 1px;
-}
-.st-cap[data-tail="bottom"]::before {
-  display: block;
-  bottom: -13px;
-  left: var(--tail-x, 50%);
-  margin-left: -13px;
-  border-right-width: 1px;
-  border-bottom-width: 1px;
-}
+.st-cap-head, .st-cap .st-text { position: relative; }
+
 .st-cap.st-in { animation: st-cap-in .4s cubic-bezier(.2, .9, .25, 1) both; }
 @keyframes st-cap-in {
   from { opacity: 0; transform: translateY(12px) scale(.99); }
@@ -371,19 +414,6 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
   gap: 10px;
   margin-bottom: 7px;
 }
-.st-step {
-  flex: none;
-  padding: 4px 11px 3px;
-  border-radius: 999px;
-  font-family: "Bangers", "Impact", sans-serif;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: 1px;
-  color: #fff;
-  background: var(--qi-accent, #7c3aed);
-  border: 0;
-}
 .st-title {
   font-family: "Bangers", "Impact", sans-serif;
   font-size: 26px;
@@ -391,7 +421,7 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
   line-height: 1.02;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--text, #1e293b);
+  color: #17202e; /* the bubble art is always white — theme vars must not wash it out */
 }
 .st-x {
   margin-left: auto;
@@ -413,7 +443,7 @@ html.st-lock, html.st-lock body { overflow: hidden !important; }
   font-size: 17px;
   font-weight: 400;
   line-height: 1.42;
-  color: var(--text-soft, #475569);
+  color: #3c4657; /* fixed: sits on the always-white bubble art */
 }
 
 @media (max-width: 640px) {
