@@ -115,11 +115,11 @@ export const HOSPITAL_DICT = {
     "tour.s1.x": "Sıradan bir sabah. Klinikler dolu, acil servis yoğun — ve her şey hastane yönetim sistemine bağlı: kayıt, tahlil, reçete, faturalama...",
     "tour.s2.t": "Sistem Durdu",
     "tour.s2.x": "Saat 10:42'de ekranlar dondu: 'Database Timeout'. Hasta kaydı yapılamıyor. BT müdürü telefona sarılıyor — yazılımı yapan firma aranacak.",
-    "tour.s2.v": "Saat 10:42'de ekranlar dondu: 'Database Timeout'. Hasta kaydı yapılamıyor. Bilgi Teknolojileri müdürü telefona sarılıyor — yazılımı yapan firma aranacak.",
+    "tour.s2.v": "Saat on kırk ikide ekranlar dondu: veritabanı zaman aşımı. Hasta kaydı yapılamıyor. Bilgi Teknolojileri müdürü telefona sarılıyor — yazılımı yapan firma aranacak.",
     // ".d" = karakterin kendi ağzından replik (konuşma balonu + kendi sesi),
     // ".dn" = balondaki isim etiketi. İngilizce teknik terimlerden kaçınıldı —
     // TTS Türkçe akışta onları bozuk telaffuz ediyor.
-    "tour.s2.d": "Hasta kayıt ekranı kilitlendi, veritabanı zaman aşımı hatası alıyoruz. Kayıt yapamıyoruz — acil destek gerekiyor!",
+    "tour.s2.d": "Hasta kayıt ekranı kilitlendi! Veritabanı zaman aşımı hatası alıyoruz. Kayıt yapamıyoruz, acil destek gerekiyor!",
     "tour.s2.dn": "BT Müdürü",
     "tour.s3.t": "Destek Hatta",
     "tour.s3.x": "Yazılım destek firmasına acil çağrı açıldı. Mühendis sorunu bulmak için canlı sisteme bağlanıyor.",
@@ -135,8 +135,12 @@ export const HOSPITAL_DICT = {
     "tour.s6.v": "Direkt bağlantının döndürdüğü şey bu: ad soyad, kimlik numarası, telefon, adres ve tanı… Mühendis sorunu çözmek için bağlandı ama tüm hasta kimlikleri gözünün önünde. Kişisel Verilerin Korunması Kanunu açısından tam bir risk.",
     "tour.s7.t": "Quentra Devrede",
     "tour.s7.x": "Quentra devreye alındıktan sonra veritabanı trafiği artık Quentra'nın kontrolünde: markanın veri bekçisi Data Sentinel araya giriyor. Uygulama değişmiyor, sorgu değişmiyor — sadece bağlantı ağ geçidinden akıyor.",
+    // "Deytasentinıl": ekranda İngilizce yazım kalır; seste fonetik VE bitişik
+    // yazılır ki iki ayrı kelime gibi değil, tek bir isim gibi aksın.
+    "tour.s7.v": "Quentra devreye alındıktan sonra veritabanı trafiği artık Quentra'nın kontrolünde: markanın veri bekçisi Deytasentinıl araya giriyor. Uygulama değişmiyor, sorgu değişmiyor — sadece bağlantı ağ geçidinden akıyor.",
     "tour.hero.t": "Veri Bekçisi: Data Sentinel",
     "tour.hero.x": "Kalkanın arkasında artık o var: Quentra'nın süper kahramanı Data Sentinel. Hassas veriler onun koruması altında — sorguyu kim çalıştırırsa çalıştırsın, kişisel veri kalkanını geçemiyor.",
+    "tour.hero.v": "Kalkanın arkasında artık o var: Quentra'nın süper kahramanı, Deytasentinıl. Hassas veriler onun koruması altında — sorguyu kim çalıştırırsa çalıştırsın, kişisel veri kalkanını geçemiyor.",
     "tour.s8.t": "Aynı Sorgu, Maskeli Veri",
     "tour.s8.x": "Sorgu değişmedi, fakat bu kez Quentra'dan geçti: ad soyad, TCKN, telefon ve adres maskeli döndü. Mühendis işini yapmaya devam ediyor — ama artık kişisel veri görmüyor.",
     "tour.s8.v": "Sorgu değişmedi, fakat bu kez Quentra'dan geçti: ad soyad, kimlik numarası, telefon ve adres maskeli döndü. Mühendis işini yapmaya devam ediyor — ama artık kişisel veri görmüyor.",
@@ -144,6 +148,9 @@ export const HOSPITAL_DICT = {
     "tour.s9.x": "Farkı yaratan, oturumun kimliği. Maskeleme kuralı kimin baktığına göre uygulanıyor.",
     "tour.s10.t": "Sorun Çözüldü, Veri Korundu",
     "tour.s10.x": "Arıza giderildi, hastane normal akışına döndü. Hastaların verileri korundu — çünkü hiç açığa çıkmadı. Quentra: uygulamaya dokunmadan veri maskeleme.",
+    // Kapanış sloganı vurgulu: "Quentra." tek başına cümle (dramatik durak),
+    // slogan virgülle tane tane. Ekran metni (.x) değişmez.
+    "tour.s10.v": "Arıza giderildi. Hastane normal akışına döndü. Hastaların verileri korundu… çünkü hiç açığa çıkmadı. Quentra. Uygulamaya dokunmadan, veri maskeleme.",
 
   },
   en: {

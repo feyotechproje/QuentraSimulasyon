@@ -410,7 +410,10 @@ function setupTour() {
       { img: "img/07-sentinel.png", video: "img/07-sentinel.mp4", key: "tour.hero", cineClass: "st-cine-hero" },
       { target: "#rsQuentra", key: "tour.s8", zoom: 1.7, onEnter: storyReveal },
       { target: "#sqlPanel", key: "tour.s9", zoom: 1.45 },
-      { img: "img/06-final.jpg", video: "img/06-final.mp4", key: "tour.s10" },
+      // Video intentionally off: 06-final.mp4 was rendered from the OLD final
+      // still and would cover the new artwork — re-add the path when a clip
+      // matching the new frame is delivered.
+      { img: "img/06-final.jpg", key: "tour.s10" },
     ],
     translate: (step) => ({ title: t(step.key + ".t"), text: t(step.key + ".x") }),
     labels: () => ({
