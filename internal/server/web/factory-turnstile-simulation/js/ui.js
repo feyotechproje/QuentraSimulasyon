@@ -52,21 +52,26 @@ export class UI {
       heatmap: $("heatmap"), bottleneck: $("bottleneck"),
       cwc: $("cwc"), feed: $("accessFeed"),
       pipeline: $("pipeline"), pipeFindTime: $("pipeFindTime"),
-      rwImprove: $("rwImprove"), rwBefore: $("rwBefore"), rwAfter: $("rwAfter"),
+      rwImprove: $("rwImprove"),
       rwBaseAvg: $("rwBaseAvg"), rwQnAvg: $("rwQnAvg"),
       rwBaseBar: $("rwBaseBar"), rwQnBar: $("rwQnBar"),
       rwBaseMeta: $("rwBaseMeta"), rwQnMeta: $("rwQnMeta"),
+      sqSource: $("sqSource"), sqTransport: $("sqTransport"),
+      sqAppSql: $("sqAppSql"), sqDirectSql: $("sqDirectSql"), sqQuentraSql: $("sqQuentraSql"),
+      sqAppTrace: $("sqAppTrace"), sqDirectTrace: $("sqDirectTrace"), sqQnTrace: $("sqQnTrace"),
+      sqDirectBadge: $("sqDirectBadge"), sqQnBadge: $("sqQnBadge"),
       shiftBar: $("shiftBar"), shiftPct: $("shiftPct"),
       shiftEntered: $("shiftEntered"), shiftTarget: $("shiftTarget"),
       selectedPanel: $("selectedPanel"), selTitle: $("selTitle"), selDetail: $("selDetail"),
       shiftStart: $("shiftStart"), shiftCount: $("shiftCount"),
       shiftPresets: $("shiftPresets"), btnShiftStart: $("btnShiftStart"),
     };
+    // The worker-count overlay is opt-in: it opens from the play button when
+    // the banks are idle, never on its own. (It used to auto-show whenever
+    // both banks were idle — so when the shift COMPLETED mid-story, the
+    // blurred card popped up behind the story camera.)
+    this._ssOpen = false;
     this.el.shiftTarget.textContent = fmt(t("shift.target", "target {n}"), { n: this.shiftTarget });
-
-    // Both comparison columns are always live — the banks run simultaneously.
-    if (this.el.rwBefore) this.el.rwBefore.dataset.active = "true";
-    if (this.el.rwAfter) this.el.rwAfter.dataset.active = "true";
 
     this._buildGateGrid();
     this._buildHeatmap();
@@ -151,7 +156,17 @@ export class UI {
   _wireControls() {
     const each = (fn) => this.sims.forEach(fn);
     $("btnPause").addEventListener("click", () => { each((s) => s.pause()); this._syncControls(); });
-    $("btnResume").addEventListener("click", () => { each((s) => s.resume()); this._syncControls(); });
+    // Play: resumes a pause; on an idle/finished floor it OPENS the worker
+    // count dialog instead (the shift never starts without being sized).
+    $("btnResume").addEventListener("click", () => {
+      if (this.sims[0].status === "PAUSED") {
+        each((s) => s.resume());
+        this._syncControls();
+      } else {
+        this._ssOpen = true;
+        this.refresh();
+      }
+    });
     $("btnStop").addEventListener("click", () => { each((s) => s.stop()); this._syncControls(); });
     $("btnReset").addEventListener("click", () => {
       each((s) => s.reset());
@@ -182,8 +197,29 @@ export class UI {
       });
     }
     if (this.el.btnShiftStart) {
-      this.el.btnShiftStart.addEventListener("click", () =>
-        this._startShift(parseInt(this.el.shiftCount && this.el.shiftCount.value, 10)));
+      this.el.btnShiftStart.addEventListener("click", () => {
+        this._ssOpen = false;
+        this.el.shiftStart.hidden = true;
+        this._startShift(parseInt(this.el.shiftCount && this.el.shiftCount.value, 10));
+      });
+    }
+    // Clicking the dimmed backdrop (not the card) closes the dialog.
+    if (this.el.shiftStart) {
+      this.el.shiftStart.addEventListener("click", (ev) => {
+        if (ev.target === this.el.shiftStart) {
+          this._ssOpen = false;
+          this.refresh();
+        }
+      });
+    }
+  }
+
+  /** Story hook: make sure a shift is running WITHOUT showing the picker —
+   *  the story must play over live floors, sized by the current input. */
+  ensureShiftRunning() {
+    if (["IDLE", "STOPPED", "COMPLETED"].includes(this.sims[0].status)) {
+      this._ssOpen = false;
+      this._startShift(parseInt(this.el.shiftCount && this.el.shiftCount.value, 10));
     }
   }
 
@@ -231,8 +267,8 @@ export class UI {
     const lead = this.sims[0];
     const st = lead.status; // IDLE | RUNNING | PAUSED | STOPPED | COMPLETED
     $("btnPause").disabled = !lead.running;
-    // Resume only continues a pause; idle/stopped/completed start via overlay.
-    $("btnResume").disabled = st !== "PAUSED";
+    // Play resumes a pause OR (idle/stopped/completed) opens the size dialog.
+    $("btnResume").disabled = st === "RUNNING";
     const stateMap = { RUNNING: "running", PAUSED: "paused" };
     this.el.statusPill.dataset.state = stateMap[st] || "stopped";
     const labels = {
@@ -260,10 +296,13 @@ export class UI {
     const e = this.el;
     e.clock.textContent = base.clockString();
 
-    // The start overlay covers the floors whenever both banks are idle — the
-    // operator sizes the shift before it begins (retail-style flow).
+    // The start overlay only shows while the banks are idle AND the operator
+    // asked for it (play button) — never on its own, so a shift completing
+    // mid-story can no longer blur the floors behind the story camera.
     if (e.shiftStart) {
-      e.shiftStart.hidden = !["IDLE", "STOPPED", "COMPLETED"].includes(base.status);
+      const idle = ["IDLE", "STOPPED", "COMPLETED"].includes(base.status);
+      if (!idle) this._ssOpen = false;
+      e.shiftStart.hidden = !(idle && this._ssOpen);
     }
 
     // The two query columns fill SIMULTANEOUSLY — each bank feeds its own side.
@@ -297,6 +336,7 @@ export class UI {
     this._renderCurrentCheck();
     this._renderPipeline();
     this._renderRewrite(bStat, qStat, bAvg, qAvg);
+    this._renderSqlTriple();
     this._renderShift(kb, kq);
     this._renderFeed();
     this._renderSelected();
@@ -405,8 +445,12 @@ export class UI {
     }
     const w = ac.worker, g = ac.gate;
     const elapsed = w.checkElapsed || 0;
-    const cls = elapsed >= 7 ? "elapsed-crit" : elapsed >= 2.5 ? "elapsed-slow" : "";
-    const decided = w.check && w.checkElapsed >= (w.check.duration || Infinity);
+    const isLive = !!(w.check && w.check.live) || ac.sim.live;
+    // In live mode the visual clock is narration; only demo escalates its style.
+    const cls = isLive ? "" : elapsed >= 7 ? "elapsed-crit" : elapsed >= 2.5 ? "elapsed-slow" : "";
+    // Decided = the state machine already ran _resolve (async-safe: the check
+    // may arrive late, so elapsed-vs-duration alone is not enough).
+    const decided = !!w.check && w.state !== WORKER_STATE.CHECKING_LAST_MOVEMENT;
     const result = decided ? this._decisionChip(w.state) : `<span class="chip checking">${t("chip.running", "RUNNING")}</span>`;
     const lastMove = decided && w.check ? this._movementLabel(w.check.lastMovement) : "—";
     const decision = decided
@@ -422,6 +466,12 @@ export class UI {
       `<div class="cwc-row"><span class="k">${t("cwc.currentOperation", "Current Operation")}</span><span class="v">${t("cwc.currentOperation.value", "Searching latest movement")}</span></div>` +
       `<div class="cwc-row"><span class="k">${t("cwc.queryStatus", "Query Status")}</span><span class="v">${result}</span></div>` +
       `<div class="cwc-row"><span class="k">${t("cwc.elapsed", "Elapsed")}</span><span class="v elapsed-big ${cls}">${elapsed.toFixed(1)}s</span></div>` +
+      // Two separate clocks in live mode: the REAL query time (KPI input) vs
+      // the visual narration time shown above.
+      (w.check && w.check.live
+        ? `<div class="cwc-row"><span class="k">${t("cwc.sqlMs", "Real SQL time")}</span><span class="v">${(w.check.sqlMs || 0).toFixed(1)} ms</span></div>` +
+          (w.check.traceId ? `<div class="cwc-row"><span class="k">${t("cwc.trace", "Trace")}</span><span class="v">${w.check.traceId}</span></div>` : "")
+        : "") +
       `<div class="cwc-row"><span class="k">${t("cwc.previousMovement", "Previous Movement")}</span><span class="v">${lastMove}</span></div>` +
       `<div class="cwc-row"><span class="k">${t("cwc.decision", "Decision")}</span><span class="v">${decision}</span></div>`;
   }
@@ -452,11 +502,74 @@ export class UI {
     openStep.querySelector(".ps-time").textContent = opening ? "0.4s" : "—";
   }
 
+  // The three-column query journey: what the app SENT (always the bad ad-hoc
+  // statement) vs what SQL Server RECEIVED on each route. Demo mode shows the
+  // representative texts; live mode shows the DMV-captured statements of the
+  // most recent real card check, tied together by its traceId.
+  _renderSqlTriple() {
+    const e = this.el;
+    if (!e.sqAppSql) return;
+    const live = this.sims.some((s) => s.live);
+    const lc = this.sims
+      .map((s) => s.lastLiveCheck)
+      .filter(Boolean)
+      .sort((a, b) => (b.at || 0) - (a.at || 0))[0];
+
+    if (!live || !lc) {
+      e.sqSource.textContent = t("sq.source.demo", "REPRESENTATIVE");
+      e.sqSource.dataset.tone = "demo";
+      e.sqAppSql.textContent = t("sq.app.sql",
+        "SELECT TOP 1 LOGICALREF, TARIH, HAREKET_TIPI\nFROM dbo.PERSONEL_HAREKET\nWHERE PERSONELREF = 11249   -- NO date boundary\nORDER BY TARIH DESC; /*ACC-XXXXXX*/");
+      e.sqDirectSql.textContent = t("sq.direct.sql",
+        "-- SQL Server received the SAME query\n-- the employee's ENTIRE history is scanned\n-- millions of rows read, each check takes seconds");
+      e.sqQuentraSql.textContent = t("sq.quentra.sql",
+        "-- With a matching rule Quentra rewrites in flight:\nSELECT TOP (1) LOGICALREF, TARIH, HAREKET_TIPI\nFROM dbo.PERSONEL_HAREKET\nWHERE PERSONELREF = 11249\n  AND TARIH >= DATEADD(DAY, -10, GETDATE())   -- last 10 days is enough\nORDER BY TARIH DESC");
+      e.sqAppTrace.textContent = "—";
+      e.sqDirectTrace.textContent = "—";
+      e.sqQnTrace.textContent = "—";
+      e.sqDirectBadge.textContent = t("sq.direct.badge", "Rewrite: none");
+      e.sqQnBadge.textContent = t("sq.quentra.waiting", "Awaiting rule");
+      e.sqQnBadge.dataset.tone = "";
+      // The demo rewrite narrows the scan window; the transport itself is
+      // untouched (live mode overwrites this with what really happened).
+      e.sqTransport.textContent = "SQLBatch → SQLBatch";
+      return;
+    }
+
+    e.sqSource.textContent = t("sq.source.live", "LIVE · MEASURED");
+    e.sqSource.dataset.tone = "live";
+    e.sqAppSql.textContent = lc.applicationSql || "—";
+    e.sqDirectSql.textContent = lc.directBackendSql || "—";
+    e.sqQuentraSql.textContent = lc.gatewayUp
+      ? (lc.quentraBackendSql || "—")
+      : t("sq.quentra.down", "Quentra gateway down — query was NOT sent");
+    const traceTxt = fmt(t("sq.trace", "trace {id} · {emp} · {gate}"), {
+      id: lc.traceId || "—", emp: lc.employeeId || "—", gate: lc.gate || "—",
+    });
+    e.sqAppTrace.textContent = traceTxt;
+    e.sqDirectTrace.textContent = traceTxt;
+    e.sqQnTrace.textContent = traceTxt;
+    e.sqDirectBadge.textContent = t("sq.direct.badge", "Rewrite: none");
+    if (!lc.gatewayUp) {
+      e.sqQnBadge.textContent = t("sq.quentra.gwdown", "Gateway DOWN");
+      e.sqQnBadge.dataset.tone = "bad";
+    } else if (lc.ruleMatched) {
+      e.sqQnBadge.textContent = t("sq.quentra.matched", "Rule matched · MEASURED");
+      e.sqQnBadge.dataset.tone = "ok";
+    } else {
+      e.sqQnBadge.textContent = t("sq.quentra.nomatch", "No rule — passed through unchanged");
+      e.sqQnBadge.dataset.tone = "warn";
+    }
+    e.sqTransport.textContent = (lc.inputTransport || "SQLBatch") + " → " + (lc.outputTransport || "SQLBatch");
+  }
+
   _renderRewrite(bStat, qStat, bAvg, qAvg) {
     const e = this.el;
     const maxAvg = Math.max(bAvg, qAvg, 0.01);
-    e.rwBaseAvg.textContent = bStat.n ? bAvg.toFixed(2) + "s" : "—";
-    e.rwQnAvg.textContent = qStat.n ? qAvg.toFixed(2) + "s" : "—";
+    // formatQueryDuration renders sub-second (live) averages in ms and demo
+    // averages in seconds, so both modes stay readable.
+    e.rwBaseAvg.textContent = bStat.n ? formatQueryDuration(bAvg) : "—";
+    e.rwQnAvg.textContent = qStat.n ? formatQueryDuration(qAvg) : "—";
     e.rwBaseBar.style.width = (bStat.n ? (bAvg / maxAvg) * 100 : 0) + "%";
     e.rwQnBar.style.width = (qStat.n ? (qAvg / maxAvg) * 100 : 0) + "%";
     e.rwBaseMeta.textContent = fmt(t("rewrite.checksDetail", "{n} checks · {slow} slow · {timeouts} timeout"),
@@ -519,6 +632,13 @@ export class UI {
       "ENTRY APPROVED": "msg.entryApproved",
       "ACCESS DENIED": "msg.accessDenied",
       "MANUAL REVIEW": "msg.manualReview",
+      // Live pipeline narration (async state machine).
+      "QUERY SENT": "msg.querySent",
+      "WAITING RESULT": "msg.waitingResult",
+      "RULE MATCHED": "msg.ruleMatched",
+      "QUERY REWRITTEN": "msg.queryRewritten",
+      "DB EXECUTING": "msg.dbExecuting",
+      "RESULT RECEIVED": "msg.resultReceived",
     };
     const key = map[line];
     return key ? t(key, line) : line;

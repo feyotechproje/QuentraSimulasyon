@@ -34,12 +34,16 @@ type ttsRequest struct {
 // ttsVoiceID maps a logical speaker role from the request to a configured
 // ElevenLabs voice. Unknown roles fall back to the narrator, so a stale
 // client can never make the server synthesize with an arbitrary voice id.
+// The factory story's characters reuse the hospital cast where the profile
+// matches (Can ≈ engineer, Mehmet ≈ manager) so their clips share the cache.
 func (s *Server) ttsVoiceID(role string) string {
 	switch role {
-	case "manager":
+	case "manager", "mehmet":
 		return s.cfg.ElevenVoiceManager
-	case "engineer":
+	case "engineer", "can":
 		return s.cfg.ElevenVoiceEngineer
+	case "elif":
+		return s.cfg.ElevenVoiceElif
 	default:
 		return s.cfg.ElevenVoice
 	}

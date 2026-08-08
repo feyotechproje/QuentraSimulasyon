@@ -39,12 +39,14 @@ type Config struct {
 	// /api/tts answers 503 and the story plays silently. Clips are cached on
 	// disk (tts_cache/), so each narration line costs one API call ever.
 	// Character voices speak the in-story dialogue lines (speech bubbles):
-	// the IT manager and the support engineer each get their own voice.
+	// the IT manager and the support engineer each get their own voice; the
+	// factory story adds a female shift supervisor (Elif).
 	ElevenKey           string
 	ElevenVoice         string
 	ElevenModel         string
 	ElevenVoiceManager  string
 	ElevenVoiceEngineer string
+	ElevenVoiceElif     string
 }
 
 // Load reads configuration from the process environment, optionally seeded
@@ -75,6 +77,10 @@ func Load() *Config {
 		// natural, casual). Both speak Turkish under the multilingual models.
 		ElevenVoiceManager:  getEnv("ELEVENLABS_VOICE_MANAGER", "nPczCjzI2devNBz1zQrb"),
 		ElevenVoiceEngineer: getEnv("ELEVENLABS_VOICE_ENGINEER", "iP95p4xoKVk53GoZ742B"),
+		// Factory story: Elif, the shift supervisor — a composed woman in her
+		// thirties (Sarah — clear, professional). Speaks Turkish under the
+		// multilingual models like the others.
+		ElevenVoiceElif: getEnv("ELEVENLABS_VOICE_ELIF", "EXAVITQu4vr4xnSDxMaL"),
 	}
 	return c
 }

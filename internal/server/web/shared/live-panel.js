@@ -117,6 +117,8 @@ export function mountLivePanel(opts) {
     if (isLive) { card.hidden = false; noteEl.textContent = ''; live.enable(); }
     else if (persist) { live.disable(); resetCells(); noteEl.textContent = opts.demoNote || ''; }
     else { live.disable(); card.hidden = true; }
+    // Let the page react too (e.g. swap the simulation's data source).
+    if (opts.onToggle) opts.onToggle(isLive);
   });
 
   // A persistent docked card is visible from the start (Demo mode) with a prompt;

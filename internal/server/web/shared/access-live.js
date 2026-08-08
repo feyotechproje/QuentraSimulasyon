@@ -1,8 +1,13 @@
 // access-live.js — shared live wiring for the turnstile and factory-turnstile
 // demos. Both ask the same "son hareket sorgusu" (last-movement) question, so
 // they share one backend (/api/access/*) running against the TIGERMARKET ERP
-// database: ad-hoc concatenated lookups (single-use plans, constant compiles)
-// vs the parameterized Quentra path (one reused plan). All numbers are measured.
+// database. The application sends the SAME bad ad-hoc statement on both routes;
+// only the Quentra gateway (given a rule) rewrites it — measured via DMV
+// capture, never asserted.
+//
+// Since the turnstile floor itself is now the main live proof (each card read
+// can be a REAL /api/access/check query), this card's role is the summary:
+// totals, rewrite counts, rule status, gateway state and the last traceId.
 import { mountLivePanel } from '/shared/live-panel.js';
 import { fmt } from '/shared/live-workload.js';
 
@@ -16,35 +21,39 @@ function speedup(s) {
 
 // workloadId is the portal key for the page ("turnstile" or
 // "factory-turnstile-simulation"); both drive the same access manager.
-export function initAccessLive(workloadId, accent) {
+// opts.onToggle(isLive) lets the page switch its own data source in sync with
+// the card's Demo/Canlı control.
+export function initAccessLive(workloadId, accent, opts = {}) {
   const isFactory = workloadId === 'factory-turnstile-simulation';
   const panel = mountLivePanel({
     sim: 'access',
     workloadId,
     // The factory page has no DB badge and no in-card mode switch: the query
-    // path is already chosen from the top toolbar's Sorgu (Temel/Quentra)
-    // control, so repeating it here just clutters the card.
+    // path is fixed per bank (left direct, right Quentra).
     db: isFactory ? '' : 'TIGERMARKET',
     accent: accent || '#5eead4',
     // On the factory page the Demo/Canlı toggle lives on the merged status row
     // (next to sim time + shift); the turnstile page keeps it on the controls.
     anchor: isFactory ? '.toolbar-status' : '.toolbar-controls',
     mount: isFactory ? '.side' : null,
+    onToggle: opts.onToggle,
     modes: isFactory ? null : [
       { label: 'Direkt', mode: 'baseline' },
       { label: 'Quentra', mode: 'quentra' },
       { label: 'Otomatik', mode: 'auto' },
     ],
-    // Both routes now run the IDENTICAL parameterized last-movement lookup; the
-    // only difference is the path — direct to SQL Server (localhost) vs through
-    // the Quentra gateway (:14330). So the metrics compare the two connections
-    // on the same query rather than telling an ad-hoc-vs-parameterized story.
+    // Summary role: gateway + rule state prove HOW the comparison ran; the
+    // counters aggregate the real workload and the floor's live card checks.
     fields: [
+      { label: 'Gateway (:14330)', get: (s) => (s.gatewayUp ? 'AÇIK' : 'KAPALI'), tone: (s) => (s.gatewayUp ? 'ok' : 'bad') },
+      { label: 'Rewrite Kuralı', get: (s) => (s.ruleMatched ? 'EŞLEŞTİ · ÖLÇÜLDÜ' : 'YOK'), tone: (s) => (s.ruleMatched ? 'ok' : 'warn') },
+      { label: 'Canlı Kart Kontrolü', get: (s) => fmt.int(s.checksTotal) },
+      { label: 'Rewrite Sayısı', get: (s) => fmt.int(s.checkRewrites) },
+      { label: 'Son Trace', get: (s) => s.lastTraceId || '—' },
       { label: 'Hızlanma', get: speedup, tone: (s) => (s.refAvgMs > 0 && s.quentraAvgMs > 0 && s.refAvgMs / s.quentraAvgMs >= 2 ? 'ok' : 'warn') },
-      { label: 'Direkt Ort. (localhost)', get: (s) => fmt.ms(s.refAvgMs), tone: () => 'warn' },
+      { label: 'Direkt Ort. (:1433)', get: (s) => fmt.ms(s.refAvgMs), tone: () => 'warn' },
       { label: 'Quentra Ort. (:14330)', get: (s) => fmt.ms(s.quentraAvgMs), tone: () => 'ok' },
-      { label: 'Son Hareket/sn', get: (s) => fmt.int(s.queriesPerSec) },
-      { label: 'Toplam Kontrol', get: (s) => fmt.int(s.queriesTotal) },
+      { label: 'Toplam Sorgu', get: (s) => fmt.int(s.queriesTotal) },
       { label: 'Son Sorgu', get: (s) => fmt.ms(s.lastMs) },
     ],
     // Show only the few most recent lookups so the docked card's feed stays

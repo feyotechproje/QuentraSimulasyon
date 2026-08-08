@@ -125,6 +125,9 @@ func (s *Server) Handler() http.Handler {
 	// Turnstile / factory access "last movement" real-DB workload endpoints.
 	mux.HandleFunc("GET /api/access/state", s.handleLiveState(func() any { return s.accessState() }))
 	mux.HandleFunc("POST /api/access/mode", s.handleAccessMode)
+	// One REAL card check for one on-screen worker: bad SQL on the chosen
+	// route, DMV-captured backend text, decision from the returned row.
+	mux.HandleFunc("POST /api/access/check", s.handleAccessCheck)
 
 	// Hospital remote-support data-masking real-DB workload endpoints.
 	mux.HandleFunc("GET /api/hospital/state", s.handleLiveState(func() any { return s.hospitalState() }))

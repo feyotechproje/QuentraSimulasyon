@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+
+	"supermarketsim/internal/access"
 )
 
 // handleLiveState wraps a manager snapshot getter into a GET handler. The getter
@@ -74,6 +76,27 @@ func (s *Server) handleAccessMode(w http.ResponseWriter, r *http.Request) {
 		s.access.SetMode(mode)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "mode": mode})
+}
+
+// handleAccessCheck runs one real card check for one on-screen worker: the bad
+// application statement travels the requested route (direct :1433 or Quentra
+// :14330 — never a silent fallback), the backend text is DMV-captured with the
+// check's traceId, and the turnstile decision derives from the returned row.
+func (s *Server) handleAccessCheck(w http.ResponseWriter, r *http.Request) {
+	var req access.CheckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if s.access == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"source": "live", "gatewayUp": false, "ruleMatched": false,
+			"decision": "MANUAL_REVIEW", "evidence": "unavailable",
+			"error": "access workload kullanılamıyor",
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.access.Check(r.Context(), req))
 }
 
 // ---- Hospital remote-support data masking ----

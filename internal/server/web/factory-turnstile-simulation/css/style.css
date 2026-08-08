@@ -239,7 +239,7 @@ body {
 .rewrite-panel { flex: 0 0 auto; }
 .rw-improve { color: var(--accent); background: var(--purple-bg); }
 .rewrite { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 14px; }
-.rw-col { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface-2); position: relative; transition: .18s; }
+.rw-col { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface-2); position: relative; transition: .18s; }
 .rw-col[data-active="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(109,94,252,.12); background: #fff; }
 .rw-before[data-active="true"] { border-color: var(--warn); box-shadow: 0 0 0 3px rgba(217,119,6,.12); }
 .rw-col-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
@@ -258,6 +258,21 @@ body {
 .rw-bar > i.slow { background: linear-gradient(90deg,#f5b301,#f97316); }
 .rw-bar > i.fast { background: linear-gradient(90deg,#22c55e,#16a34a); }
 .rw-meta { font-size: 10.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+/* Three-column query journey: app → direct route → Quentra route.
+   minmax(0,1fr): a plain 1fr cannot shrink below the column's min-content,
+   so the nowrap trace lines used to push the columns out of the panel and
+   over the pipeline beside it (showed up badly under the story zoom). */
+.rewrite-3col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sq-app { border-color: var(--border); }
+.sq-src { color: var(--muted); background: var(--surface-2); }
+.sq-src[data-tone="live"] { color: var(--good); background: var(--good-bg); }
+.sq-badge { font-size: 9.5px; font-weight: 800; letter-spacing: .4px; padding: 2px 7px; border-radius: 6px; white-space: nowrap; color: var(--muted); background: var(--surface-2); }
+.sq-badge[data-tone="ok"] { color: var(--good); background: var(--good-bg); }
+.sq-badge[data-tone="warn"] { color: var(--warn); background: var(--warn-bg); }
+.sq-badge[data-tone="bad"] { color: var(--bad); background: var(--bad-bg); }
+.sq-transport { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--accent); margin: -2px 0 7px; letter-spacing: .3px; }
+.sq-trace { margin-top: 8px; font-family: var(--mono); font-size: 10px; color: var(--faint); border-top: 1px dashed var(--border); padding-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Current worker check */
 .cwc { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -352,6 +367,9 @@ body {
   .side { max-height: none; overflow: visible; }
   .kpi-strip { grid-template-columns: repeat(6, 1fr); }
   .toolbar-controls { margin-left: 0; width: 100%; justify-content: center; flex-wrap: wrap; }
+}
+@media (max-width: 1180px) {
+  .rewrite-3col { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .kpi-strip { grid-template-columns: repeat(4, 1fr); }

@@ -22,14 +22,16 @@ const SOFT_CAP = 120; // per bank — the store runs two banks side by side
 const MANUAL_LINGER = 7;
 
 // Maps the fixed English "reason" strings produced by access-check.js's
-// rollOutcome() to i18n dictionary keys, so the event feed can be re-rendered
-// in the active language on toggle without re-simulating anything.
+// rollOutcome() (and the live API) to i18n dictionary keys, so the event feed
+// can be re-rendered in the active language on toggle without re-simulating.
 const REASON_KEY = {
   "Last movement EXIT": "reason.lastExit",
   "Previous movement already ENTRY": "reason.alreadyEntry",
   "No previous movement found": "reason.noMovement",
   "Movement query timeout": "reason.timeout",
   "Invalid card": "reason.invalidCard",
+  "Movement query failed": "reason.queryFailed",
+  "Quentra gateway unreachable": "reason.gatewayDown",
 };
 function reasonKey(reason) {
   return REASON_KEY[reason] || null;
@@ -49,8 +51,26 @@ export class Simulation {
     this.fixedMode = opts.mode === "quentra" ? "quentra" : "baseline";
     this.world = createWorld(this.gateCount);
     this.dataSource = new InMemoryFactoryAccessDataSource();
+    // live: turnstile decisions come from the real API (async requestCheck);
+    // demo: the in-memory source fabricates them synchronously.
+    this.live = false;
+    // Most recent resolved LIVE check (with SQL texts + traceId) — feeds the
+    // three-column SQL comparison panel.
+    this.lastLiveCheck = null;
     this.events = new EventLog(60);
     this.reset();
+  }
+
+  /** Swap the decision source: in-memory demo vs live API. Applies to checks
+   *  started AFTER the call; in-flight ones finish on their old source. */
+  setDataSource(ds, live) {
+    this.dataSource = ds;
+    this.live = !!live;
+    if (ds instanceof InMemoryFactoryAccessDataSource) {
+      ds.profile = this.fixedMode === "quentra"
+        ? SimulationProfile.QuentraOptimized
+        : SimulationProfile.SlowBaseline;
+    }
   }
 
   reset() {
@@ -63,9 +83,11 @@ export class Simulation {
     // Total workers this bank will admit for the shift; 0 = not started yet.
     this.totalWorkers = 0;
     this.mode = this.fixedMode;
-    this.dataSource.profile = this.fixedMode === "quentra"
-      ? SimulationProfile.QuentraOptimized
-      : SimulationProfile.SlowBaseline;
+    if (this.dataSource instanceof InMemoryFactoryAccessDataSource) {
+      this.dataSource.profile = this.fixedMode === "quentra"
+        ? SimulationProfile.QuentraOptimized
+        : SimulationProfile.SlowBaseline;
+    }
     this.compare = {
       baseline: { sum: 0, n: 0, slow: 0, timeouts: 0, entries: 0 },
       quentra: { sum: 0, n: 0, slow: 0, timeouts: 0, entries: 0 },
@@ -212,14 +234,42 @@ export class Simulation {
           w.stateTimer -= dt;
           if (w.stateTimer <= 0) {
             w.state = WORKER_STATE.CHECKING_LAST_MOVEMENT;
-            w.check = this.dataSource.requestCheck(w);
-            w.check.mode = this.mode;
+            // Async contract: the gate stays CHECKING until the data source
+            // resolves. The in-memory source resolves next microtask (visually
+            // identical to the old sync path); the live source resolves when
+            // the REAL query round-trip completes — _resolve never runs on a
+            // fabricated result.
+            w.check = null;
+            w.checkPending = true;
             w.checkElapsed = 0;
+            w.resultAt = -1;
             w._slowLogged = false;
             gate.checkTimer = 0;
             gate.state = GATE_STATE.CHECKING;
             gate.light = LIGHT.YELLOW;
-            gate.message.line = "CHECKING LAST MOVEMENT";
+            gate.message.line = this.live ? "QUERY SENT" : "CHECKING LAST MOVEMENT";
+            const route = this.fixedMode === "quentra" ? "quentra" : "direct";
+            Promise.resolve(this.dataSource.requestCheck(w, gate, route))
+              .catch((err) => ({
+                requestedAction: "ENTRY",
+                rule: "Previous movement must be EXIT",
+                lastMovement: "NONE",
+                decision: "MANUAL_REVIEW",
+                reason: "Movement query failed",
+                duration: 0.6,
+                sqlMs: 0,
+                slow: false,
+                timeout: true,
+                live: this.live,
+                error: String(err && err.message ? err.message : err),
+              }))
+              .then((res) => {
+                if (!w.checkPending) return; // reset happened mid-flight
+                res.mode = this.mode;
+                w.check = res;
+                w.checkPending = false;
+                w.resultAt = w.checkElapsed;
+              });
             this.events.push(
               this.clockString(),
               `${w.employeeId} presented card at ${gate.label}`,
@@ -242,18 +292,41 @@ export class Simulation {
         w.checkElapsed += dt;
         gate.checkTimer += dt;
         gate.light = LIGHT.YELLOW;
-        gate.message.line = `QUERY ${w.checkElapsed.toFixed(1)}s`;
-        if (!w._slowLogged && w.check.slow && w.checkElapsed >= this.dataSource.profile.slowThreshold) {
-          w._slowLogged = true;
-          this.events.push(
-            this.clockString(),
-            `Slow query detected: ${w.check.duration.toFixed(1)} sec · ${gate.label}`,
-            "warn",
-            "feed.slowQuery",
-            { sec: w.check.duration.toFixed(1), gate: gate.label },
-          );
+        if (!w.check) {
+          // Result not in yet — in live mode this is the REAL network+SQL wait.
+          gate.message.line = this.live
+            ? "WAITING RESULT"
+            : `QUERY ${w.checkElapsed.toFixed(1)}s`;
+          break;
         }
-        if (w.checkElapsed >= w.check.duration) this._resolve(gate, w);
+        gate.message.line = w.check.live
+          ? this._livePhaseLine(w)
+          : `QUERY ${w.checkElapsed.toFixed(1)}s`;
+        if (!w._slowLogged && w.check.slow) {
+          if (w.check.live) {
+            w._slowLogged = true;
+            this.events.push(
+              this.clockString(),
+              `Slow query detected: ${w.check.sqlMs.toFixed(0)} ms · ${gate.label}`,
+              "warn",
+              "feed.slowQueryMs",
+              { ms: w.check.sqlMs.toFixed(0), gate: gate.label },
+            );
+          } else if (w.checkElapsed >= this.dataSource.profile.slowThreshold) {
+            w._slowLogged = true;
+            this.events.push(
+              this.clockString(),
+              `Slow query detected: ${w.check.duration.toFixed(1)} sec · ${gate.label}`,
+              "warn",
+              "feed.slowQuery",
+              { sec: w.check.duration.toFixed(1), gate: gate.label },
+            );
+          }
+        }
+        // The visual hold starts when the result actually arrived (resultAt);
+        // demo results arrive at ~0 so this matches the old behaviour.
+        const doneAt = (w.resultAt > 0 ? w.resultAt : 0) + w.check.duration;
+        if (w.checkElapsed >= doneAt) this._resolve(gate, w);
         break;
       }
       case GATE_STATE.OPENING: {
@@ -307,19 +380,45 @@ export class Simulation {
     }
   }
 
+  // Narrates the live pipeline on the gate LCD once the real result is in:
+  // rule matched → rewritten → executed → result (Quentra with a rule), or
+  // executing → result (direct / no rule). Presentation only — the decision
+  // is already fixed by the API response.
+  _livePhaseLine(w) {
+    const c = w.check;
+    const f = Math.max(0, (w.checkElapsed - (w.resultAt > 0 ? w.resultAt : 0)) / (c.duration || 1));
+    if (c.mode === "quentra" && c.ruleMatched) {
+      if (f < 0.25) return "RULE MATCHED";
+      if (f < 0.5) return "QUERY REWRITTEN";
+      if (f < 0.75) return "DB EXECUTING";
+      return "RESULT RECEIVED";
+    }
+    if (f < 0.5) return "DB EXECUTING";
+    return "RESULT RECEIVED";
+  }
+
   _resolve(gate, w) {
     const c = w.check;
-    gate.recordCheck(c.duration, c.decision, c.timeout);
-    this.sumCheckTime += c.duration;
+    // KPIs use the REAL query time for live checks (sqlMs), the fabricated
+    // profile duration for demo checks. The visual hold never leaks into the
+    // measured numbers.
+    const secs = c.live ? (c.sqlMs || 0) / 1000 : c.duration;
+    gate.recordCheck(secs, c.decision, c.timeout);
+    this.sumCheckTime += secs;
     this.checkSamples++;
     if (c.slow) this.slowChecks++;
     if (c.timeout) this.queryTimeouts++;
     const cs = this.compare[c.mode] || this.compare[this.mode];
-    cs.sum += c.duration;
+    cs.sum += secs;
     cs.n++;
     if (c.slow) cs.slow++;
     if (c.timeout) cs.timeouts++;
     if (c.decision === "ENTRY_APPROVED") cs.entries++;
+    if (c.live) {
+      // Feeds the three-column SQL panel: the last card read whose statements
+      // were captured, tied together by the traceId.
+      this.lastLiveCheck = { ...c, gate: gate.label, employeeId: w.employeeId, workerName: w.displayName, at: Date.now() };
+    }
     gate.message.name = w.displayName;
     gate.message.sub = `Last movement: ${c.lastMovement}`;
 
@@ -369,6 +468,17 @@ export class Simulation {
         "manual",
         "feed.manualReview",
         { gate: gate.label, reason: c.reason, reasonKey: reasonKey(c.reason) },
+      );
+    }
+
+    // Live proof line: tie the on-screen decision to the measured query.
+    if (c.live && c.traceId) {
+      this.events.push(
+        this.clockString(),
+        `Live check ${c.traceId} · ${(c.sqlMs || 0).toFixed(1)} ms · ${gate.label}`,
+        "info",
+        "feed.liveTrace",
+        { trace: c.traceId, ms: (c.sqlMs || 0).toFixed(1), gate: gate.label },
       );
     }
   }

@@ -1,23 +1,25 @@
 // Package access runs the REAL "last movement" workload behind the turnstile
 // and factory-turnstile demo pages. It queries the pre-existing TIGERMARKET ERP
-// database for the most recent stock movement of a random key — the direct
-// analogue of a turnstile asking "what was this person's last access event?".
+// database for the most recent stock movement of a key — the direct analogue of
+// a turnstile asking "what was this person's last access event?".
 //
-// Two modes are executed and measured for real:
+// The APPLICATION always sends the same BAD ad-hoc statement (literal key +
+// unique marker → a new single-use plan per execution). The two modes differ
+// only in the route that statement travels:
 //
-//   - "baseline": the key is concatenated into the statement text with a unique
-//     marker, so every query is a new single-use plan (plan-cache bloat,
-//     constant compilations).
-//   - "quentra":  the identical lookup, parameterized, so one plan is compiled
-//     and reused.
+//   - "baseline": straight to SQL Server (:1433) — nothing rewrites it.
+//   - "quentra":  through the Quentra gateway (:14330) — rewritten ONLY when a
+//     matching gateway rule exists; otherwise it passes through unchanged.
 //
-// Plan-cache counts, compilations/sec and latency are sampled from SQL Server
-// DMVs, so the UI shows measured numbers.
+// What SQL Server actually received on each route is captured from its DMVs,
+// so the UI never claims a rewrite that did not happen. Plan-cache counts,
+// compilations/sec and latency are sampled from DMVs too — measured numbers.
 package access
 
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"math/rand"
 	"strings"
 	"sync"
@@ -74,10 +76,23 @@ type Metrics struct {
 	LastKey int   `json:"lastKey"`
 	LastRef int64 `json:"lastRef"`
 
-	// Connection proof + the exact SQL each path sends.
-	GatewayUp  bool   `json:"gatewayUp"`
-	DirectSQL  string `json:"directSql"`
-	QuentraSQL string `json:"quentraSql"`
+	// Connection proof + the three statement texts of the query model:
+	// ApplicationSQL is what the app sends (identical on both routes),
+	// DirectSQL / QuentraSQL are what SQL Server actually received on each
+	// route (DMV capture; static fallback until the first capture lands).
+	// RuleMatched is true only when the captured Quentra text differs from
+	// the captured direct text — i.e. a real gateway rewrite fired.
+	GatewayUp      bool   `json:"gatewayUp"`
+	ApplicationSQL string `json:"applicationSql"`
+	DirectSQL      string `json:"directSql"`
+	QuentraSQL     string `json:"quentraSql"`
+	RuleMatched    bool   `json:"ruleMatched"`
+
+	// Live card-check counters (POST /api/access/check).
+	ChecksTotal   int64   `json:"checksTotal"`
+	CheckRewrites int64   `json:"checkRewrites"`
+	LastTraceID   string  `json:"lastTraceId"`
+	LastCheckMs   float64 `json:"lastCheckMs"`
 
 	Recent     []MovementEvent `json:"recent"`
 	LastError  string          `json:"lastError"`
@@ -111,6 +126,16 @@ type Manager struct {
 	refCount  atomic.Int64
 	quenSumNs atomic.Int64
 	quenCount atomic.Int64
+
+	// adhocSeq makes each application statement's marker unique, so every
+	// execution compiles a fresh single-use plan (the plan-cache lesson).
+	adhocSeq atomic.Int64
+
+	// Live card-check counters (Check()).
+	checkTotal    atomic.Int64
+	checkRewrites atomic.Int64
+	lastTrace     atomic.Value // string
+	lastCheckNs   atomic.Int64
 
 	errMu   sync.RWMutex
 	lastErr string
@@ -175,7 +200,18 @@ func (m *Manager) State() Metrics {
 	out.LastKey = int(m.lastKey.Load())
 	out.LastRef = m.lastRef.Load()
 	out.GatewayUp = m.gatewayUp.Load()
-	out.DirectSQL, out.QuentraSQL = m.displaySQL()
+	out.DirectSQL, out.QuentraSQL, out.RuleMatched = m.displaySQL()
+	lastKey := int(m.lastKey.Load())
+	if lastKey <= 0 {
+		lastKey = keyMin
+	}
+	out.ApplicationSQL = applicationSQL(lastKey, "ACC-XXXXXX")
+	out.ChecksTotal = m.checkTotal.Load()
+	out.CheckRewrites = m.checkRewrites.Load()
+	if v, ok := m.lastTrace.Load().(string); ok {
+		out.LastTraceID = v
+	}
+	out.LastCheckMs = round2(float64(m.lastCheckNs.Load()) / 1e6)
 	m.errMu.RLock()
 	out.LastError = m.lastErr
 	m.errMu.RUnlock()
@@ -185,19 +221,23 @@ func (m *Manager) State() Metrics {
 	return out
 }
 
-// displaySQL returns the SQL shown in the direct and Quentra panels. While the
-// workload runs it reports what each route's backend session ACTUALLY executed,
-// captured from SQL Server's DMVs — so a gateway rewrite shows up for real
-// instead of a hand-authored string. When idle (or before the first capture) it
-// falls back to the static reference statements.
-func (m *Manager) displaySQL() (string, string) {
+// displaySQL returns the SQL shown in the direct and Quentra panels plus
+// whether a real gateway rewrite was observed. While the workload runs it
+// reports what each route's backend session ACTUALLY executed for the SAME bad
+// application statement, captured from SQL Server's DMVs — so a gateway
+// rewrite shows up for real instead of a hand-authored string. When idle (or
+// before the first capture) it falls back to the static reference statements.
+func (m *Manager) displaySQL() (string, string, bool) {
 	if m.running.Load() && m.db != nil {
-		key := m.lastKey.Load()
+		key := int(m.lastKey.Load())
 		if key <= 0 {
 			key = keyMin
 		}
+		// Both capture legs run the SAME application statement (fixed marker so
+		// the cache key stays stable); only the route differs.
+		appSQL := applicationSQL(key, "ACC-CAPTURE")
 		run := func(ctx context.Context, conn *sql.Conn) error {
-			rows, err := conn.QueryContext(ctx, quentraSQL, sql.Named("key", key))
+			rows, err := conn.QueryContext(ctx, appSQL)
 			if err != nil {
 				return err
 			}
@@ -206,11 +246,24 @@ func (m *Manager) displaySQL() (string, string) {
 			}
 			return rows.Err()
 		}
-		if d, q, ok := m.capCache.Get(m.db, m.gw, "movement", run); ok {
-			return d, q
+		if d, q, ok := m.capCache.Get(m.db, m.gw, "movement-adhoc", run); ok {
+			return d, q, sqlDiffers(d, q)
 		}
 	}
-	return directDisplaySQL(), quentraDisplaySQL()
+	return directDisplaySQL(), quentraDisplaySQL(), false
+}
+
+// sqlDiffers reports whether the two captured statements differ beyond
+// whitespace — i.e. the gateway really rewrote the query.
+func sqlDiffers(direct, quentra string) bool {
+	if direct == "" || quentra == "" {
+		return false
+	}
+	return normalizeSQL(direct) != normalizeSQL(quentra)
+}
+
+func normalizeSQL(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // Provision opens the pool and verifies the movement table is reachable.
@@ -344,24 +397,30 @@ func (m *Manager) worker(id int, stop <-chan struct{}) {
 		key := keyMin + rng.Intn(keyMax-keyMin+1)
 		path := m.pathFor(iter)
 
+		// The application's BAD statement: literal key + unique marker, so SQL
+		// Server compiles a single-use plan per execution. BOTH routes send this
+		// same text — the only difference is whether the Quentra gateway sits in
+		// between and (given a matching rule) rewrites it.
+		appSQL := applicationSQL(key, fmt.Sprintf("adhoc-%d", m.adhocSeq.Add(1)))
+
 		ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 		start := time.Now()
 		var (
-			ref            int64
-			date           sql.NullTime
-			amount, price  sql.NullFloat64
-			trcode         sql.NullInt64
-			err            error
+			ref           int64
+			date          sql.NullTime
+			amount, price sql.NullFloat64
+			trcode        sql.NullInt64
+			err           error
 		)
 		if path == "quentra" {
-			// Same parameterized lookup, routed through the Quentra gateway (:14330).
-			err = m.quentraPool().QueryRowContext(ctx, quentraSQL, sql.Named("key", key)).
+			// Same bad SQL, routed through the Quentra gateway (:14330). Any
+			// improvement here is the gateway's own doing (rewrite rule), not
+			// application code sending a nicer query.
+			err = m.quentraPool().QueryRowContext(ctx, appSQL).
 				Scan(&ref, &date, &amount, &price, &trcode)
 		} else {
-			// Identical parameterized lookup, straight to SQL Server (localhost).
-			// Both routes now run the SAME statement, so the only difference is the
-			// path they travel — direct vs the Quentra gateway's cache.
-			err = m.db.QueryRowContext(ctx, quentraSQL, sql.Named("key", key)).
+			// Same bad SQL, straight to SQL Server (:1433) — no rewrite possible.
+			err = m.db.QueryRowContext(ctx, appSQL).
 				Scan(&ref, &date, &amount, &price, &trcode)
 		}
 		dur := time.Since(start)

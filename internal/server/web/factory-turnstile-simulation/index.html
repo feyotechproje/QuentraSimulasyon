@@ -139,7 +139,7 @@
         </div>
 
         <!-- Queue Heatmap -->
-        <div class="panel">
+        <div class="panel" id="heatmapPanel">
           <div class="panel-head"><span class="ph-title" data-i18n="panel.queueHeatmap">Queue Heatmap</span></div>
           <div class="heatmap" id="heatmap"></div>
           <div class="heat-legend">
@@ -197,34 +197,46 @@
 
     <!-- Full-width comparison band beneath the two floors -->
     <section class="compare-band">
-        <!-- Query rewrite before/after comparison -->
+        <!-- Query journey: what the app SENT vs what SQL Server RECEIVED on
+             each route. Live mode fills all three from one real card check,
+             tied together by the traceId. -->
         <div class="panel rewrite-panel">
           <div class="panel-head">
-            <span class="ph-title" data-i18n="rewrite.title">Last Movement Query · Before / After Rewrite</span>
+            <span class="ph-title" data-i18n="sq.title">Last Movement Query · Application → Routes</span>
+            <span class="ph-tag sq-src" id="sqSource" data-i18n="sq.source.demo">REPRESENTATIVE</span>
             <span class="ph-tag rw-improve" id="rwImprove" data-i18n="rewrite.compareHint">Run both modes to compare</span>
           </div>
-          <div class="rewrite">
-            <div class="rw-col rw-before" id="rwBefore" data-active="true">
-              <div class="rw-col-head"><span class="rw-mode" data-i18n="rewrite.before.mode">Baseline — before Quentra</span></div>
-              <pre class="rw-sql" data-i18n="rewrite.before.sql">SELECT TOP 1 movement_type
-FROM   access_movements
-WHERE  employee_id = @id
-ORDER  BY movement_time DESC;
--- scans every row, no usable index</pre>
+          <div class="rewrite rewrite-3col">
+            <div class="rw-col sq-app" id="sqApp">
+              <div class="rw-col-head">
+                <span class="rw-mode" data-i18n="sq.app.mode">WHAT THE APPLICATION SENDS</span>
+                <span class="sq-badge" data-i18n="sq.app.badge">App changes: 0</span>
+              </div>
+              <pre class="rw-sql" id="sqAppSql"></pre>
+              <div class="sq-trace" id="sqAppTrace">—</div>
+            </div>
+            <div class="rw-col rw-before" id="sqDirect">
+              <div class="rw-col-head">
+                <span class="rw-mode" data-i18n="sq.direct.mode">DIRECT ROUTE (:1433)</span>
+                <span class="sq-badge" id="sqDirectBadge" data-tone="warn" data-i18n="sq.direct.badge">Rewrite: none</span>
+              </div>
+              <pre class="rw-sql" id="sqDirectSql"></pre>
               <div class="rw-metric"><span class="rw-m-label" data-i18n="rewrite.metric.avgQuery">Avg last-movement query</span><span class="rw-m-val" id="rwBaseAvg">—</span></div>
               <div class="rw-bar"><i id="rwBaseBar" class="slow"></i></div>
               <div class="rw-meta" id="rwBaseMeta">0 checks</div>
+              <div class="sq-trace" id="sqDirectTrace">—</div>
             </div>
-            <div class="rw-col rw-after" id="rwAfter" data-active="false">
-              <div class="rw-col-head"><span class="rw-mode" data-i18n="rewrite.after.mode">Quentra — after rewrite</span></div>
-              <pre class="rw-sql" data-i18n="rewrite.after.sql">SELECT last_movement_type
-FROM   employee_last_movement
-WHERE  employee_id = @id;
--- covering index / cached projection
--- O(1) keyed read, no scan</pre>
+            <div class="rw-col rw-after" id="sqQuentra">
+              <div class="rw-col-head">
+                <span class="rw-mode" data-i18n="sq.quentra.mode">QUENTRA ROUTE (:14330)</span>
+                <span class="sq-badge" id="sqQnBadge" data-i18n="sq.quentra.waiting">Awaiting rule</span>
+              </div>
+              <div class="sq-transport" id="sqTransport">SQLBatch → SQLBatch</div>
+              <pre class="rw-sql" id="sqQuentraSql"></pre>
               <div class="rw-metric"><span class="rw-m-label" data-i18n="rewrite.metric.avgQuery">Avg last-movement query</span><span class="rw-m-val" id="rwQnAvg">—</span></div>
               <div class="rw-bar"><i id="rwQnBar" class="fast"></i></div>
               <div class="rw-meta" id="rwQnMeta">0 checks</div>
+              <div class="sq-trace" id="sqQnTrace">—</div>
             </div>
           </div>
         </div>

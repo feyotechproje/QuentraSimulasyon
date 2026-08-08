@@ -97,6 +97,11 @@ export function renderSqlPair(el, s) {
   const isBaseline = mode === 'baseline' || mode === 'reference' || mode === 'like';
   const isQuentra = mode === 'quentra';
 
+  // ruleMatched is measured (DMV capture): only then may the Quentra block
+  // claim a rewrite. Without a rule the gateway passes the text through.
+  const qnLabel = s.ruleMatched === true ? '<b>rewrite · ölçüldü</b>'
+    : s.ruleMatched === false ? '<b>kural yok · aynen geçti</b>'
+    : '<b>optimize</b>';
   const directBlk =
     `<div class="lp-sqlblk direct is-active">
        <div class="lp-sqlh">Direkt bağlantı · <b>kötü sorgu</b></div>
@@ -104,7 +109,7 @@ export function renderSqlPair(el, s) {
      </div>`;
   const quentraBlk =
     `<div class="lp-sqlblk quentra is-active">
-       <div class="lp-sqlh">Quentra <span>:14330</span> · <b>optimize</b>${gwDown ? ' · <i>gw kapalı → direkt</i>' : ''}</div>
+       <div class="lp-sqlh">Quentra <span>:14330</span> · ${qnLabel}${gwDown ? ' · <i>gw kapalı</i>' : ''}</div>
        <pre>${esc(s.quentraSql || '')}</pre>
      </div>`;
 

@@ -66,10 +66,10 @@ function rollOutcome() {
   return { movement: MOVEMENT.NONE, decision: DECISION.DENIED, reason: "Invalid card" };
 }
 
-/** Abstract contract. A future ApiFactoryAccessDataSource can implement this. */
+/** Abstract contract. requestCheck may return the result OR a Promise of it. */
 export class SimulationDataSource {
   // eslint-disable-next-line no-unused-vars
-  requestCheck(_employee) {
+  requestCheck(_employee, _gate, _route) {
     throw new Error("not implemented");
   }
 }
@@ -94,6 +94,84 @@ export class InMemoryFactoryAccessDataSource extends SimulationDataSource {
       duration, // seconds the CHECKING_LAST_MOVEMENT state should last
       slow: duration >= this.profile.slowThreshold,
       timeout: !!outcome.timeout || duration >= this.profile.timeoutThreshold,
+      live: false,
+    };
+  }
+}
+
+// Visual narration time for a live check: the REAL query finishes in
+// milliseconds, but the audience needs a beat to read the pipeline. KPIs use
+// the measured sqlMs — this constant is presentation only.
+export const LIVE_VISUAL_SECONDS = 1.2;
+
+/**
+ * Live source: the turnstile decision comes from ONE real SQL query per card
+ * read (POST /api/access/check). The response carries the applicationSql /
+ * directBackendSql / quentraBackendSql triple plus the traceId that ties the
+ * on-screen worker to the captured statements.
+ */
+export class ApiFactoryAccessDataSource extends SimulationDataSource {
+  /** @param {"direct"|"quentra"} route the bank's fixed query route */
+  constructor(route) {
+    super();
+    this.route = route === "quentra" ? "quentra" : "direct";
+  }
+
+  async requestCheck(employee, gate) {
+    let r;
+    try {
+      const resp = await fetch("/api/access/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId: employee.employeeId,
+          turnstileId: gate ? gate.label : "",
+          route: this.route,
+        }),
+      });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      r = await resp.json();
+    } catch (err) {
+      // Network/API failure is reported as itself — never a fabricated pass.
+      return {
+        requestedAction: "ENTRY",
+        rule: "Previous movement must be EXIT",
+        lastMovement: MOVEMENT.NONE,
+        decision: DECISION.MANUAL,
+        reason: "Movement query failed",
+        duration: LIVE_VISUAL_SECONDS,
+        sqlMs: 0,
+        slow: false,
+        timeout: true,
+        live: true,
+        error: String(err && err.message ? err.message : err),
+      };
+    }
+
+    return {
+      requestedAction: "ENTRY",
+      rule: "Previous movement must be EXIT",
+      lastMovement: r.lastMovement || MOVEMENT.NONE,
+      decision: r.decision || DECISION.MANUAL,
+      reason: r.reason || "Movement query failed",
+      // Visual hold so the pipeline is readable; the KPI clock uses sqlMs.
+      duration: LIVE_VISUAL_SECONDS,
+      sqlMs: r.elapsedMs || 0,
+      slow: (r.elapsedMs || 0) >= 250,
+      timeout: r.evidence === "error",
+      live: true,
+      traceId: r.traceId || "",
+      ruleMatched: !!r.ruleMatched,
+      gatewayUp: !!r.gatewayUp,
+      applicationSql: r.applicationSql || "",
+      directBackendSql: r.directBackendSql || "",
+      quentraBackendSql: r.quentraBackendSql || "",
+      inputTransport: r.inputTransport || "SQLBatch",
+      outputTransport: r.outputTransport || "SQLBatch",
+      directMs: r.directMs || 0,
+      quentraMs: r.quentraMs || 0,
+      key: r.key || 0,
+      error: r.error || "",
     };
   }
 }
